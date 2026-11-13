@@ -40,6 +40,7 @@ Links stehen fertige Sorten:
 
 Eine Box antippen setzt sie auf das nächste freie Feld. Danach:
 
+- **Wunschliste** (aufklappbar unter dem Editor): Anzahl je Sorte angeben, „Wünsche platzieren“ setzt sie zuerst (größte zuerst, bei Bedarf um 90° gedreht, an die erste freie Stelle), optional füllt das Tool danach den Rest. Passt etwas nicht, steht in der Meldung, wie viele von wie vielen platziert wurden und warum. Zu hohe Sorten werden in der Höhe abgesenkt, wenn die Schublade niedrig ist.
 - **Freie Felder automatisch füllen**: setzt auf jedes freie Feld die größte passende Rasterbox (bis 3 × 3 Felder, so hoch wie die Schublade erlaubt, höchstens 3 Stufen). Vorhandene Boxen bleiben unverändert, und Felder unter platzierten eigenen Teilen bleiben frei.
 - ziehen oder mit den Tasten Links, Rechts, Nach vorn, Nach hinten verschieben
 - drehen (90°)
@@ -58,10 +59,19 @@ Jedes Teil besteht aus Formen in der Draufsicht (Ursprung links unten, Millimete
 
 - Werkzeug wählen, mit gedrückter Maustaste ziehen (Rechteck, Kreis) oder Punkte anklicken (Vieleck; Klick auf den ersten Punkt, Enter oder „Fertig“ schließt).
 - **Rückgängig / Wiederholen:** Knöpfe in der Werkzeugleiste oder Strg+Z und Strg+Y (Strg+Umschalt+Z) mit dem Zeichenblatt im Fokus. Aufeinanderfolgende Eingaben in Zahlenfeldern zählen als ein Schritt; ein Ziehen ist ein Schritt.
+- **Maße anzeigen:** Breite, Tiefe und Durchmesser stehen am Blatt, auch live beim Ziehen. Bei der gewählten Form kommen Vieleck-Kantenlängen dazu. Der Haken „Maße anzeigen“ schaltet sie aus.
 - Das Raster rastet den Zeiger ein (0,1 bis 10 mm).
 - „Auswählen“: Form anklicken und ziehen, Entf löscht. Zahlenfelder ändern die genauen Maße.
 - **In die Schublade stellen:** Mit dem Haken „In die Schublade stellen“ erscheint ein Lageplan. Das Teil lässt sich ziehen, per Zahl setzen und um 90° drehen. Es steht auf der Platte und darf keine Box und kein anderes Teil überlappen, nicht aus der Schublade ragen und nicht höher sein als die nutzbare Höhe. Platzierte Teile erscheinen grau mit ihrer Nummer im Montageplan.
 - Auf der Startseite gibt es „Eigene Teile zeichnen“ ohne Schublade. Dann entstehen nur diese Teile und eine Stückliste, kein Montageplan.
+
+**Stufen und Ebenen**
+- Jede Form kann **Starthöhe** und **Höhe** bekommen. Ohne Angabe reicht sie von 0 bis zur Standardhöhe. Mit Starthöhe reicht sie von dort bis zur Standardhöhe, sofern keine eigene Höhe gesetzt ist. So entstehen Sockel mit Aufsatz, Wände auf einer Platte oder Absätze.
+- Bei Löchern bedeuten die Felder „ab Höhe“ und „Tiefe“: so lassen sich Taschen mitten im Teil schneiden. Ohne Angabe schneidet ein Loch ab dem Boden nach oben durch.
+- Die Gesamthöhe ist die höchste Oberkante. Höhere Formen sind in der Vorschau dunkler.
+- Alle Formen müssen zusammen **einen** Körper ergeben. Eine schwebende Form, die nichts berührt, meldet der Export.
+
+**Vorlagen:** Unter „Aus Vorlage“ gibt es Platte mit Bohrungen, Winkelhalter, Stufenblock, Schale mit Mulde und Stabhalter. Sie legen ein neues Teil an, das du frei ändern kannst.
 
 **Rundungen und Fasen**
 - **Eckenradius** am Rechteck (Formfeld, 0 = eckig): höchstens die halbe kürzere Seite.

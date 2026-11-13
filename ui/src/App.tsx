@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { api, dateiUrl, gesundheit, jobStatus, leereSchublade, Schublade } from "./api";
 import { Editor } from "./editor";
-import { Box } from "./layout";
+import { Box, KATALOG } from "./layout";
 import { Vorschau } from "./preview";
 import { Eigenteil, neuesTeil, teilVonServer } from "./zeichnen";
 import { Zeichnen } from "./zeichenblatt";
@@ -70,6 +70,8 @@ export function App() {
   const [boxen, setBoxen] = useState<Box[]>([]);
   const [eigene, setEigene] = useState<Eigenteil[]>([]);
   const [nurEigene, setNurEigene] = useState(false);
+  const [wuensche, setWuensche] = useState<Record<string, number>>({});
+  const [restFuellen, setRestFuellen] = useState(true);
   const [plan, setPlan] = useState<Plan | null>(null);
   const [dienst, setDienst] = useState<boolean | null>(null);
   const [recent, setRecent] = useState<Array<{ pfad: string; name: string }>>([]);
@@ -129,9 +131,19 @@ export function App() {
     if (antwort.result) setPlan(antwort.result);
   }
 
-  async function automatischFuellen() {
+  async function automatischFuellen(mitWuenschen = false) {
     setMeldung("");
-    const antwort = await api<{ neu: number }>("autofill", { projekt, max_zellen: 3 });
+    const liste = mitWuenschen
+      ? Object.entries(wuensche)
+          .filter(([, anzahl]) => anzahl > 0)
+          .map(([sorte, anzahl]) => ({ sorte, anzahl }))
+      : [];
+    const antwort = await api<{ neu: number; hinweise?: string[] }>("autofill", {
+      projekt,
+      max_zellen: 3,
+      wuensche: liste,
+      rest_fuellen: mitWuenschen ? restFuellen : true,
+    });
     if (!antwort.ok || !antwort.projekt) {
       setMeldung(antwort.fehler || "Die Schublade ließ sich nicht automatisch füllen.");
       return;
@@ -139,7 +151,8 @@ export function App() {
     const roh = antwort.projekt as Record<string, unknown>;
     const neueBoxen = ((roh.boxen as Array<Record<string, unknown>>) || []).map(boxVonServer);
     await boxenAktualisieren(neueBoxen);
-    setMeldung((antwort.result?.neu ?? 0) + " Boxen ergänzt. Vorhandene Boxen blieben unverändert.");
+    const hinweise = (antwort.result?.hinweise || []).join(" ");
+    setMeldung(`${antwort.result?.neu ?? 0} Boxen ergänzt. Vorhandene Boxen blieben unverändert. ${hinweise}`.trim());
   }
 
   async function speichern() {
@@ -367,6 +380,33 @@ export function App() {
             <section>
               <h1>Boxen stellen</h1>
               <Editor breite={schublade.innenbreite_mm} tiefe={schublade.innentiefe_mm} plan={plan} boxen={boxen} onChange={boxenAktualisieren} />
+              <details className="wunschliste" data-testid="wunschliste">
+                <summary>Wunschliste: Was brauchst du?</summary>
+                <p className="leise">Das Tool setzt die gewünschten Boxen zuerst an freie Stellen (größte zuerst, bei Bedarf gedreht) und füllt danach optional den Rest. Vorhandene Boxen und platzierte eigene Teile bleiben unberührt.</p>
+                <div className="formular">
+                  {KATALOG.map((eintrag) => (
+                    <label key={eintrag.id}>
+                      {eintrag.name} <small>({eintrag.text})</small>
+                      <input
+                        data-testid={`wunsch-${eintrag.id}`}
+                        inputMode="numeric"
+                        value={String(wuensche[eintrag.id] ?? 0)}
+                        onChange={(e) => {
+                          const zahl = Math.max(0, Math.min(200, Math.round(Number(e.target.value) || 0)));
+                          setWuensche({ ...wuensche, [eintrag.id]: zahl });
+                        }}
+                      />
+                    </label>
+                  ))}
+                </div>
+                <label className="check">
+                  <input type="checkbox" data-testid="wunsch-rest" checked={restFuellen} onChange={(e) => setRestFuellen(e.target.checked)} />
+                  Übrige freie Felder danach automatisch füllen
+                </label>
+                <button type="button" className="primaer" data-testid="wuensche-platzieren" onClick={() => automatischFuellen(true)}>
+                  Wünsche platzieren
+                </button>
+              </details>
               <Vorschau
                 breite={schublade.innenbreite_mm}
                 tiefe={schublade.innentiefe_mm}
@@ -377,7 +417,7 @@ export function App() {
                 dateien={null}
               />
               <div className="knopfzeile">
-                <button type="button" data-testid="auto-fuellen" onClick={automatischFuellen}>
+                <button type="button" data-testid="auto-fuellen" onClick={() => automatischFuellen(false)}>
                   Freie Felder automatisch füllen
                 </button>
                 <button type="button" onClick={() => setSchritt(4)}>

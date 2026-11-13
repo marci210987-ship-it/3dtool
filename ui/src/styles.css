@@ -206,3 +206,6 @@ input, select {
 @media (max-width: 900px) {
   .zeichnen { grid-template-columns: 1fr; }
 }
+
+.wunschliste { background: #fffdf8; border-radius: 16px; padding: 0.8rem; margin: 0.8rem 0; }
+.wunschliste summary { cursor: pointer; font-weight: 600; }

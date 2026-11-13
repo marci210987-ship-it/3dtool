@@ -34,7 +34,7 @@ from hausraster_const import (  # noqa: E402
     pruefe_parameter,
 )
 from hausraster_plan import plane_schublade, plan_als_text  # noqa: E402
-from sidecar.eigenteil import Eigenteil, eigen_params, eigenteil_pruefen, eigenteil_rechteck_mm  # noqa: E402
+from sidecar.eigenteil import Eigenteil, eigen_params, eigenteil_hoehe, eigenteil_pruefen, eigenteil_rechteck_mm  # noqa: E402
 
 
 FORMAT = "cadstudio.projekt"
@@ -212,7 +212,7 @@ def platzierte_eigene_pruefen(projekt: "Projekt", plan) -> list[str]:
         x, y, w, d = rect
         if x < links - 1e-6 or y < vorne - 1e-6 or x + w > rechts + 1e-6 or y + d > hinten + 1e-6:
             fehler.append("%s liegt nicht vollständig in der Schublade." % name)
-        hoehe = float(eigen.hoehe_mm) + float(sch.boden_platte_mm)
+        hoehe = eigenteil_hoehe(eigen) + float(sch.boden_platte_mm)
         if hoehe > float(sch.nutzhoehe_mm) + 1e-6:
             fehler.append("%s braucht %.1f mm Höhe, die Schublade hat nur %.1f mm nutzbare Höhe." % (name, hoehe, sch.nutzhoehe_mm))
         for box, brect in boxen:

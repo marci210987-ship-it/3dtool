@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { aussenmass, kreisAus, neuesTeil, polygonAus, rechteckAus, rechteckMm, runden, teilVonServer, verschieben } from "./zeichnen";
+import { aussenmass, formHoehen, gesamthoehe, hoehenanteil, massangaben, VORLAGEN, zahlText, kreisAus, neuesTeil, polygonAus, rechteckAus, rechteckMm, runden, teilVonServer, verschieben } from "./zeichnen";
 
 describe("Zeichnen", () => {
   it("rastet auf das Raster ein", () => {
@@ -58,5 +58,50 @@ describe("Zeichnen", () => {
     const neu = teilVonServer({ id: "E2", kante_oben_art: "rund", kante_oben_mm: 1.5, kante_unten_mm: 0.6 });
     expect([neu.kante_oben_art, neu.kante_oben_mm, neu.kante_unten_mm]).toEqual(["rund", 1.5, 0.6]);
     expect(teilVonServer({ id: "E3", kante_oben_art: "quatsch" }).kante_oben_art).toBe("keine");
+  });
+
+  it("liefert Maßangaben mit deutscher Zahlenschreibweise", () => {
+    expect(zahlText(12)).toBe("12");
+    expect(zahlText(12.54)).toBe("12,5");
+    expect(zahlText(0.04)).toBe("0");
+    const rechteck = massangaben({ typ: "rechteck", x: 10, y: 5, b: 40, t: 30, loch: false }, 4);
+    expect(rechteck.map((m) => m.text)).toEqual(["40", "30"]);
+    expect(rechteck[0]).toMatchObject({ x: 30, y: 39 });
+    expect(rechteck[1]).toMatchObject({ x: 54, y: 20 });
+    expect(massangaben({ typ: "kreis", x: 5, y: 5, r: 4.25, loch: true }, 4)[0].text).toBe("Ø 8,5");
+    const dreieck = { typ: "polygon" as const, punkte: [[0, 0], [30, 0], [0, 40]] as [number, number][], loch: false };
+    expect(massangaben(dreieck, 4)[0].text).toBe("30 × 40");
+    expect(massangaben(dreieck, 4, true).map((m) => m.text)).toEqual(["30", "50", "40"]);
+  });
+
+  it("berechnet Höhen von Formen und die Gesamthöhe", () => {
+    const teil = neuesTeil([]);
+    teil.hoehe_mm = 5;
+    teil.formen = [
+      { typ: "rechteck", x: 0, y: 0, b: 60, t: 40, loch: false },
+      { typ: "rechteck", x: 20, y: 10, b: 20, t: 20, loch: false, z_mm: 5, h_mm: 20 },
+      { typ: "kreis", x: 10, y: 20, r: 4, loch: true, z_mm: 2, h_mm: 2 },
+    ];
+    expect(formHoehen(teil.formen[0], 5)).toEqual({ z: 0, h: 5 });
+    expect(formHoehen({ typ: "rechteck", x: 0, y: 0, b: 1, t: 1, loch: false, z_mm: 3 }, 10)).toEqual({ z: 3, h: 7 });
+    expect(gesamthoehe(teil)).toBe(25);
+    expect(hoehenanteil(teil.formen[0], teil)).toBeCloseTo(0.2);
+    expect(hoehenanteil(teil.formen[1], teil)).toBe(1);
+    const nurLoch = { hoehe_mm: 8, formen: [{ typ: "kreis" as const, x: 0, y: 0, r: 2, loch: true }] };
+    expect(gesamthoehe(nurLoch)).toBe(8);
+  });
+
+  it("zeigt Höhenangaben in den Maßen und hat brauchbare Vorlagen", () => {
+    const m = massangaben({ typ: "rechteck", x: 0, y: 0, b: 10, t: 10, loch: false, z_mm: 5, h_mm: 20 }, 4);
+    expect(m.map((x) => x.text)).toContain("z 5 h 20");
+    expect(VORLAGEN.length).toBeGreaterThanOrEqual(4);
+    for (const v of VORLAGEN) {
+      const teil = { ...neuesTeil([]), ...v.erzeuge() };
+      expect(teil.formen.length).toBeGreaterThan(0);
+      expect(aussenmass(teil.formen)).not.toBeNull();
+      expect(gesamthoehe(teil)).toBeGreaterThan(0);
+      expect(gesamthoehe(teil)).toBeLessThanOrEqual(256);
+    }
+    expect(new Set(VORLAGEN.map((v) => v.id)).size).toBe(VORLAGEN.length);
   });
 });

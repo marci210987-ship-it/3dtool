@@ -199,11 +199,17 @@ def _eigen_shape(params: dict):
             draht = Part.makePolygon(pts + [pts[0]])
         flaeche = Part.Face(draht)
         if form.get("loch"):
-            koerper = flaeche.extrude(App.Vector(0, 0, hoehe - boden + 1.0))
-            koerper.translate(App.Vector(0, 0, boden))
+            # Loch: Standard ab Boden bis über die Oberkante, mit z_mm/h_mm auch als Tasche an beliebiger Höhe
+            z0 = float(form["z_mm"]) if form.get("z_mm") not in (None, "") else boden
+            h0 = float(form["h_mm"]) if form.get("h_mm") not in (None, "") else hoehe - z0 + 1.0
+            koerper = flaeche.extrude(App.Vector(0, 0, h0))
+            koerper.translate(App.Vector(0, 0, z0))
             minus.append(koerper)
         else:
-            koerper = flaeche.extrude(App.Vector(0, 0, hoehe))
+            z0 = float(form.get("z_mm") or 0.0)
+            h0 = float(form["h_mm"]) if form.get("h_mm") not in (None, "") else hoehe - z0
+            koerper = flaeche.extrude(App.Vector(0, 0, h0))
+            koerper.translate(App.Vector(0, 0, z0))
             plus = koerper if plus is None else plus.fuse(koerper)
     if plus is None:
         raise ValueError("Keine Form, die Material hinzufügt.")
@@ -293,7 +299,11 @@ def baue_teil(teil: dict, out_dir: Path) -> dict:
         stl = out_dir / ("%s.stl" % datei_id)
         fcstd = out_dir / ("%s.FCStd" % datei_id)
         if not info["valid"] or info["solids"] != 1 or info["volume_mm3"] <= 1.0:
-            fehler.append("%s ist kein einzelner gültiger Körper." % datei_id)
+            fehler.append(
+                "%s besteht aus mehreren getrennten Körpern oder ist ungültig. Formen müssen sich berühren oder überlappen, auch in der Höhe." % datei_id
+                if teil["rolle"] == "eigen"
+                else "%s ist kein einzelner gültiger Körper." % datei_id
+            )
             dateien.append({"id": datei_id, "name": name, "ok": False, "solid": info, "stl": str(stl), "fcstd": str(fcstd)})
             continue
         bauraum = _bauraum_fehler(info["bbox_mm"])

@@ -103,6 +103,46 @@ class Kanten(unittest.TestCase):
         self.assertEqual((e.kante_oben_art, e.kante_oben_mm, e.kante_unten_mm), ("keine", 0.0, 0.0))
 
 
+class Stufen(unittest.TestCase):
+    def _stufenteil(self):
+        # Sockel 60x40x5, darauf Stütze 20x20 bis 25 mm Gesamthöhe, Tasche im Sockel
+        return Eigenteil(
+            id="E1", name="Halter", hoehe_mm=5,
+            formen=[
+                _rechteck(60, 40),
+                dict(_rechteck(20, 20, x=20, y=10), z_mm=5, h_mm=20),
+                dict(typ="kreis", x=10, y=20, r=4, loch=True, z_mm=2, h_mm=2),
+            ],
+        )
+
+    def test_gesamthoehe_und_pruefung(self):
+        from sidecar.eigenteil import eigenteil_hoehe
+        teil = self._stufenteil()
+        self.assertEqual(eigenteil_hoehe(teil), 25.0)
+        self.assertEqual(eigenteil_sollgroesse(teil)[2], 25.0)
+        self.assertEqual(eigenteil_pruefen(teil), [])
+
+    def test_ab_start_bis_teilhoehe(self):
+        from sidecar.eigenteil import form_hoehen
+        self.assertEqual(form_hoehen({"z_mm": 4}, 10), (4.0, 6.0))
+        self.assertEqual(form_hoehen({}, 10), (0.0, 10.0))
+        self.assertEqual(form_hoehen({"z_mm": 4, "h_mm": 2}, 10), (4.0, 2.0))
+
+    def test_ungueltige_hoehen(self):
+        self.assertTrue(eigenteil_pruefen(Eigenteil(id="E", hoehe_mm=5, formen=[dict(_rechteck(), z_mm=-1)])))
+        self.assertTrue(eigenteil_pruefen(Eigenteil(id="E", hoehe_mm=5, formen=[dict(_rechteck(), z_mm=5)])))  # ab Teilhöhe: Höhe 0
+        self.assertTrue(eigenteil_pruefen(Eigenteil(id="E", hoehe_mm=5, formen=[dict(_rechteck(), h_mm=0.1)])))
+        self.assertTrue(eigenteil_pruefen(Eigenteil(id="E", hoehe_mm=5, formen=[dict(_rechteck(), z_mm=250, h_mm=20)])))
+        self.assertTrue(eigenteil_pruefen(Eigenteil(id="E", hoehe_mm=5, formen=[dict(_rechteck(), z_mm="x")])))
+
+    def test_platzierte_hoehe_nutzt_gesamthoehe(self):
+        p = Projekt(schublade=Schublade(innenbreite_mm=300, innentiefe_mm=200, nutzhoehe_mm=20), eigene=[self._stufenteil()])
+        p.eigene[0].platziert, p.eigene[0].x_mm, p.eigene[0].y_mm = True, 100, 50
+        self.assertTrue(any("Höhe" in f for f in layout_pruefen(p)["fehler"]))
+        p.schublade.nutzhoehe_mm = 40
+        self.assertTrue(layout_pruefen(p)["ok"], layout_pruefen(p)["fehler"])
+
+
 class Platzierung(unittest.TestCase):
     def _projekt(self, **eigen):
         teil = Eigenteil(id="E1", name="Halter", hoehe_mm=12, formen=[_rechteck(40, 30)], platziert=True, **eigen)
@@ -175,6 +215,65 @@ class NurEigene(unittest.TestCase):
     def test_leer_ist_fehler(self):
         self.assertFalse(layout_pruefen(Projekt(nur_eigene=True))["ok"])
         self.assertFalse(auftrag_bauen(Projekt(nur_eigene=True))["ok"])
+
+
+class Wunschliste(unittest.TestCase):
+    def _p(self, b=480, t=420, h=80):
+        return Projekt(schublade=Schublade(innenbreite_mm=b, innentiefe_mm=t, nutzhoehe_mm=h))
+
+    def test_wuensche_werden_platziert_und_rest_gefuellt(self):
+        p = self._p()
+        r = auto_bestuecken(p, wuensche=[{"sorte": "kabel", "anzahl": 1}, {"sorte": "besteckfach", "anzahl": 2}, {"sorte": "klein", "anzahl": 3}])
+        self.assertTrue(r["ok"], r)
+        namen = [b.name for b in p.boxen]
+        self.assertEqual(namen.count("Kabelbox"), 1)
+        self.assertEqual(namen.count("Besteckfach"), 2)
+        self.assertGreaterEqual(namen.count("Kleine Box"), 3)
+        self.assertTrue(all(w["platziert"] == w["gewuenscht"] for w in r["wuensche"]), r["wuensche"])
+        pruefung = layout_pruefen(p)
+        self.assertTrue(pruefung["ok"], pruefung["fehler"])
+        kabel = next(b for b in p.boxen if b.name == "Kabelbox")
+        self.assertTrue(kabel.kabelkerben)
+
+    def test_ohne_rest_fuellen(self):
+        p = self._p()
+        r = auto_bestuecken(p, wuensche=[{"sorte": "mittel", "anzahl": 2}], rest_fuellen=False)
+        self.assertEqual(len(p.boxen), 2)
+        self.assertEqual(r["neu"], 2)
+
+    def test_zu_viele_wuensche_werden_gemeldet(self):
+        p = self._p(b=100, t=100)
+        r = auto_bestuecken(p, wuensche=[{"sorte": "gross", "anzahl": 10}], rest_fuellen=False)
+        self.assertTrue(r["ok"])
+        self.assertLess(r["wuensche"][0]["platziert"], 10)
+        self.assertTrue(any("von 10 platziert" in h for h in r["hinweise"]), r["hinweise"])
+        self.assertTrue(layout_pruefen(p)["ok"])
+
+    def test_drehung_wenn_noetig(self):
+        # 3 Felder breit, 1 Feld tief: die 1x2-Box passt nur gedreht (2x1)
+        p = Projekt(schublade=Schublade(innenbreite_mm=130, innentiefe_mm=44, nutzhoehe_mm=80))
+        auto_bestuecken(p, wuensche=[{"sorte": "schmal", "anzahl": 1}], rest_fuellen=False)
+        self.assertEqual(len(p.boxen), 1)
+        self.assertEqual(p.boxen[0].rotation, 90)
+        self.assertTrue(layout_pruefen(p)["ok"], layout_pruefen(p)["fehler"])
+
+    def test_zu_niedrige_sorte_wird_abgesenkt_oder_gemeldet(self):
+        p = self._p(h=30)
+        r = auto_bestuecken(p, wuensche=[{"sorte": "kabel", "anzahl": 1}, {"sorte": "besteck", "anzahl": 1}], rest_fuellen=False)
+        self.assertTrue(r["ok"])
+        kabel = [b for b in p.boxen if b.name == "Kabelbox"]
+        if kabel:
+            self.assertLess(kabel[0].ez, 4)
+        self.assertTrue(layout_pruefen(p)["ok"], layout_pruefen(p)["fehler"])
+
+    def test_unbekannte_sorte_und_teile_bleiben_frei(self):
+        p = Projekt(
+            schublade=Schublade(innenbreite_mm=300, innentiefe_mm=200, nutzhoehe_mm=80),
+            eigene=[Eigenteil(id="E1", name="Halter", formen=[_rechteck(40, 30)], platziert=True, x_mm=100, y_mm=50)],
+        )
+        r = auto_bestuecken(p, wuensche=[{"sorte": "quatsch", "anzahl": 2}, {"sorte": "mittel", "anzahl": 4}])
+        self.assertTrue(any("Unbekannte Sorte" in h for h in r["hinweise"]))
+        self.assertTrue(layout_pruefen(p)["ok"], layout_pruefen(p)["fehler"])
 
 
 class Autofill(unittest.TestCase):
@@ -270,6 +369,34 @@ class MitFreeCAD(unittest.TestCase):
             self.assertIsInstance(r["ok"], bool)
             if not r["ok"]:
                 self.assertTrue(any("Obere Kante" in f or "Kante" in f for f in r["fehler"]), r["fehler"])
+
+    def test_stufenteil_export(self):
+        from sidecar.engine import generiere
+
+        teil = Eigenteil(
+            id="E1", name="Halter", hoehe_mm=5,
+            formen=[
+                _rechteck(60, 40),
+                dict(_rechteck(20, 20, x=20, y=10), z_mm=5, h_mm=20),
+                dict(typ="kreis", x=10, y=20, r=4, loch=True, z_mm=2, h_mm=2),
+            ],
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            r = generiere(Projekt(nur_eigene=True, eigene=[teil]), Path(tmp), freecad_pfad=os.environ["FREECADCMD"])
+            self.assertTrue(r["ok"], r["fehler"])
+            solid = r["teile"][0]["dateien"][0]["solid"]
+            self.assertAlmostEqual(solid["bbox_mm"][2], 25.0, delta=0.1)
+            erwartet = 60 * 40 * 5 + 20 * 20 * 20 - 3.14159 * 16 * 2
+            self.assertAlmostEqual(solid["volume_mm3"], erwartet, delta=2.0)
+
+    def test_schwebende_form_wird_gemeldet(self):
+        from sidecar.engine import generiere
+
+        teil = Eigenteil(id="E1", hoehe_mm=5, formen=[_rechteck(30, 30), dict(_rechteck(10, 10, x=60, y=0), z_mm=3, h_mm=2)])
+        with tempfile.TemporaryDirectory() as tmp:
+            r = generiere(Projekt(nur_eigene=True, eigene=[teil]), Path(tmp), freecad_pfad=os.environ["FREECADCMD"])
+            self.assertFalse(r["ok"])
+            self.assertTrue(any("getrennten Körpern" in f for f in r["fehler"]), r["fehler"])
 
 
 if __name__ == "__main__":

@@ -2,14 +2,19 @@ import { useId, useMemo, useRef, useState } from "react";
 import {
   aussenmass,
   Eigenteil,
+  gesamthoehe,
+  hoehenanteil,
   Form,
   kreisAus,
+  massangaben,
   neuesTeil,
   polygonAus,
   Punkt,
   rechteckAus,
   rechteckMm,
   runden,
+  VORLAGEN,
+  neueTeilId,
   verschieben,
 } from "./zeichnen";
 
@@ -65,6 +70,7 @@ export function Zeichnen({
   const [zeiger, setZeiger] = useState<Punkt | null>(null);
   const [auswahl, setAuswahl] = useState<number | null>(null);
   const [ziehen, setZiehen] = useState<Ziehen | null>(null);
+  const [masseAn, setMasseAn] = useState(true);
 
   const teil = teile.find((t) => t.id === aktivId) ?? teile[0] ?? null;
 
@@ -236,7 +242,7 @@ export function Zeichnen({
     }
   }
 
-  function setzeFeld(index: number, patch: Record<string, number | boolean>) {
+  function setzeFeld(index: number, patch: Record<string, number | boolean | undefined>) {
     if (!teil) return;
     formen(teil.formen.map((f, i) => (i === index ? ({ ...f, ...patch } as Form) : f)), "tippen");
   }
@@ -259,6 +265,29 @@ export function Zeichnen({
             </li>
           ))}
         </ul>
+        <label>
+          Aus Vorlage
+          <select
+            data-testid="vorlage"
+            value=""
+            onChange={(e) => {
+              const vorlage = VORLAGEN.find((v) => v.id === e.target.value);
+              if (!vorlage) return;
+              const neu = { ...neuesTeil(teile), ...vorlage.erzeuge(), id: neueTeilId(teile) } as Eigenteil;
+              onChange([...teile, neu]);
+              setAktivId(neu.id);
+              setAuswahl(null);
+              abbrechen();
+            }}
+          >
+            <option value="">Vorlage wählen …</option>
+            {VORLAGEN.map((v) => (
+              <option key={v.id} value={v.id} title={v.text}>
+                {v.name}
+              </option>
+            ))}
+          </select>
+        </label>
         <div className="knopfzeile">
           <button
             type="button"
@@ -323,6 +352,10 @@ export function Zeichnen({
                 Neue Form ist ein Loch
               </label>
               <label className="check">
+                <input type="checkbox" data-testid="masse-an" checked={masseAn} onChange={(e) => setMasseAn(e.target.checked)} />
+                Maße anzeigen
+              </label>
+              <label className="check">
                 Raster
                 <select value={raster} onChange={(e) => setRaster(Number(e.target.value))}>
                   {RASTER_AUSWAHL.map((r) => (
@@ -359,9 +392,9 @@ export function Zeichnen({
                 <line key={`h${i}`} x1={0} y1={H - i * 10} x2={W} y2={H - i * 10} stroke={i % 5 === 0 ? "#cfc7b6" : "#eee8dc"} strokeWidth={i % 5 === 0 ? 0.4 : 0.25} />
               ))}
               <g transform={`translate(0 ${H}) scale(1 -1)`}>
-                <g mask={`url(#m${maskenId})`} fill="#9fd0cb" stroke="#0f6e6e" strokeWidth={0.5}>
+                <g mask={`url(#m${maskenId})`} stroke="#0f6e6e" strokeWidth={0.5}>
                   {material.map(({ f, i }) => (
-                    <g key={i} onPointerDown={(e) => formGedrueckt(e, i)} style={{ cursor: werkzeug === "wahl" ? "move" : "crosshair" }} data-testid={`form-${i}`}>
+                    <g key={i} fill={hoehenFarbe(hoehenanteil(f, teil))} onPointerDown={(e) => formGedrueckt(e, i)} style={{ cursor: werkzeug === "wahl" ? "move" : "crosshair" }} data-testid={`form-${i}`}>
                       {formElement(f)}
                     </g>
                   ))}
@@ -392,6 +425,34 @@ export function Zeichnen({
                   </g>
                 )}
               </g>
+              {masseAn && (
+                <g fontFamily="Segoe UI, sans-serif" fontSize={W / 38} pointerEvents="none" textAnchor="middle">
+                  {[
+                    ...teil.formen.map((f, i) => ({ f, aktiv: i === auswahl })),
+                    ...(entwurf
+                      ? [{ f: entwurf.typ === "rechteck" ? rechteckAus(entwurf.a, entwurf.b, loch) : kreisAus(entwurf.a, entwurf.b, loch), aktiv: true }]
+                      : []),
+                  ].flatMap(({ f, aktiv }, k) =>
+                    f
+                      ? massangaben(f, W / 40, aktiv).map((m, j) => (
+                          <g key={`${k}-${j}`} data-testid="masse">
+                            {m.linie && <line x1={m.linie[0]} y1={H - m.linie[1]} x2={m.linie[2]} y2={H - m.linie[3]} stroke={aktiv ? "#1c1915" : "#8a8272"} strokeWidth={0.3} />}
+                            <text
+                              x={m.x}
+                              y={H - m.y + W / 110}
+                              fill={aktiv ? "#1c1915" : "#6b6455"}
+                              stroke="#fff"
+                              strokeWidth={W / 150}
+                              paintOrder="stroke"
+                            >
+                              {m.text}
+                            </text>
+                          </g>
+                        ))
+                      : [],
+                  )}
+                </g>
+              )}
             </svg>
             <p className="leise" data-testid="zeigerinfo">
               {zeiger ? `Zeiger: ${zeiger[0]} / ${zeiger[1]} mm` : "Ursprung links unten, Maße in Millimeter."}
@@ -406,7 +467,7 @@ export function Zeichnen({
               Name
               <input data-testid="teil-name" value={teil.name} onChange={(e) => aendereTeil((t) => ({ ...t, name: e.target.value }), "tippen")} />
             </label>
-            <Zahlfeld label="Höhe (mm)" wert={teil.hoehe_mm} testid="teil-hoehe" onChange={(v) => aendereTeil((t) => ({ ...t, hoehe_mm: v }), "tippen")} />
+            <Zahlfeld label="Standardhöhe (mm)" wert={teil.hoehe_mm} testid="teil-hoehe" onChange={(v) => aendereTeil((t) => ({ ...t, hoehe_mm: v }), "tippen")} />
             <Zahlfeld label="Boden unter Löchern (mm, 0 = durchgehend)" wert={teil.boden_mm} testid="teil-boden" onChange={(v) => aendereTeil((t) => ({ ...t, boden_mm: v }), "tippen")} />
             <Zahlfeld label="Anzahl" wert={teil.anzahl} onChange={(v) => aendereTeil((t) => ({ ...t, anzahl: Math.max(1, Math.round(v)) }), "tippen")} />
             <label>
@@ -426,8 +487,8 @@ export function Zeichnen({
             )}
             <Zahlfeld label="Fase unten (mm, gegen Elefantenfuß)" wert={teil.kante_unten_mm} testid="kante-unten" onChange={(v) => aendereTeil((t) => ({ ...t, kante_unten_mm: Math.max(0, v) }), "tippen")} />
             <p className="leise" data-testid="teil-mass">
-              {maß ? `Außenmaß ${maß.breite} × ${maß.tiefe} × ${teil.hoehe_mm} mm` : "Noch keine Form, die Material hinzufügt."}
-              {maß && (maß.breite > 256 || maß.tiefe > 256 || teil.hoehe_mm > 256) && " · passt nicht aufs Druckbett (256 mm)"}
+              {maß ? `Außenmaß ${maß.breite} × ${maß.tiefe} × ${gesamthoehe(teil)} mm` : "Noch keine Form, die Material hinzufügt."}
+              {maß && (maß.breite > 256 || maß.tiefe > 256 || gesamthoehe(teil) > 256) && " · passt nicht aufs Druckbett (256 mm)"}
             </p>
 
             {lageplan && maß && (
@@ -493,6 +554,18 @@ export function Zeichnen({
                   </>
                 )}
                 {gewaehlt.typ === "polygon" && <p className="leise">{gewaehlt.punkte.length} Punkte. Zum Verschieben ziehen.</p>}
+                <OptZahlfeld
+                  label={gewaehlt.loch ? "Loch ab Höhe (mm, leer = ab Boden)" : "Starthöhe (mm, leer = 0)"}
+                  wert={gewaehlt.z_mm}
+                  testid="form-z"
+                  onChange={(v) => setzeFeld(auswahl, { z_mm: v })}
+                />
+                <OptZahlfeld
+                  label={gewaehlt.loch ? "Lochtiefe (mm, leer = bis oben)" : "Höhe der Form (mm, leer = bis Teilhöhe)"}
+                  wert={gewaehlt.h_mm}
+                  testid="form-h"
+                  onChange={(v) => setzeFeld(auswahl, { h_mm: v })}
+                />
               </div>
             )}
             {fehler.length > 0 && (
@@ -608,5 +681,32 @@ function LageplanAnsicht({
         );
       })}
     </svg>
+  );
+}
+
+/** Hell bis dunkel je nach Oberkante der Form: höhere Formen erscheinen dunkler. */
+function hoehenFarbe(anteil: number): string {
+  const von = [207, 232, 228];
+  const bis = [95, 168, 160];
+  const mix = von.map((v, i) => Math.round(v + (bis[i] - v) * anteil));
+  return `rgb(${mix[0]}, ${mix[1]}, ${mix[2]})`;
+}
+
+function OptZahlfeld({ label, wert, onChange, testid }: { label: string; wert: number | undefined; onChange: (v: number | undefined) => void; testid?: string }) {
+  return (
+    <label>
+      {label}
+      <input
+        data-testid={testid}
+        inputMode="decimal"
+        value={wert === undefined ? "" : String(wert)}
+        onChange={(e) => {
+          const text = e.target.value.trim().replace(",", ".");
+          if (text === "") return onChange(undefined);
+          const zahl = Number(text);
+          if (Number.isFinite(zahl)) onChange(zahl);
+        }}
+      />
+    </label>
   );
 }

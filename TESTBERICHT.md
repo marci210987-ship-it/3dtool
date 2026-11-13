@@ -75,4 +75,12 @@ FreeCAD 1.1.4 (portable Windows-Version py311), Python 3.14, Node 22. Nichts hie
 
 Fund: FreeCADs einfache `BoundBox` ist bei gekrümmten Flächen um bis zu ~1 mm zu groß und hätte Drucklage und Maßprüfung verfälscht. Der Worker nutzt jetzt `optimalBoundingBox()`. Die bisherigen Abnahmetests laufen damit unverändert durch.
 
+### Nachtrag: Bemaßung, Wunschliste, Stufenteile, Vorlagen
+
+| Prüfung | Ergebnis |
+|---|---|
+| 8 Python-Module mit FreeCAD | bestanden, 60 Tests, 1 übersprungen. Neu: Wunschliste (Platzierung, Drehung, Rest füllen, zu viele Wünsche, niedrige Schublade, unbekannte Sorte, platzierte Teile bleiben frei), Stufenteile (Höhenlogik, Prüfung, Export mit Volumenprüfung, schwebende Form wird gemeldet) |
+| `npm test`, `npm run build` | bestanden, 14 Tests (neu: Maßangaben, Höhen, Vorlagen) |
+| Live im Browser | alle fünf Vorlagen in einem Lauf exportiert, STL nachgemessen: Außenmaße und Volumina wie erwartet (z. B. Stufenblock 21 600 mm³ = 14 400 + 7 200). Wunschliste: 1 Kabelbox, 2 Besteckfächer, 3 kleine Boxen und 1 Bestecksortierer platziert, Rest bewusst nicht gefüllt |
+
 Nicht ausgeführt: `npx playwright test` (Spezifikation auf die neue Schrittnummer „5. Drucken“ angepasst, aber nicht gelaufen), Start des Windows-Installers, Druck auf dem P2S, Passung der Füllplatten und Spiele.

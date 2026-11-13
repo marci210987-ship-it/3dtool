@@ -63,6 +63,31 @@ def eigen_params(teil: "Eigenteil") -> dict:
     }
 
 
+def form_hoehen(form: dict, teil_hoehe: float) -> tuple[float, float]:
+    """Starthöhe z und Höhe h einer hinzufügenden Form.
+
+    Ohne Angabe: Start bei 0 und bis zur Teilhöhe. Mit ``z_mm`` ohne ``h_mm``: ab z bis zur Teilhöhe.
+    """
+    z = float(form.get("z_mm") or 0.0)
+    h = form.get("h_mm")
+    h = float(h) if h not in (None, "") else float(teil_hoehe) - z
+    return z, h
+
+
+def eigenteil_hoehe(teil: "Eigenteil") -> float:
+    """Gesamthöhe: höchste Oberkante aller Formen, die Material hinzufügen."""
+    hoechste = 0.0
+    for form in teil.formen:
+        if form.get("loch"):
+            continue
+        try:
+            z, h = form_hoehen(form, float(teil.hoehe_mm))
+        except (TypeError, ValueError):
+            continue
+        hoechste = max(hoechste, z + h)
+    return hoechste if hoechste > 0 else float(teil.hoehe_mm)
+
+
 def _zahl(wert, name: str) -> float:
     try:
         zahl = float(wert)
@@ -151,8 +176,9 @@ def eigenteil_pruefen(teil: Eigenteil, bauraum_mm=(256.0, 256.0, 256.0)) -> list
         fehler.append("%s: Kantenmaße dürfen nicht negativ sein." % name)
     if teil.kante_oben_art == "keine" and oben > 0:
         fehler.append("%s: Für die obere Kante ist keine Art gewählt." % name)
-    if oben + unten > hoehe / 2.0 + 1e-9 and (oben > 0 or unten > 0):
-        fehler.append("%s: Obere und untere Kante zusammen dürfen höchstens die halbe Höhe (%.1f mm) betragen." % (name, hoehe / 2.0))
+    gesamt = eigenteil_hoehe(teil)
+    if oben + unten > gesamt / 2.0 + 1e-9 and (oben > 0 or unten > 0):
+        fehler.append("%s: Obere und untere Kante zusammen dürfen höchstens die halbe Höhe (%.1f mm) betragen." % (name, gesamt / 2.0))
     if len(teil.formen) > MAX_FORMEN:
         return fehler + ["%s: Zu viele Formen (höchstens %d)." % (name, MAX_FORMEN)]
     additiv = 0
@@ -194,6 +220,22 @@ def eigenteil_pruefen(teil: Eigenteil, bauraum_mm=(256.0, 256.0, 256.0)) -> list
         except (ValueError, TypeError, IndexError) as exc:
             fehler.append("%s: %s" % (marke, exc))
             continue
+        try:
+            z0 = float(form.get("z_mm") or 0.0)
+            hh = form.get("h_mm")
+            if z0 < 0:
+                fehler.append("%s: Starthöhe darf nicht negativ sein." % marke)
+            elif not form.get("loch"):
+                z0, hh = form_hoehen(form, hoehe)
+                if hh < MIN_MASS_MM:
+                    fehler.append("%s: Die Höhe der Form (%.1f mm) ist zu klein; Starthöhe und Höhe prüfen." % (marke, hh))
+                elif z0 + hh > float(bauraum_mm[2]) + 1e-6:
+                    fehler.append("%s: Oberkante bei %.1f mm liegt über dem Bauraum." % (marke, z0 + hh))
+            elif hh not in (None, "") and float(hh) < MIN_MASS_MM:
+                fehler.append("%s: Die Höhe des Lochs ist zu klein." % marke)
+        except (TypeError, ValueError):
+            fehler.append("%s: Starthöhe oder Höhe ist keine Zahl." % marke)
+            continue
         if not form.get("loch"):
             additiv += 1
             x0, y0, x1, y1 = min(x0, bx0), min(y0, by0), max(x1, bx1), max(y1, by1)
@@ -219,7 +261,7 @@ def eigenteil_sollgroesse(teil: Eigenteil) -> list[float] | None:
         x0, y0, x1, y1 = min(x0, bx0), min(y0, by0), max(x1, bx1), max(y1, by1)
     if x0 == math.inf:
         return None
-    return [round(x1 - x0, 3), round(y1 - y0, 3), round(float(teil.hoehe_mm), 3)]
+    return [round(x1 - x0, 3), round(y1 - y0, 3), round(eigenteil_hoehe(teil), 3)]
 
 
 def eigenteil_rechteck_mm(teil: Eigenteil) -> tuple[float, float, float, float] | None:

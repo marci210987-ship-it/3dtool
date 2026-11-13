@@ -244,7 +244,12 @@ class Handler(BaseHTTPRequestHandler):
                 from sidecar.layout import Projekt
 
                 projekt = Projekt.from_dict(anfrage.get("projekt") or {})
-                antwort = auto_bestuecken(projekt, int(anfrage.get("max_zellen") or 3))
+                antwort = auto_bestuecken(
+                    projekt,
+                    int(anfrage.get("max_zellen") or 3),
+                    wuensche=anfrage.get("wuensche") or None,
+                    rest_fuellen=bool(anfrage.get("rest_fuellen", True)),
+                )
                 _json(self, 200, {"ok": antwort["ok"], "fehler": "; ".join(antwort["fehler"]), "result": antwort, "projekt": projekt.to_dict()})
                 return
             if cmd == "save":
