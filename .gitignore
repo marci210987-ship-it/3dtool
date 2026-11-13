@@ -1,0 +1,21 @@
+node_modules/
+test-results/
+playwright-report/
+blob-report/
+ui/dist/
+src-tauri/target/
+__pycache__/
+*.pyc
+.pytest_cache/
+tests/out/
+*.AppImage
+squashfs-root/
+.DS_Store
+export_*/
+Montageuebersicht.png
+# Mitgeliefertes Python (wird von scripts/python_einbetten.py eingerichtet)
+src-tauri/python/*
+!src-tauri/python/.gitkeep
+.cache/
+
+src-tauri/gen/

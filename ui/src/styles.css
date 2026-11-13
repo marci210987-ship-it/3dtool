@@ -1,0 +1,226 @@
+:root {
+  color: #1c1915;
+  background: #f3efe6;
+  font-family: "Segoe UI", "Source Sans 3", sans-serif;
+  font-size: 17px;
+  line-height: 1.45;
+}
+
+* { box-sizing: border-box; }
+
+body { margin: 0; }
+
+button, input, select {
+  font: inherit;
+}
+
+button {
+  border: 1px solid #1c1915;
+  background: #fff;
+  border-radius: 999px;
+  padding: 0.45rem 0.9rem;
+  cursor: pointer;
+}
+
+button:disabled { opacity: 0.45; cursor: not-allowed; }
+
+button.primaer, .marke {
+  background: #0f6e6e;
+  color: #fff;
+  border-color: #0f6e6e;
+}
+
+button.still { background: transparent; }
+
+.app { min-height: 100vh; }
+
+header {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  padding: 0.8rem 1.2rem;
+  background: #fffdf8;
+  border-bottom: 1px solid #e4ddd0;
+}
+
+header p { margin: 0; color: #5c564c; flex: 1; }
+
+main { padding: 1.2rem 1.4rem 3rem; max-width: 1180px; }
+
+h1 { font-size: 1.8rem; margin: 0.2rem 0 0.6rem; }
+
+.leise, .hinweis { color: #5c564c; }
+
+.kacheln {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 0.8rem;
+  margin: 1rem 0;
+}
+
+.kachel {
+  text-align: left;
+  border-radius: 18px;
+  padding: 1rem;
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-height: 140px;
+}
+
+.kachel.vorbereitung { background: #e7e2d8; color: #5c564c; }
+
+.kachel em {
+  font-style: normal;
+  font-size: 0.85rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.schritte {
+  display: flex;
+  gap: 0.4rem;
+  padding: 0;
+  list-style: none;
+}
+
+.schritte button { border-radius: 12px; }
+
+.schritte .aktiv button { background: #1c1915; color: #fff; }
+
+.formular {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 0.7rem 1rem;
+  margin: 1rem 0;
+}
+
+label { display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.95rem; }
+
+input, select {
+  border: 1px solid #cfc6b8;
+  border-radius: 10px;
+  padding: 0.45rem 0.6rem;
+  background: #fff;
+}
+
+.editor {
+  display: grid;
+  grid-template-columns: 230px 1fr 240px;
+  gap: 0.8rem;
+  align-items: start;
+}
+
+.katalog ul, .recent { list-style: none; padding: 0; margin: 0; }
+
+.katalog button, .recent button {
+  width: 100%;
+  border-radius: 14px;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 0.4rem;
+}
+
+.flaeche svg {
+  width: 100%;
+  height: auto;
+  background: #fff;
+  border-radius: 16px;
+  border: 1px solid #e4ddd0;
+  touch-action: none;
+}
+
+.schublade-rand { fill: #fff; stroke: #1c1915; stroke-width: 1.2; }
+.feld { fill: #f7f4ee; stroke: #e4ddd0; stroke-width: 0.3; }
+.feld.frei { fill: #e5f3ef; }
+.platte { fill: none; stroke: #0f6e6e; stroke-width: 0.8; }
+.plattenname { font-size: 6px; fill: #0f6e6e; }
+.box rect { fill: #f3d2a4; stroke: #1c1915; stroke-width: 0.5; }
+.box.aktiv rect { fill: #9fd0cb; }
+.box.konflikt rect { fill: #e7a3a8; }
+.box text { font-size: 7px; }
+
+.eigenschaften, .katalog {
+  background: #fffdf8;
+  border-radius: 16px;
+  padding: 0.8rem;
+}
+
+.knopfzeile { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.6rem; }
+
+.alarm {
+  background: #fde8e4;
+  border: 1px solid #a33b2b;
+  color: #6d241c;
+  border-radius: 12px;
+  padding: 0.7rem 0.9rem;
+  margin: 0.8rem 0;
+}
+
+.erfolg {
+  background: #e5f3ef;
+  border-radius: 12px;
+  padding: 0.7rem 0.9rem;
+}
+
+.buehne { min-height: 360px; background: #f7f4ee; border-radius: 16px; }
+
+.kennzeichnung { font-size: 0.95rem; }
+
+.check { flex-direction: row; align-items: center; gap: 0.4rem; }
+
+.dateien a { color: #0f6e6e; }
+
+.speichern { display: flex; gap: 0.6rem; align-items: end; margin-top: 1rem; flex-wrap: wrap; }
+
+.datei input { margin-top: 0.3rem; }
+
+@media (max-width: 900px) {
+  .editor { grid-template-columns: 1fr; }
+  header { flex-wrap: wrap; }
+}
+
+.zeichnen {
+  display: grid;
+  grid-template-columns: 200px 1fr 280px;
+  gap: 0.8rem;
+  align-items: start;
+}
+
+.teileliste {
+  background: #fffdf8;
+  border-radius: 16px;
+  padding: 0.8rem;
+}
+
+.teileliste ul, .formliste { list-style: none; padding: 0; margin: 0; }
+.teileliste li button { width: 100%; text-align: left; margin-bottom: 0.3rem; }
+.teileliste li button.aktiv, .werkzeuge button.aktiv { background: #1c1915; color: #fff; }
+.werkzeuge { display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; margin-bottom: 0.4rem; }
+.formliste li { display: flex; gap: 0.3rem; margin-bottom: 0.3rem; }
+.formliste li button:first-child { flex: 1; text-align: left; }
+.formliste li.aktiv button:first-child { background: #9fd0cb; }
+
+@media (max-width: 900px) {
+  .zeichnen { grid-template-columns: 1fr; }
+}
+
+.wunschliste { background: #fffdf8; border-radius: 16px; padding: 0.8rem; margin: 0.8rem 0; }
+.wunschliste summary { cursor: pointer; font-weight: 600; }
+
+.vorlage-speichern { margin: 0.6rem 0; }
+.meine-vorlagen ul { list-style: none; padding: 0; margin: 0.3rem 0 0; }
+.meine-vorlagen li { display: flex; justify-content: space-between; align-items: center; gap: 0.3rem; margin-bottom: 0.2rem; }
+.ausrichten { margin: 0.4rem 0; }
+.stil { flex-direction: row; align-items: center; gap: 0.4rem; }
+
+.muster { background: #f7f4ee; border-radius: 12px; padding: 0.5rem 0.7rem; margin: 0.5rem 0; }
+.muster summary { cursor: pointer; font-weight: 600; }
+.muster h3 { font-size: 0.95rem; margin: 0.7rem 0 0.3rem; }
+
+.masse-eingabe { border: 2px solid #0f6e6e; border-radius: 8px; padding: 0.15rem 0.3rem; font-size: 0.95rem; background: #fff; }
+
+.import-panel { margin: 0.6rem 0; }
+.import-panel ul { padding-left: 1.1rem; margin: 0.3rem 0; font-size: 0.85rem; }

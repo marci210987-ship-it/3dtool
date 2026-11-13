@@ -1,0 +1,106 @@
+# -*- coding: utf-8 -*-
+# Hausraster-Schubladenplaner
+# Fragt Schubladenmass ab, berechnet den Rasterplan und erzeugt bei Bedarf
+# eine bearbeitbare FCStd-Datei je Platte im gewählten Ordner.
+
+import sys
+from pathlib import Path
+
+CANDIDATES = [
+    Path.home() / ".local/share/FreeCAD/Mod/Hausraster",
+    Path(__file__).resolve().parent.parent / "src",
+    Path(__file__).resolve().parent.parent / "FreeCAD_Mod" / "Hausraster",
+]
+for c in CANDIDATES:
+    if c.exists() and str(c) not in sys.path:
+        sys.path.insert(0, str(c))
+
+import FreeCAD as App
+from hausraster_const import SCHUBLADENSPIEL_STANDARD, default_params
+from hausraster_plan import plane_schublade, plan_als_text
+from hausraster_geom import make_plate_shape
+from hausraster_fcstd import create_document
+
+try:
+    import FreeCADGui as Gui
+    has_gui = True
+except Exception:
+    has_gui = False
+
+def _ask(msg, default):
+    if has_gui:
+        from PySide import QtGui
+        text, ok = QtGui.QInputDialog.getText(None, "Hausraster Schubladenplaner", msg, text=str(default))
+        if not ok:
+            return None
+        return text
+    return default
+
+def run(breite=None, tiefe=None, spiel=None, zielordner=None, erzeugen=False):
+    if breite is None:
+        t = _ask("Schubladenbreite innen in mm:", "450")
+        if t is None:
+            return
+        breite = float(t.replace(",", "."))
+    if tiefe is None:
+        t = _ask("Schubladentiefe innen in mm:", "350")
+        if t is None:
+            return
+        tiefe = float(t.replace(",", "."))
+    if spiel is None:
+        t = _ask("Spiel je Seite in mm (damit die Platte nicht klemmt):", str(SCHUBLADENSPIEL_STANDARD))
+        if t is None:
+            return
+        spiel = float(str(t).replace(",", "."))
+    plan = plane_schublade(breite, tiefe, spiel)
+    text = plan_als_text(plan)
+    App.Console.PrintMessage(text + "\n")
+    if has_gui:
+        from PySide import QtGui
+        QtGui.QMessageBox.information(None, "Hausraster Schubladenplan", text)
+        if not plan.ungueltig:
+            antwort = QtGui.QMessageBox.question(
+                None, "Platten erzeugen?",
+                "Soll für jede Platte eine FCStd-Datei erzeugt werden?",
+                QtGui.QMessageBox.Yes | QtGui.QMessageBox.No,
+            )
+            erzeugen = antwort == QtGui.QMessageBox.Yes
+            if erzeugen and zielordner is None:
+                zielordner = QtGui.QFileDialog.getExistingDirectory(None, "Zielordner für die Platten")
+                if not zielordner:
+                    erzeugen = False
+    if erzeugen and not plan.ungueltig:
+        out = Path(zielordner)
+        out.mkdir(parents=True, exist_ok=True)
+        (out / "Plan.txt").write_text(text, encoding="utf-8")
+        src = Path(__file__).resolve().parent.parent / "src"
+        for i, pl in enumerate(plan.platten, 1):
+            params = default_params(
+                Einheiten_X=pl.einheiten_x,
+                Einheiten_Y=pl.einheiten_y,
+                Rand_X_links=pl.rand_x_links,
+                Rand_X_rechts=pl.rand_x_rechts,
+                Rand_Y_vorne=pl.rand_y_vorne,
+                Rand_Y_hinten=pl.rand_y_hinten,
+                Verbinder=1,
+                Verriegelung=1,
+            )
+            shape = make_plate_shape(params)
+            name = "HR_Grundplatte_%dx%d_R%d" % (pl.einheiten_x, pl.einheiten_y, i)
+            create_document(
+                name, params, {"Grundplatte": shape},
+                out / (name + ".FCStd"), src,
+                bemerkung="Erzeugt vom Schubladenplaner. Position im Raster: (%d, %d)." % (
+                    pl.pos_einheit_x, pl.pos_einheit_y
+                ),
+            )
+            shape.exportStep(str(out / (name + ".step")))
+        App.Console.PrintMessage("Platten gespeichert in %s\n" % out)
+    return plan
+
+if __name__ == "__main__" or True:
+    # Im Macro-Kontext immer ausführen, sofern nicht als Modul importiert
+    # und von build_phase2 gesteuert (dann ist HR_PLANNER_IMPORT gesetzt).
+    import os
+    if not os.environ.get("HR_PLANNER_IMPORT"):
+        run()
