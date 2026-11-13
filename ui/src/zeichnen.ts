@@ -3,9 +3,11 @@
 export type Punkt = [number, number];
 
 export type Form =
-  | { typ: "rechteck"; x: number; y: number; b: number; t: number; loch: boolean }
+  | { typ: "rechteck"; x: number; y: number; b: number; t: number; loch: boolean; radius?: number }
   | { typ: "kreis"; x: number; y: number; r: number; loch: boolean }
   | { typ: "polygon"; punkte: Punkt[]; loch: boolean };
+
+export type KantenArt = "keine" | "fase" | "rund";
 
 export interface Eigenteil {
   id: string;
@@ -19,6 +21,9 @@ export interface Eigenteil {
   x_mm: number;
   y_mm: number;
   drehung: number;
+  kante_oben_art: KantenArt;
+  kante_oben_mm: number;
+  kante_unten_mm: number;
 }
 
 export const MIN_MM = 0.4;
@@ -41,7 +46,7 @@ export function neueTeilId(vorhanden: Eigenteil[]): string {
 
 export function neuesTeil(vorhanden: Eigenteil[]): Eigenteil {
   const id = neueTeilId(vorhanden);
-  return { id, name: `Eigenes Teil ${id.slice(1)}`, hoehe_mm: 10, boden_mm: 0, anzahl: 1, formen: [], notiz: "", platziert: false, x_mm: 0, y_mm: 0, drehung: 0 };
+  return { id, name: `Eigenes Teil ${id.slice(1)}`, hoehe_mm: 10, boden_mm: 0, anzahl: 1, formen: [], notiz: "", platziert: false, x_mm: 0, y_mm: 0, drehung: 0, kante_oben_art: "keine", kante_oben_mm: 0, kante_unten_mm: 0 };
 }
 
 export function formBox(form: Form): [number, number, number, number] {
@@ -105,6 +110,9 @@ export function teilVonServer(roh: Record<string, unknown>): Eigenteil {
     x_mm: Number(roh.x_mm ?? 0),
     y_mm: Number(roh.y_mm ?? 0),
     drehung: Number(roh.drehung ?? 0),
+    kante_oben_art: (["fase", "rund"].includes(String(roh.kante_oben_art)) ? roh.kante_oben_art : "keine") as KantenArt,
+    kante_oben_mm: Number(roh.kante_oben_mm ?? 0),
+    kante_unten_mm: Number(roh.kante_unten_mm ?? 0),
   };
 }
 

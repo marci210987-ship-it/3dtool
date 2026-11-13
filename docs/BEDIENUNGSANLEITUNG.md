@@ -63,7 +63,13 @@ Jedes Teil besteht aus Formen in der Draufsicht (Ursprung links unten, Millimete
 - **In die Schublade stellen:** Mit dem Haken „In die Schublade stellen“ erscheint ein Lageplan. Das Teil lässt sich ziehen, per Zahl setzen und um 90° drehen. Es steht auf der Platte und darf keine Box und kein anderes Teil überlappen, nicht aus der Schublade ragen und nicht höher sein als die nutzbare Höhe. Platzierte Teile erscheinen grau mit ihrer Nummer im Montageplan.
 - Auf der Startseite gibt es „Eigene Teile zeichnen“ ohne Schublade. Dann entstehen nur diese Teile und eine Stückliste, kein Montageplan.
 
-Grenzen: keine Rundungen, Schrägen, Gewinde oder mehrere Ebenen. Ein Vieleck darf sich nicht selbst schneiden. Maße über 256 mm werden abgelehnt.
+**Rundungen und Fasen**
+- **Eckenradius** am Rechteck (Formfeld, 0 = eckig): höchstens die halbe kürzere Seite.
+- **Obere Kante** des Teils: scharfkantig, Fase oder Rundung mit Größe in mm. Sie wirkt auf die Außenkante der Oberseite, nicht auf Löcher.
+- **Fase unten** (mm): bricht die untere Außenkante, gegen den „Elefantenfuß“ beim Druck.
+- Obere und untere Kante zusammen dürfen höchstens die halbe Höhe betragen. Passt ein Wert geometrisch nicht, meldet der Export das und bleibt gesperrt.
+
+Grenzen: keine Schrägen, Rundungen an Löchern, Gewinde oder mehrere Ebenen. Ein Vieleck darf sich nicht selbst schneiden. Maße über 256 mm werden abgelehnt.
 
 ## 5. Berechnen und speichern
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { aussenmass, kreisAus, neuesTeil, polygonAus, rechteckAus, rechteckMm, runden, verschieben } from "./zeichnen";
+import { aussenmass, kreisAus, neuesTeil, polygonAus, rechteckAus, rechteckMm, runden, teilVonServer, verschieben } from "./zeichnen";
 
 describe("Zeichnen", () => {
   it("rastet auf das Raster ein", () => {
@@ -48,5 +48,15 @@ describe("Zeichnen", () => {
     expect(rechteckMm(teil)).toEqual({ x: 12, y: 7, b: 30, t: 40 });
     teil.formen = [];
     expect(rechteckMm(teil)).toBeNull();
+  });
+
+  it("hat Standardwerte für Kanten und liest alte Dateien", () => {
+    const teil = neuesTeil([]);
+    expect([teil.kante_oben_art, teil.kante_oben_mm, teil.kante_unten_mm]).toEqual(["keine", 0, 0]);
+    const alt = teilVonServer({ id: "E1", name: "Alt", formen: [] });
+    expect([alt.kante_oben_art, alt.kante_oben_mm, alt.kante_unten_mm]).toEqual(["keine", 0, 0]);
+    const neu = teilVonServer({ id: "E2", kante_oben_art: "rund", kante_oben_mm: 1.5, kante_unten_mm: 0.6 });
+    expect([neu.kante_oben_art, neu.kante_oben_mm, neu.kante_unten_mm]).toEqual(["rund", 1.5, 0.6]);
+    expect(teilVonServer({ id: "E3", kante_oben_art: "quatsch" }).kante_oben_art).toBe("keine");
   });
 });

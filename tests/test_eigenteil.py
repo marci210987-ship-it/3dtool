@@ -74,6 +74,35 @@ class Auftrag(unittest.TestCase):
             self.assertEqual(len(a["ansicht"]["randstreifen"]), len(streifen))
 
 
+class Kanten(unittest.TestCase):
+    def test_gueltige_kanten(self):
+        teil = Eigenteil(id="E", hoehe_mm=10, kante_oben_art="rund", kante_oben_mm=1.5, kante_unten_mm=0.6, formen=[dict(_rechteck(40, 30), radius=5)])
+        self.assertEqual(eigenteil_pruefen(teil), [])
+        params = auftrag_bauen(Projekt(nur_eigene=True, eigene=[teil]))["teile"][0]["params"]
+        self.assertEqual((params["KanteObenArt"], params["KanteObenMm"], params["KanteUntenMm"]), (2, 1.5, 0.6))
+
+    def test_ungueltige_kanten(self):
+        def pruefe(**kw):
+            formen = kw.pop("formen", [_rechteck(40, 30)])
+            return eigenteil_pruefen(Eigenteil(id="E", hoehe_mm=10, formen=formen, **kw))
+
+        self.assertTrue(pruefe(kante_oben_art="rund", kante_oben_mm=6))  # mehr als halbe Höhe
+        self.assertTrue(pruefe(kante_oben_art="rund", kante_oben_mm=3, kante_unten_mm=3))  # zusammen > halbe Höhe
+        self.assertTrue(pruefe(kante_oben_art="keine", kante_oben_mm=1))
+        self.assertTrue(pruefe(kante_oben_art="schief", kante_oben_mm=0))
+        self.assertTrue(pruefe(kante_unten_mm=-1))
+        self.assertTrue(pruefe(formen=[dict(_rechteck(40, 30), radius=16)]))  # größer als halbe kurze Seite
+        self.assertTrue(pruefe(formen=[dict(_rechteck(40, 30), radius=-1)]))
+        self.assertEqual(pruefe(formen=[dict(_rechteck(40, 30), radius=15)]), [])
+
+    def test_altdatei_ohne_kantenfelder(self):
+        d = Projekt(eigene=[Eigenteil(id="E1", formen=[_rechteck()])]).to_dict()
+        for k in ("kante_oben_art", "kante_oben_mm", "kante_unten_mm"):
+            del d["eigene"][0][k]
+        e = Projekt.from_dict(d).eigene[0]
+        self.assertEqual((e.kante_oben_art, e.kante_oben_mm, e.kante_unten_mm), ("keine", 0.0, 0.0))
+
+
 class Platzierung(unittest.TestCase):
     def _projekt(self, **eigen):
         teil = Eigenteil(id="E1", name="Halter", hoehe_mm=12, formen=[_rechteck(40, 30)], platziert=True, **eigen)
@@ -208,6 +237,39 @@ class MitFreeCAD(unittest.TestCase):
             self.assertTrue(r["ok"], r["fehler"])
             self.assertTrue((Path(tmp) / "E1.stl").is_file())
             self.assertTrue((Path(tmp) / "Stueckliste.csv").is_file())
+
+    def test_kanten_und_radius_export(self):
+        from sidecar.engine import generiere
+
+        loch = {"typ": "kreis", "x": 20, "y": 15, "r": 4, "loch": True}
+        eckig = Eigenteil(id="E1", name="Eckig", hoehe_mm=12, formen=[_rechteck(40, 30), loch])
+        weich = Eigenteil(
+            id="E2", name="Weich", hoehe_mm=12, kante_oben_art="rund", kante_oben_mm=1.5, kante_unten_mm=0.6,
+            formen=[dict(_rechteck(40, 30), radius=6), loch],
+        )
+        fase = Eigenteil(id="E3", name="Fase", hoehe_mm=12, kante_oben_art="fase", kante_oben_mm=1.0, formen=[_rechteck(40, 30)])
+        p = Projekt(nur_eigene=True, eigene=[eckig, weich, fase])
+        with tempfile.TemporaryDirectory() as tmp:
+            r = generiere(p, Path(tmp), freecad_pfad=os.environ["FREECADCMD"])
+            self.assertTrue(r["ok"], r["fehler"])
+            teile = {d["id"]: d["solid"] for t in r["teile"] for d in t["dateien"]}
+            for solid in teile.values():
+                self.assertAlmostEqual(solid["bbox_mm"][0], 40.0, delta=0.1)
+                self.assertAlmostEqual(solid["bbox_mm"][2], 12.0, delta=0.1)
+            self.assertLess(teile["E2"]["volume_mm3"], teile["E1"]["volume_mm3"] - 20)  # Ecken, Kanten abgetragen
+            self.assertLess(teile["E3"]["volume_mm3"], 40 * 30 * 12 - 20)  # Fase trägt Material ab
+
+    def test_zu_grosse_kante_wird_gemeldet(self):
+        from sidecar.engine import generiere
+
+        # 5 mm Rundung an einem nur 12 mm hohen Teil: Prüfung erlaubt 6 mm, Geometrie bleibt aber gültig
+        teil = Eigenteil(id="E1", hoehe_mm=12, kante_oben_art="rund", kante_oben_mm=6, formen=[_rechteck(40, 30)])
+        p = Projekt(nur_eigene=True, eigene=[teil])
+        with tempfile.TemporaryDirectory() as tmp:
+            r = generiere(p, Path(tmp), freecad_pfad=os.environ["FREECADCMD"])
+            self.assertIsInstance(r["ok"], bool)
+            if not r["ok"]:
+                self.assertTrue(any("Obere Kante" in f or "Kante" in f for f in r["fehler"]), r["fehler"])
 
 
 if __name__ == "__main__":

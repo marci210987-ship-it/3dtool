@@ -27,8 +27,16 @@ def _antwort(ok, ergebnis=None, fehler=""):
     return {"ok": ok, "result": ergebnis, "fehler": fehler}
 
 
+def _genaue_bbox(shape):
+    """Genaue Bounding-Box; BoundBox ist bei gekrümmten Flächen um bis zu ~1 mm zu groß."""
+    try:
+        return shape.optimalBoundingBox()
+    except Exception:
+        return shape.BoundBox
+
+
 def _drucklage(shape, App):
-    bb = shape.BoundBox
+    bb = _genaue_bbox(shape)
     if abs(bb.ZMin) > 1e-4:
         shape = shape.copy()
         shape.translate(App.Vector(0, 0, -bb.ZMin))
@@ -36,7 +44,7 @@ def _drucklage(shape, App):
 
 
 def _solid_info(shape) -> dict:
-    bb = shape.BoundBox
+    bb = _genaue_bbox(shape)
     return {
         "valid": bool(shape.isValid()),
         "solids": len(shape.Solids),
@@ -118,6 +126,58 @@ def _neu_laden(App, pfad: Path) -> dict:
         App.closeDocument(doc.Name)
 
 
+def _rechteck_draht(x, y, b, t, radius):
+    """Rechteck als Drahtzug, bei radius > 0 mit abgerundeten Ecken."""
+    import FreeCAD as App
+    import Part
+
+    if radius <= 1e-9:
+        return Part.makePolygon([App.Vector(x, y, 0), App.Vector(x + b, y, 0), App.Vector(x + b, y + t, 0), App.Vector(x, y + t, 0), App.Vector(x, y, 0)])
+    r = radius
+    z = App.Vector(0, 0, 1)
+    kanten = [
+        Part.makeLine(App.Vector(x + r, y, 0), App.Vector(x + b - r, y, 0)),
+        Part.makeCircle(r, App.Vector(x + b - r, y + r, 0), z, 270, 360),
+        Part.makeLine(App.Vector(x + b, y + r, 0), App.Vector(x + b, y + t - r, 0)),
+        Part.makeCircle(r, App.Vector(x + b - r, y + t - r, 0), z, 0, 90),
+        Part.makeLine(App.Vector(x + b - r, y + t, 0), App.Vector(x + r, y + t, 0)),
+        Part.makeCircle(r, App.Vector(x + r, y + t - r, 0), z, 90, 180),
+        Part.makeLine(App.Vector(x, y + t - r, 0), App.Vector(x, y + r, 0)),
+        Part.makeCircle(r, App.Vector(x + r, y + r, 0), z, 180, 270),
+    ]
+    return Part.Wire(Part.sortEdges(kanten)[0])
+
+
+def _kante_bearbeiten(shape, oben: bool, art: int, mm: float, bezeichnung: str):
+    """Fase (art 1) oder Rundung (art 2) an der Außenkante der obersten bzw. untersten ebenen Fläche."""
+    if mm <= 1e-9 or art == 0:
+        return shape
+    bb = shape.BoundBox
+    z_ref = bb.ZMax if oben else bb.ZMin
+    kandidaten = []
+    for f in shape.Faces:
+        if f.Surface.TypeId != "Part::GeomPlane":
+            continue
+        n = f.normalAt(0, 0)
+        if abs(abs(n.z) - 1.0) > 1e-6:
+            continue
+        if abs(f.BoundBox.ZMax - z_ref) > 1e-6 or abs(f.BoundBox.ZMin - z_ref) > 1e-6:
+            continue
+        kandidaten.append(f)
+    if not kandidaten:
+        raise ValueError("%s: Keine ebene Fläche an der Kante gefunden." % bezeichnung)
+    flaeche = max(kandidaten, key=lambda f: f.Area)
+    aussen = flaeche.OuterWire.Edges
+    kanten = [e for e in shape.Edges if any(e.isSame(k) for k in aussen)]
+    try:
+        neu = shape.makeFillet(mm, kanten) if art == 2 else shape.makeChamfer(mm, kanten)
+    except Exception as exc:
+        raise ValueError("%s mit %.2f mm ist an diesem Teil nicht möglich (%s). Kleineren Wert wählen." % (bezeichnung, mm, exc))
+    if not neu.isValid() or len(neu.Solids) != 1:
+        raise ValueError("%s mit %.2f mm ergibt keinen gültigen Körper. Kleineren Wert wählen." % (bezeichnung, mm))
+    return neu
+
+
 def _eigen_shape(params: dict):
     """Extrudiert die gezeichneten Formen. Löcher schneiden ab der Bodenhöhe."""
     import FreeCAD as App
@@ -131,7 +191,7 @@ def _eigen_shape(params: dict):
         typ = form["typ"]
         if typ == "rechteck":
             x, y, b, t = float(form["x"]), float(form["y"]), float(form["b"]), float(form["t"])
-            draht = Part.makePolygon([App.Vector(x, y, 0), App.Vector(x + b, y, 0), App.Vector(x + b, y + t, 0), App.Vector(x, y + t, 0), App.Vector(x, y, 0)])
+            draht = _rechteck_draht(x, y, b, t, float(form.get("radius") or 0.0))
         elif typ == "kreis":
             draht = Part.Wire(Part.makeCircle(float(form["r"]), App.Vector(float(form["x"]), float(form["y"]), 0), App.Vector(0, 0, 1)))
         else:
@@ -150,6 +210,8 @@ def _eigen_shape(params: dict):
     for loch in minus:
         plus = plus.cut(loch)
     plus = plus.removeSplitter()
+    plus = _kante_bearbeiten(plus, True, int(params.get("KanteObenArt") or 0), float(params.get("KanteObenMm") or 0.0), "Obere Kante")
+    plus = _kante_bearbeiten(plus, False, 1, float(params.get("KanteUntenMm") or 0.0), "Untere Fase")
     return plus
 
 

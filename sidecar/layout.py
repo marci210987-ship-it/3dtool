@@ -34,7 +34,7 @@ from hausraster_const import (  # noqa: E402
     pruefe_parameter,
 )
 from hausraster_plan import plane_schublade, plan_als_text  # noqa: E402
-from sidecar.eigenteil import Eigenteil, eigenteil_pruefen, eigenteil_rechteck_mm  # noqa: E402
+from sidecar.eigenteil import Eigenteil, eigen_params, eigenteil_pruefen, eigenteil_rechteck_mm  # noqa: E402
 
 
 FORMAT = "cadstudio.projekt"
@@ -575,7 +575,7 @@ def auftrag_bauen(projekt: Projekt) -> dict:
         teile = [
             {
                 "id": e.id, "rolle": "eigen", "name": e.name,
-                "params": {"Hoehe": float(e.hoehe_mm), "Boden": float(e.boden_mm), "Formen": e.formen},
+                "params": eigen_params(e),
                 "soll_mm": None, "lage": None, "anzahl": int(e.anzahl), "passt_in_bauraum": True,
             }
             for e in projekt.eigene
@@ -736,11 +736,7 @@ def auftrag_bauen(projekt: Projekt) -> dict:
                 "id": eigen.id,
                 "rolle": "eigen",
                 "name": eigen.name,
-                "params": {
-                    "Hoehe": float(eigen.hoehe_mm),
-                    "Boden": float(eigen.boden_mm),
-                    "Formen": eigen.formen,
-                },
+                "params": eigen_params(eigen),
                 "soll_mm": None,
                 "lage": _eigen_lage(eigen, projekt),
                 "anzahl": int(eigen.anzahl),

@@ -65,4 +65,14 @@ FreeCAD 1.1.4 (portable Windows-Version py311), Python 3.14, Node 22. Nichts hie
 | `npm test`, `npm run build` | bestanden, 10 Tests (neu: Verlauf neues Teil, getippter Name, Rückgängig/Wiederholen) |
 | Live im Browser | zwei Rechtecke gezeichnet, Strg+Z (2 → 1 Form), Strg+Y (1 → 2 Formen) |
 
+### Nachtrag: Rundungen und Fasen
+
+| Prüfung | Ergebnis |
+|---|---|
+| 8 Python-Module mit FreeCAD | bestanden, 48 Tests, 1 übersprungen. Neu: Kantenprüfung, Export mit Eckenradius, Rundung oben, Fase unten und reiner Fase (Volumen kleiner als der Quader, Bounding-Box unverändert) |
+| `npm test`, `npm run build` | bestanden, 11 Tests |
+| Live im Browser | Rechteck mit Eckenradius 8 mm, Rundung oben 1,5 mm und Fase unten 0,6 mm exportiert; STL wasserdicht, 70 × 40 × 10 mm, 27 312 mm³ gegenüber 28 000 mm³ beim Vollquader |
+
+Fund: FreeCADs einfache `BoundBox` ist bei gekrümmten Flächen um bis zu ~1 mm zu groß und hätte Drucklage und Maßprüfung verfälscht. Der Worker nutzt jetzt `optimalBoundingBox()`. Die bisherigen Abnahmetests laufen damit unverändert durch.
+
 Nicht ausgeführt: `npx playwright test` (Spezifikation auf die neue Schrittnummer „5. Drucken“ angepasst, aber nicht gelaufen), Start des Windows-Installers, Druck auf dem P2S, Passung der Füllplatten und Spiele.

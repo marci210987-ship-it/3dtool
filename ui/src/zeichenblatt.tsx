@@ -409,6 +409,22 @@ export function Zeichnen({
             <Zahlfeld label="Höhe (mm)" wert={teil.hoehe_mm} testid="teil-hoehe" onChange={(v) => aendereTeil((t) => ({ ...t, hoehe_mm: v }), "tippen")} />
             <Zahlfeld label="Boden unter Löchern (mm, 0 = durchgehend)" wert={teil.boden_mm} testid="teil-boden" onChange={(v) => aendereTeil((t) => ({ ...t, boden_mm: v }), "tippen")} />
             <Zahlfeld label="Anzahl" wert={teil.anzahl} onChange={(v) => aendereTeil((t) => ({ ...t, anzahl: Math.max(1, Math.round(v)) }), "tippen")} />
+            <label>
+              Obere Kante
+              <select
+                data-testid="kante-art"
+                value={teil.kante_oben_art}
+                onChange={(e) => aendereTeil((t) => ({ ...t, kante_oben_art: e.target.value as Eigenteil["kante_oben_art"], kante_oben_mm: e.target.value === "keine" ? 0 : t.kante_oben_mm || 1 }))}
+              >
+                <option value="keine">scharfkantig</option>
+                <option value="fase">Fase</option>
+                <option value="rund">Rundung</option>
+              </select>
+            </label>
+            {teil.kante_oben_art !== "keine" && (
+              <Zahlfeld label="Größe obere Kante (mm)" wert={teil.kante_oben_mm} testid="kante-mm" onChange={(v) => aendereTeil((t) => ({ ...t, kante_oben_mm: Math.max(0, v) }), "tippen")} />
+            )}
+            <Zahlfeld label="Fase unten (mm, gegen Elefantenfuß)" wert={teil.kante_unten_mm} testid="kante-unten" onChange={(v) => aendereTeil((t) => ({ ...t, kante_unten_mm: Math.max(0, v) }), "tippen")} />
             <p className="leise" data-testid="teil-mass">
               {maß ? `Außenmaß ${maß.breite} × ${maß.tiefe} × ${teil.hoehe_mm} mm` : "Noch keine Form, die Material hinzufügt."}
               {maß && (maß.breite > 256 || maß.tiefe > 256 || teil.hoehe_mm > 256) && " · passt nicht aufs Druckbett (256 mm)"}
@@ -466,6 +482,7 @@ export function Zeichnen({
                     <Zahlfeld label="Unten y" wert={gewaehlt.y} onChange={(v) => setzeFeld(auswahl, { y: v })} />
                     <Zahlfeld label="Breite" wert={gewaehlt.b} onChange={(v) => setzeFeld(auswahl, { b: v })} />
                     <Zahlfeld label="Tiefe" wert={gewaehlt.t} onChange={(v) => setzeFeld(auswahl, { t: v })} />
+                    <Zahlfeld label="Eckenradius (mm, 0 = eckig)" wert={gewaehlt.radius ?? 0} testid="form-radius" onChange={(v) => setzeFeld(auswahl, { radius: Math.max(0, v) })} />
                   </>
                 )}
                 {gewaehlt.typ === "kreis" && (
@@ -483,7 +500,7 @@ export function Zeichnen({
                 {fehler.map((f) => (<p key={f}>{f}</p>))}
               </div>
             )}
-            <p className="hinweis">Das Teil wird als Grundkörper aus diesen Formen erzeugt (Draufsicht, gerade Extrusion). Es gibt keine Rundungen oder Schrägen.</p>
+            <p className="hinweis">Das Teil wird als Grundkörper aus diesen Formen erzeugt (Draufsicht, gerade Extrusion). Rundungen gibt es für Rechteck-Ecken und für die obere Kante, eine Fase auch unten; Schrägen und Rundungen an Löchern gibt es nicht.</p>
           </div>
         </>
       )}
@@ -492,7 +509,7 @@ export function Zeichnen({
 }
 
 function formElement(f: Form) {
-  if (f.typ === "rechteck") return <rect x={f.x} y={f.y} width={f.b} height={f.t} />;
+  if (f.typ === "rechteck") return <rect x={f.x} y={f.y} width={f.b} height={f.t} rx={f.radius || 0} ry={f.radius || 0} />;
   if (f.typ === "kreis") return <circle cx={f.x} cy={f.y} r={f.r} />;
   return <polygon points={f.punkte.map((p) => p.join(",")).join(" ")} />;
 }

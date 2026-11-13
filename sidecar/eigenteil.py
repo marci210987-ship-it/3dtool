@@ -33,6 +33,10 @@ class Eigenteil:
     x_mm: float = 0.0
     y_mm: float = 0.0
     drehung: int = 0  # 0 oder 90 Grad
+    # Kanten: obere Außenkante als Fase oder Rundung, untere Außenkante als Fase (gegen Elefantenfuß)
+    kante_oben_art: str = "keine"  # keine | fase | rund
+    kante_oben_mm: float = 0.0
+    kante_unten_mm: float = 0.0
 
     @staticmethod
     def from_dict(data: dict) -> "Eigenteil":
@@ -42,6 +46,21 @@ class Eigenteil:
 
     def to_dict(self) -> dict:
         return asdict(self)
+
+
+KANTEN_ARTEN = {"keine": 0, "fase": 1, "rund": 2}
+
+
+def eigen_params(teil: "Eigenteil") -> dict:
+    """Zahlenparameter für den FreeCAD-Worker (das Tabellenblatt kennt nur Zahlen)."""
+    return {
+        "Hoehe": float(teil.hoehe_mm),
+        "Boden": float(teil.boden_mm),
+        "Formen": teil.formen,
+        "KanteObenArt": KANTEN_ARTEN.get(teil.kante_oben_art, 0),
+        "KanteObenMm": float(teil.kante_oben_mm),
+        "KanteUntenMm": float(teil.kante_unten_mm),
+    }
 
 
 def _zahl(wert, name: str) -> float:
@@ -122,6 +141,18 @@ def eigenteil_pruefen(teil: Eigenteil, bauraum_mm=(256.0, 256.0, 256.0)) -> list
         fehler.append("%s: Anzahl muss mindestens 1 sein." % name)
     if not teil.formen:
         return fehler + ["%s: Es ist noch keine Form gezeichnet." % name]
+    if teil.kante_oben_art not in KANTEN_ARTEN:
+        fehler.append("%s: Unbekannte Kantenart „%s“." % (name, teil.kante_oben_art))
+    try:
+        oben, unten = float(teil.kante_oben_mm), float(teil.kante_unten_mm)
+    except (TypeError, ValueError):
+        return fehler + ["%s: Kantenmaß ist keine Zahl." % name]
+    if oben < 0 or unten < 0:
+        fehler.append("%s: Kantenmaße dürfen nicht negativ sein." % name)
+    if teil.kante_oben_art == "keine" and oben > 0:
+        fehler.append("%s: Für die obere Kante ist keine Art gewählt." % name)
+    if oben + unten > hoehe / 2.0 + 1e-9 and (oben > 0 or unten > 0):
+        fehler.append("%s: Obere und untere Kante zusammen dürfen höchstens die halbe Höhe (%.1f mm) betragen." % (name, hoehe / 2.0))
     if len(teil.formen) > MAX_FORMEN:
         return fehler + ["%s: Zu viele Formen (höchstens %d)." % (name, MAX_FORMEN)]
     additiv = 0
@@ -137,6 +168,11 @@ def eigenteil_pruefen(teil: Eigenteil, bauraum_mm=(256.0, 256.0, 256.0)) -> list
             if typ == "rechteck":
                 if _zahl(form.get("b"), "Breite") < MIN_MASS_MM or _zahl(form.get("t"), "Tiefe") < MIN_MASS_MM:
                     fehler.append("%s: Rechteck ist kleiner als %.1f mm." % (marke, MIN_MASS_MM))
+                    continue
+                radius = _zahl(form.get("radius") or 0, "Eckenradius")
+                grenze = min(_zahl(form.get("b"), "Breite"), _zahl(form.get("t"), "Tiefe")) / 2.0
+                if radius < 0 or radius > grenze + 1e-9:
+                    fehler.append("%s: Eckenradius muss zwischen 0 und %.1f mm liegen." % (marke, grenze))
                     continue
             elif typ == "kreis":
                 if _zahl(form.get("r"), "Radius") * 2 < MIN_MASS_MM:
