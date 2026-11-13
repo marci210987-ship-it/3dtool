@@ -45,7 +45,7 @@ export interface Lageplan {
 
 export function Zeichnen({
   teile,
-  onChange,
+  onChange: onChangeProp,
   fehler,
   lageplan = null,
 }: {
@@ -67,6 +67,46 @@ export function Zeichnen({
   const [ziehen, setZiehen] = useState<Ziehen | null>(null);
 
   const teil = teile.find((t) => t.id === aktivId) ?? teile[0] ?? null;
+
+  // Verlauf für Rückgängig/Wiederholen: ganze Teilelisten als Schnappschüsse.
+  const vergangen = useRef<Eigenteil[][]>([]);
+  const zukunft = useRef<Eigenteil[][]>([]);
+  const letzteEingabe = useRef(0);
+
+  function merke() {
+    vergangen.current.push(teile);
+    if (vergangen.current.length > 100) vergangen.current.shift();
+    zukunft.current = [];
+  }
+
+  function onChange(neu: Eigenteil[], art: "einmal" | "zug" | "tippen" = "einmal") {
+    if (art === "einmal") {
+      merke();
+    } else if (art === "tippen") {
+      const jetzt = Date.now();
+      if (jetzt - letzteEingabe.current > 800) merke();
+      letzteEingabe.current = jetzt;
+    }
+    onChangeProp(neu);
+  }
+
+  function rueckgaengig() {
+    const vor = vergangen.current.pop();
+    if (!vor) return;
+    zukunft.current.push(teile);
+    onChangeProp(vor);
+    setAuswahl(null);
+    abbrechen();
+  }
+
+  function wiederholen() {
+    const nach = zukunft.current.pop();
+    if (!nach) return;
+    vergangen.current.push(teile);
+    onChangeProp(nach);
+    setAuswahl(null);
+    abbrechen();
+  }
 
   const ausdehnung = useMemo(() => {
     let mx = 0;
@@ -91,13 +131,13 @@ export function Zeichnen({
   const W = ausdehnung.w;
   const H = ausdehnung.h;
 
-  function aendereTeil(fn: (t: Eigenteil) => Eigenteil) {
+  function aendereTeil(fn: (t: Eigenteil) => Eigenteil, art: "einmal" | "zug" | "tippen" = "einmal") {
     if (!teil) return;
-    onChange(teile.map((t) => (t.id === teil.id ? fn(t) : t)));
+    onChange(teile.map((t) => (t.id === teil.id ? fn(t) : t)), art);
   }
 
-  function formen(neu: Form[]) {
-    aendereTeil((t) => ({ ...t, formen: neu }));
+  function formen(neu: Form[], art: "einmal" | "zug" | "tippen" = "einmal") {
+    aendereTeil((t) => ({ ...t, formen: neu }), art);
   }
 
   function welt(e: { clientX: number; clientY: number }): Punkt {
@@ -152,7 +192,7 @@ export function Zeichnen({
     if (entwurf) setEntwurf({ ...entwurf, b: p });
     if (ziehen && teil) {
       const neu = verschieben(ziehen.original, p[0] - ziehen.start[0], p[1] - ziehen.start[1]);
-      formen(teil.formen.map((f, i) => (i === ziehen.index ? neu : f)));
+      formen(teil.formen.map((f, i) => (i === ziehen.index ? neu : f)), "zug");
     }
   }
 
@@ -170,12 +210,24 @@ export function Zeichnen({
   function formGedrueckt(e: React.PointerEvent, index: number) {
     if (werkzeug !== "wahl" || !teil) return;
     e.stopPropagation();
+    merke();
     svgRef.current?.setPointerCapture(e.pointerId);
     setAuswahl(index);
     setZiehen({ index, start: welt(e), original: teil.formen[index] });
   }
 
   function taste(e: React.KeyboardEvent) {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") {
+      e.preventDefault();
+      if (e.shiftKey) wiederholen();
+      else rueckgaengig();
+      return;
+    }
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "y") {
+      e.preventDefault();
+      wiederholen();
+      return;
+    }
     if (e.key === "Escape") abbrechen();
     else if (e.key === "Enter" && werkzeug === "polygon") polygonFertig();
     else if ((e.key === "Delete" || e.key === "Backspace") && auswahl !== null && teil) {
@@ -186,7 +238,7 @@ export function Zeichnen({
 
   function setzeFeld(index: number, patch: Record<string, number | boolean>) {
     if (!teil) return;
-    formen(teil.formen.map((f, i) => (i === index ? ({ ...f, ...patch } as Form) : f)));
+    formen(teil.formen.map((f, i) => (i === index ? ({ ...f, ...patch } as Form) : f)), "tippen");
   }
 
   const maß = teil ? aussenmass(teil.formen) : null;
@@ -260,6 +312,12 @@ export function Zeichnen({
                   {w.titel}
                 </button>
               ))}
+              <button type="button" data-testid="rueckgaengig" disabled={vergangen.current.length === 0} onClick={rueckgaengig} title="Strg+Z">
+                Rückgängig
+              </button>
+              <button type="button" data-testid="wiederholen" disabled={zukunft.current.length === 0} onClick={wiederholen} title="Strg+Y">
+                Wiederholen
+              </button>
               <label className="check">
                 <input type="checkbox" data-testid="loch-modus" checked={loch} onChange={(e) => setLoch(e.target.checked)} />
                 Neue Form ist ein Loch
@@ -346,11 +404,11 @@ export function Zeichnen({
             <h2>Eigenschaften</h2>
             <label>
               Name
-              <input data-testid="teil-name" value={teil.name} onChange={(e) => aendereTeil((t) => ({ ...t, name: e.target.value }))} />
+              <input data-testid="teil-name" value={teil.name} onChange={(e) => aendereTeil((t) => ({ ...t, name: e.target.value }), "tippen")} />
             </label>
-            <Zahlfeld label="Höhe (mm)" wert={teil.hoehe_mm} testid="teil-hoehe" onChange={(v) => aendereTeil((t) => ({ ...t, hoehe_mm: v }))} />
-            <Zahlfeld label="Boden unter Löchern (mm, 0 = durchgehend)" wert={teil.boden_mm} testid="teil-boden" onChange={(v) => aendereTeil((t) => ({ ...t, boden_mm: v }))} />
-            <Zahlfeld label="Anzahl" wert={teil.anzahl} onChange={(v) => aendereTeil((t) => ({ ...t, anzahl: Math.max(1, Math.round(v)) }))} />
+            <Zahlfeld label="Höhe (mm)" wert={teil.hoehe_mm} testid="teil-hoehe" onChange={(v) => aendereTeil((t) => ({ ...t, hoehe_mm: v }), "tippen")} />
+            <Zahlfeld label="Boden unter Löchern (mm, 0 = durchgehend)" wert={teil.boden_mm} testid="teil-boden" onChange={(v) => aendereTeil((t) => ({ ...t, boden_mm: v }), "tippen")} />
+            <Zahlfeld label="Anzahl" wert={teil.anzahl} onChange={(v) => aendereTeil((t) => ({ ...t, anzahl: Math.max(1, Math.round(v)) }), "tippen")} />
             <p className="leise" data-testid="teil-mass">
               {maß ? `Außenmaß ${maß.breite} × ${maß.tiefe} × ${teil.hoehe_mm} mm` : "Noch keine Form, die Material hinzufügt."}
               {maß && (maß.breite > 256 || maß.tiefe > 256 || teil.hoehe_mm > 256) && " · passt nicht aufs Druckbett (256 mm)"}
@@ -370,12 +428,12 @@ export function Zeichnen({
                 </label>
                 {teil.platziert && (
                   <>
-                    <Zahlfeld label="Position von links (mm)" wert={teil.x_mm} testid="teil-x" onChange={(v) => aendereTeil((t) => ({ ...t, x_mm: v }))} />
-                    <Zahlfeld label="Position von vorn (mm)" wert={teil.y_mm} testid="teil-y" onChange={(v) => aendereTeil((t) => ({ ...t, y_mm: v }))} />
+                    <Zahlfeld label="Position von links (mm)" wert={teil.x_mm} testid="teil-x" onChange={(v) => aendereTeil((t) => ({ ...t, x_mm: v }), "tippen")} />
+                    <Zahlfeld label="Position von vorn (mm)" wert={teil.y_mm} testid="teil-y" onChange={(v) => aendereTeil((t) => ({ ...t, y_mm: v }), "tippen")} />
                     <button type="button" data-testid="teil-drehen" onClick={() => aendereTeil((t) => ({ ...t, drehung: (t.drehung + 90) % 180 }))}>
                       Um 90° drehen
                     </button>
-                    <LageplanAnsicht plan={lageplan} teile={teile} aktivId={teil.id} onMove={(x, y) => aendereTeil((t) => ({ ...t, x_mm: x, y_mm: y }))} />
+                    <LageplanAnsicht plan={lageplan} teile={teile} aktivId={teil.id} onStart={merke} onMove={(x, y) => aendereTeil((t) => ({ ...t, x_mm: x, y_mm: y }), "zug")} />
                   </>
                 )}
                 <p className="hinweis">Das Teil steht auf der Platte. Es darf keine Box und kein anderes Teil überlappen.</p>
@@ -460,11 +518,13 @@ function LageplanAnsicht({
   plan,
   teile,
   aktivId,
+  onStart,
   onMove,
 }: {
   plan: Lageplan;
   teile: Eigenteil[];
   aktivId: string;
+  onStart: () => void;
   onMove: (x: number, y: number) => void;
 }) {
   const ref = useRef<SVGSVGElement>(null);
@@ -520,6 +580,7 @@ function LageplanAnsicht({
               data-testid={istAktiv ? "lageplan-teil" : undefined}
               onPointerDown={(e) => {
                 if (!istAktiv || !aktiv) return;
+                onStart();
                 e.currentTarget.ownerSVGElement?.setPointerCapture(e.pointerId);
                 const [px, py] = punkt(e);
                 setZug({ dx: px - aktiv.x_mm, dy: py - aktiv.y_mm });

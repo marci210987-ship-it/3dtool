@@ -37,11 +37,11 @@ Unter Windows `FREECADCMD` auf `.../bin/freecadcmd.exe` setzen. `tests/` hat kei
 - Exportordner (`export_*/`) und Beispielausgaben nicht einchecken.
 
 ## Stand und nächste Schritte (Phase C)
-Fertig: Randstreifen als Füllplatten, automatische Bestückung, Zeichnen (Rechteck/Kreis/Vieleck, Löcher, Sacklöcher), Modus „nur eigene Teile“, Platzieren eigener Teile in der Schublade (Lageplan, Kollisionsprüfung, Montageplan), beschriftetes PNG (5×7-Bitmap-Schrift in `montage.py`).
+Fertig: Randstreifen als Füllplatten, automatische Bestückung, Zeichnen (Rechteck/Kreis/Vieleck, Löcher, Sacklöcher), Modus „nur eigene Teile“, Platzieren eigener Teile in der Schublade (Lageplan, Kollisionsprüfung, Montageplan), beschriftetes PNG (5×7-Bitmap-Schrift in `montage.py`), Auto-Bestückung lässt Felder unter platzierten Teilen frei, Rückgängig/Wiederholen im Zeichenblatt (Verlauf in `zeichenblatt.tsx`).
 Offen, nach Nutzen sortiert:
 1. Playwright-E2E für den Zeichen- und Auto-Fülle-Ablauf ergänzen und laufen lassen.
-2. Zeichnen: Rundungen/Fasen, Bemaßung im Blatt, Rückgängig/Wiederholen, Vieleck-Punkte bearbeiten, Import von SVG/DXF-Umrissen.
-3. Auto-Bestückung mit Wunschliste (z. B. Anzahl Besteckfächer) statt nur größter Box; sie berücksichtigt platzierte eigene Teile noch nicht.
+2. Zeichnen: Rundungen/Fasen (größter Nutzen), Bemaßung im Blatt, Vieleck-Punkte bearbeiten, Import von SVG/DXF-Umrissen.
+3. Auto-Bestückung mit Wunschliste (z. B. Anzahl Besteckfächer) statt nur größter Box.
 4. Windows-Installer auf einem echten PC starten und FreeCAD-Anbindung prüfen.
 
 ## Zusammenarbeit

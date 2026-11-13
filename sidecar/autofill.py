@@ -3,17 +3,22 @@
 
 Einfaches, vorhersehbares Verfahren (kein Optimierer): Zellen werden zeilenweise
 durchlaufen. An jeder freien Zelle wird das größte freie Rechteck bis zur
-Höchstgröße gewählt. Vorhandene Boxen bleiben unverändert.
+Höchstgröße gewählt. Vorhandene Boxen bleiben unverändert, Felder unter platzierten
+eigenen Teilen bleiben frei.
 """
 
 from __future__ import annotations
 
+from sidecar.eigenteil import eigenteil_rechteck_mm
 from sidecar.layout import (
     Box,
     Projekt,
+    _rechtecke_schneiden,
+    box_rechteck_mm,
     footprint,
     neue_id,
     plan_berechnen,
+    raster_ursprung_mm,
     benoetigte_hoehe_mm,
 )
 from hausraster_const import kasten_aussen, BAURAUM_X, BAURAUM_Y  # noqa: E402
@@ -59,17 +64,26 @@ def auto_bestuecken(projekt: Projekt, max_zellen: int = 3, ez: int | None = None
         return {"ok": False, "fehler": ["Die Schublade ist zu niedrig für eine Box."], "neu": 0}
 
     belegt = _belegt(projekt.boxen)
+    ox, oy = raster_ursprung_mm(projekt.schublade, plan)
+    gesperrt = [r for r in (eigenteil_rechteck_mm(e) for e in projekt.eigene) if r is not None]
+
+    def frei_von_teilen(i: int, j: int, w: int, h: int) -> bool:
+        if not gesperrt:
+            return True
+        rect = box_rechteck_mm(Box(id="probe", name="probe", x=i, y=j, ex=w, ey=h), ox, oy)
+        return not any(_rechtecke_schneiden(rect, g) for g in gesperrt)
+
     neu = []
     for j in range(plan.einheiten_y):
         for i in range(plan.einheiten_x):
-            if (i, j) in belegt:
+            if (i, j) in belegt or not frei_von_teilen(i, j, 1, 1):
                 continue
             beste = (1, 1)
             for h in range(1, max_zellen + 1):
                 for w in range(1, max_zellen + 1):
                     if i + w > plan.einheiten_x or j + h > plan.einheiten_y:
                         continue
-                    if all((a, b) not in belegt for a in range(i, i + w) for b in range(j, j + h)):
+                    if all((a, b) not in belegt for a in range(i, i + w) for b in range(j, j + h)) and frei_von_teilen(i, j, w, h):
                         if w * h > beste[0] * beste[1]:
                             beste = (w, h)
             w, h = beste

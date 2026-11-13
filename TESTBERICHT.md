@@ -57,4 +57,12 @@ FreeCAD 1.1.4 (portable Windows-Version py311), Python 3.14, Node 22. Nichts hie
 | `npm test`, `npm run build` | bestanden, 9 Tests |
 | Live im Browser | Teil gezeichnet, in die Schublade gestellt (Fehlermeldungen „liegt nicht in der Schublade“ und „überlappt Box“ erschienen), im Lageplan verschoben (175 / 133 mm), Export erfolgreich; das PNG zeigt P1, P2, B1 und das Teil E1 beschriftet |
 
+### Nachtrag: Auto-Bestückung mit platzierten Teilen, Rückgängig/Wiederholen
+
+| Prüfung | Ergebnis |
+|---|---|
+| 8 Python-Module mit FreeCAD | bestanden, 43 Tests, 1 übersprungen |
+| `npm test`, `npm run build` | bestanden, 10 Tests (neu: Verlauf neues Teil, getippter Name, Rückgängig/Wiederholen) |
+| Live im Browser | zwei Rechtecke gezeichnet, Strg+Z (2 → 1 Form), Strg+Y (1 → 2 Formen) |
+
 Nicht ausgeführt: `npx playwright test` (Spezifikation auf die neue Schrittnummer „5. Drucken“ angepasst, aber nicht gelaufen), Start des Windows-Installers, Druck auf dem P2S, Passung der Füllplatten und Spiele.

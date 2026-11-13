@@ -40,7 +40,7 @@ Links stehen fertige Sorten:
 
 Eine Box antippen setzt sie auf das nächste freie Feld. Danach:
 
-- **Freie Felder automatisch füllen**: setzt auf jedes freie Feld die größte passende Rasterbox (bis 3 × 3 Felder, so hoch wie die Schublade erlaubt, höchstens 3 Stufen). Vorhandene Boxen bleiben unverändert.
+- **Freie Felder automatisch füllen**: setzt auf jedes freie Feld die größte passende Rasterbox (bis 3 × 3 Felder, so hoch wie die Schublade erlaubt, höchstens 3 Stufen). Vorhandene Boxen bleiben unverändert, und Felder unter platzierten eigenen Teilen bleiben frei.
 - ziehen oder mit den Tasten Links, Rechts, Nach vorn, Nach hinten verschieben
 - drehen (90°)
 - duplizieren
@@ -57,6 +57,7 @@ Die 3D-Ansicht in diesem Schritt ist eine **vereinfachte Vorschau**. Sie ist aus
 Jedes Teil besteht aus Formen in der Draufsicht (Ursprung links unten, Millimeter): Rechteck, Kreis und Vieleck. Eine Form fügt Material hinzu. Eine Form mit „Loch“ schneidet es weg. Das Teil wird auf die eingestellte **Höhe** gerade nach oben gezogen. Mit **Boden unter Löchern** (mm) werden Löcher zu Sacklöchern; 0 heißt durchgehend.
 
 - Werkzeug wählen, mit gedrückter Maustaste ziehen (Rechteck, Kreis) oder Punkte anklicken (Vieleck; Klick auf den ersten Punkt, Enter oder „Fertig“ schließt).
+- **Rückgängig / Wiederholen:** Knöpfe in der Werkzeugleiste oder Strg+Z und Strg+Y (Strg+Umschalt+Z) mit dem Zeichenblatt im Fokus. Aufeinanderfolgende Eingaben in Zahlenfeldern zählen als ein Schritt; ein Ziehen ist ein Schritt.
 - Das Raster rastet den Zeiger ein (0,1 bis 10 mm).
 - „Auswählen“: Form anklicken und ziehen, Entf löscht. Zahlenfelder ändern die genauen Maße.
 - **In die Schublade stellen:** Mit dem Haken „In die Schublade stellen“ erscheint ein Lageplan. Das Teil lässt sich ziehen, per Zahl setzen und um 90° drehen. Es steht auf der Platte und darf keine Box und kein anderes Teil überlappen, nicht aus der Schublade ragen und nicht höher sein als die nutzbare Höhe. Platzierte Teile erscheinen grau mit ihrer Nummer im Montageplan.

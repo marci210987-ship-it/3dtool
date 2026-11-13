@@ -14,7 +14,7 @@ sys.path.insert(0, str(ROOT))
 
 from sidecar.autofill import auto_bestuecken  # noqa: E402
 from sidecar.eigenteil import Eigenteil, eigenteil_pruefen, eigenteil_sollgroesse  # noqa: E402
-from sidecar.layout import Projekt, Schublade, auftrag_bauen, layout_pruefen, footprint, ueberlappung  # noqa: E402
+from sidecar.layout import Box, Projekt, Schublade, auftrag_bauen, layout_pruefen, footprint, ueberlappung  # noqa: E402
 
 
 def _rechteck(b=40.0, t=30.0, loch=False, x=0.0, y=0.0):
@@ -101,13 +101,24 @@ class Platzierung(unittest.TestCase):
 
     def test_kollision_mit_box_und_teil(self):
         p = self._projekt(x_mm=100, y_mm=50)
-        auto_bestuecken(p)
-        self.assertFalse(layout_pruefen(p)["ok"])
+        p.boxen.append(Box(id="B1", name="Box", x=2, y=1, ex=1, ey=1, ez=3))
+        self.assertTrue(any("überlappt die Box" in f for f in layout_pruefen(p)["fehler"]))
         q = self._projekt(x_mm=100, y_mm=50)
         q.eigene.append(Eigenteil(id="E2", name="Zweit", formen=[_rechteck(20, 20)], platziert=True, x_mm=110, y_mm=60))
         self.assertTrue(any("überlappt" in f for f in layout_pruefen(q)["fehler"]))
         q.eigene[1].x_mm = 200
         self.assertTrue(layout_pruefen(q)["ok"], layout_pruefen(q)["fehler"])
+
+    def test_autofill_laesst_teile_frei(self):
+        p = self._projekt(x_mm=100, y_mm=50)
+        r = auto_bestuecken(p)
+        self.assertTrue(r["ok"] and r["neu"] > 0)
+        pruefung = layout_pruefen(p)
+        self.assertTrue(pruefung["ok"], pruefung["fehler"])
+        # Ohne das Teil wären mehr Felder belegt
+        leer = Projekt(schublade=p.schublade)
+        auto_bestuecken(leer)
+        self.assertGreater(sum(footprint(b)[2] * footprint(b)[3] for b in leer.boxen), sum(footprint(b)[2] * footprint(b)[3] for b in p.boxen))
 
     def test_nicht_platziert_wird_ignoriert(self):
         p = self._projekt(x_mm=9999, y_mm=9999)
