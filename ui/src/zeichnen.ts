@@ -16,7 +16,7 @@ export interface FormOptionen {
 }
 
 export type Form =
-  | ({ typ: "rechteck"; x: number; y: number; b: number; t: number; loch: boolean; radius?: number; keil_mm?: number } & FormOptionen)
+  | ({ typ: "rechteck"; x: number; y: number; b: number; t: number; loch: boolean; radius?: number; keil_mm?: number; winkel?: number } & FormOptionen)
   | ({ typ: "kreis"; x: number; y: number; r: number; loch: boolean } & FormOptionen)
   | ({ typ: "polygon"; punkte: Punkt[]; loch: boolean } & FormOptionen);
 
@@ -61,8 +61,24 @@ export function neuesTeil(vorhanden: Eigenteil[]): Eigenteil {
   return { id, name: `Eigenes Teil ${id.slice(1)}`, hoehe_mm: 10, boden_mm: 0, anzahl: 1, formen: [], notiz: "", platziert: false, x_mm: 0, y_mm: 0, drehung: 0, kante_oben_art: "keine", kante_oben_mm: 0, kante_unten_mm: 0 };
 }
 
+/** Mitte eines gedrehten Rechtecks (die Drehung geschieht um diese Mitte). */
+function rechteckMitte(form: { x: number; y: number; b: number; t: number }): [number, number] {
+  return [form.x + form.b / 2, form.y + form.t / 2];
+}
+
 export function formBox(form: Form): [number, number, number, number] {
-  if (form.typ === "rechteck") return [form.x, form.y, form.x + form.b, form.y + form.t];
+  if (form.typ === "rechteck") {
+    const winkel = form.winkel ?? 0;
+    if (winkel % 180 === 0) return [form.x, form.y, form.x + form.b, form.y + form.t];
+    const w = (winkel * Math.PI) / 180;
+    const c = Math.abs(Math.cos(w));
+    const s = Math.abs(Math.sin(w));
+    const r = form.radius ?? 0;
+    const hx = (form.b / 2 - r) * c + (form.t / 2 - r) * s + r;
+    const hy = (form.b / 2 - r) * s + (form.t / 2 - r) * c + r;
+    const [mx, my] = rechteckMitte(form);
+    return [bereinigen(mx - hx), bereinigen(my - hy), bereinigen(mx + hx), bereinigen(my + hy)];
+  }
   if (form.typ === "kreis") return [form.x - form.r, form.y - form.r, form.x + form.r, form.y + form.r];
   const xs = form.punkte.map((p) => p[0]);
   const ys = form.punkte.map((p) => p[1]);
@@ -195,6 +211,11 @@ export function massangaben(form: Form, abstand: number, mitKanten = false): Mas
 }
 
 function formMasse(form: Form, abstand: number, mitKanten: boolean): Massangabe[] {
+  if (form.typ === "rechteck" && (form.winkel ?? 0) % 180 !== 0) {
+    const [, , , y1] = formBox(form);
+    const [mx] = rechteckMitte(form);
+    return [{ text: `${zahlText(form.b)} × ${zahlText(form.t)} ∠ ${zahlText(form.winkel ?? 0)}°`, x: mx, y: y1 + abstand }];
+  }
   if (form.typ === "rechteck") {
     const oben = form.y + form.t + abstand;
     const rechts = form.x + form.b + abstand;
@@ -336,6 +357,12 @@ export function fangpunkteVon(form: Form): Punkt[] {
     [x0, y1], [xm, y1], [x1, y1],
   ];
   if (form.typ === "polygon") punkte.push(...form.punkte.map((p) => [p[0], p[1]] as Punkt));
+  if (form.typ === "rechteck" && (form.winkel ?? 0) % 180 !== 0) {
+    const [mx, my] = rechteckMitte(form);
+    for (const [dx, dy] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) {
+      punkte.push(drehePunkt([mx + (dx * form.b) / 2, my + (dy * form.t) / 2], [mx, my], form.winkel ?? 0));
+    }
+  }
   return punkte;
 }
 
@@ -445,7 +472,7 @@ function drehePunkt(p: Punkt, mitte: Punkt, grad: number): Punkt {
 
 /** Ob sich die Form drehen lässt: Rechtecke bleiben achsparallel und sind ausgenommen. */
 export function laesstSichDrehen(form: Form): boolean {
-  return form.typ !== "rechteck";
+  return !(form.typ === "rechteck" && form.keil_mm);
 }
 
 /**
@@ -464,6 +491,11 @@ export function kreismuster(form: Form, mitte: Punkt, anzahl: number, gesamtWink
       kopien.push({ ...form, x, y });
     } else if (form.typ === "polygon") {
       kopien.push({ ...form, punkte: form.punkte.map((p) => drehePunkt(p, mitte, grad)) });
+    } else {
+      // Rechteck: Mitte auf den Kreis, Drehwinkel um denselben Betrag erhöhen
+      const [cx, cy] = rechteckMitte(form);
+      const [nx, ny] = drehePunkt([cx, cy], mitte, grad);
+      kopien.push({ ...form, x: bereinigen(nx - form.b / 2), y: bereinigen(ny - form.t / 2), winkel: bereinigen(((form.winkel ?? 0) + grad) % 360) });
     }
   }
   return kopien;
@@ -480,6 +512,12 @@ export function spiegeln(form: Form, achse: "x" | "y", pos: number, teilHoehe: n
   }
   if (form.typ === "polygon") {
     return { ...form, punkte: form.punkte.map(([x, y]) => (achse === "x" ? [sp(x), y] : [x, sp(y)]) as Punkt) };
+  }
+  if (form.winkel && form.winkel % 180 !== 0) {
+    // Gedrehtes Rechteck: Mitte spiegeln, Drehwinkel ändert das Vorzeichen
+    const [cx, cy] = rechteckMitte(form);
+    const [nx, ny] = achse === "x" ? [sp(cx), cy] : [cx, sp(cy)];
+    return { ...form, x: bereinigen(nx - form.b / 2), y: bereinigen(ny - form.t / 2), winkel: bereinigen(-form.winkel) };
   }
   if (achse === "x") return { ...form, x: sp(form.x + form.b) };
   const gespiegelt = { ...form, y: sp(form.y + form.t) };

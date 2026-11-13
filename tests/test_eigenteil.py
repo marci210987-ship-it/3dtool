@@ -127,6 +127,53 @@ class Formoptionen(unittest.TestCase):
         self.assertTrue(self._pruefe(dict(_rechteck(40, 30), schraege_mm=-1)))
 
 
+class Drehung(unittest.TestCase):
+    def test_bounding_box_gedrehter_rechtecke(self):
+        from sidecar.eigenteil import form_bbox
+        import math
+
+        quadrat = dict(_rechteck(10, 10), winkel=45)
+        x0, y0, x1, y1 = form_bbox(quadrat)
+        self.assertAlmostEqual(x1 - x0, 10 * math.sqrt(2), places=6)
+        self.assertAlmostEqual((x0 + x1) / 2, 5, places=6)  # Drehung um die Mitte
+        self.assertEqual(form_bbox(dict(_rechteck(40, 20), winkel=180)), (0, 0, 40, 20))
+        self.assertEqual(form_bbox(dict(_rechteck(40, 20), winkel=90)), (10, -10, 30, 30))
+        # abgerundete Ecken: Kreisanteil bleibt r in beide Richtungen
+        rund = form_bbox(dict(_rechteck(20, 20), winkel=45, radius=10))
+        self.assertAlmostEqual(rund[2] - rund[0], 20, places=6)
+
+    def test_pruefung(self):
+        self.assertEqual(eigenteil_pruefen(Eigenteil(id="E", hoehe_mm=10, formen=[dict(_rechteck(40, 20), winkel=30)])), [])
+        self.assertTrue(eigenteil_pruefen(Eigenteil(id="E", hoehe_mm=10, formen=[dict(_rechteck(40, 20), winkel="x")])))
+        self.assertTrue(eigenteil_pruefen(Eigenteil(id="E", hoehe_mm=10, formen=[dict(_rechteck(40, 20), winkel=30, keil_mm=5)])))
+        # Bauraum nach Drehung: ein Quadrat von 250 mm passt, um 45° gedreht (353 mm) nicht
+        self.assertEqual(eigenteil_pruefen(Eigenteil(id="E", hoehe_mm=10, formen=[_rechteck(250, 250)])), [])
+        self.assertTrue(eigenteil_pruefen(Eigenteil(id="E", hoehe_mm=10, formen=[dict(_rechteck(250, 250), winkel=45)])))
+        self.assertEqual(eigenteil_sollgroesse(Eigenteil(id="E", hoehe_mm=10, formen=[dict(_rechteck(40, 20), winkel=90)]))[:2], [20.0, 40.0])
+
+    def test_freecad_gedrehtes_rechteck(self):
+        if not (os.environ.get("FREECADCMD") and Path(os.environ["FREECADCMD"]).exists()):
+            self.skipTest("FREECADCMD nicht gesetzt")
+        from sidecar.engine import generiere
+        import math
+
+        gedreht = Eigenteil(id="E1", name="Gedreht", hoehe_mm=10, formen=[dict(_rechteck(40, 20), winkel=30)])
+        rund = Eigenteil(id="E2", name="Rund", hoehe_mm=10, formen=[dict(_rechteck(40, 20), winkel=30, radius=4)])
+        kante = Eigenteil(id="E3", name="Kante", hoehe_mm=10, formen=[dict(_rechteck(40, 20), winkel=30, kante_art="fase", kante_mm=1)])
+        loch = Eigenteil(id="E4", name="Loch", hoehe_mm=10, formen=[_rechteck(60, 60), dict(_rechteck(20, 10, x=20, y=25), winkel=45, loch=True)])
+        with tempfile.TemporaryDirectory() as tmp:
+            r = generiere(Projekt(nur_eigene=True, eigene=[gedreht, rund, kante, loch]), Path(tmp), freecad_pfad=os.environ["FREECADCMD"])
+            self.assertTrue(r["ok"], r["fehler"])
+            solid = {d["id"]: d["solid"] for t in r["teile"] for d in t["dateien"]}
+            w = math.radians(30)
+            self.assertAlmostEqual(solid["E1"]["bbox_mm"][0], 40 * math.cos(w) + 20 * math.sin(w), delta=0.05)
+            self.assertAlmostEqual(solid["E1"]["bbox_mm"][1], 40 * math.sin(w) + 20 * math.cos(w), delta=0.05)
+            self.assertAlmostEqual(solid["E1"]["volume_mm3"], 8000, delta=8)
+            self.assertAlmostEqual(solid["E2"]["volume_mm3"], 8000 - 4 * (1 - math.pi / 4) * 16 * 10, delta=8)
+            self.assertAlmostEqual(solid["E3"]["volume_mm3"], 8000 - 0.5 * 120, delta=2)  # Fase an der gedrehten Außenkante
+            self.assertAlmostEqual(solid["E4"]["volume_mm3"], 60 * 60 * 10 - 20 * 10 * 10, delta=10)
+
+
 class Stufen(unittest.TestCase):
     def _stufenteil(self):
         # Sockel 60x40x5, darauf Stütze 20x20 bis 25 mm Gesamthöhe, Tasche im Sockel

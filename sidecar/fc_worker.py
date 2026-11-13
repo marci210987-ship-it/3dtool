@@ -188,8 +188,16 @@ def _kontur_abstand(form: dict, px: float, py: float) -> float:
     if typ == "rechteck":
         x, y, b, t = float(form["x"]), float(form["y"]), float(form["b"]), float(form["t"])
         r = float(form.get("radius") or 0.0)
-        qx = abs(px - (x + b / 2.0)) - (b / 2.0 - r)
-        qy = abs(py - (y + t / 2.0)) - (t / 2.0 - r)
+        winkel = float(form.get("winkel") or 0.0)
+        mx, my = x + b / 2.0, y + t / 2.0
+        if winkel:
+            # Punkt in das Koordinatensystem des ungedrehten Rechtecks zurückdrehen
+            w = math.radians(-winkel)
+            dx, dy = px - mx, py - my
+            px = mx + dx * math.cos(w) - dy * math.sin(w)
+            py = my + dx * math.sin(w) + dy * math.cos(w)
+        qx = abs(px - mx) - (b / 2.0 - r)
+        qy = abs(py - my) - (t / 2.0 - r)
         d = math.hypot(max(qx, 0.0), max(qy, 0.0)) + min(max(qx, qy), 0.0) - r
         return abs(d)
     punkte = [(float(a), float(c)) for a, c in form["punkte"]]
@@ -210,7 +218,12 @@ def _form_draht(form: dict):
     typ = form["typ"]
     if typ == "rechteck":
         x, y, b, t = float(form["x"]), float(form["y"]), float(form["b"]), float(form["t"])
-        return _rechteck_draht(x, y, b, t, float(form.get("radius") or 0.0))
+        draht = _rechteck_draht(x, y, b, t, float(form.get("radius") or 0.0))
+        winkel = float(form.get("winkel") or 0.0)
+        if winkel % 360:
+            draht = draht.copy()
+            draht.rotate(App.Vector(x + b / 2.0, y + t / 2.0, 0), App.Vector(0, 0, 1), winkel)
+        return draht
     if typ == "kreis":
         return Part.Wire(Part.makeCircle(float(form["r"]), App.Vector(float(form["x"]), float(form["y"]), 0), App.Vector(0, 0, 1)))
     pts = [App.Vector(float(px), float(py), 0) for px, py in form["punkte"]]

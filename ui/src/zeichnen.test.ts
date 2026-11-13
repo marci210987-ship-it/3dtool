@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { abstandsvorschlag, aussenmass, ausrichten, formMitte, gitter, kopieren, kreismuster, laesstSichDrehen, reihe, spiegeln, bezugsrahmen, einrasten, fangpunkte, formBox, formHoehen, formOberkante, gesamthoehe, hoehenanteil, massangaben, VORLAGEN, zahlText, kreisAus, neuesTeil, polygonAus, rechteckAus, rechteckMm, runden, teilVonServer, verschieben, verschiebenMitFang, type Form } from "./zeichnen";
+import { abstandsvorschlag, aussenmass, fangpunkteVon, ausrichten, formMitte, gitter, kopieren, kreismuster, laesstSichDrehen, reihe, spiegeln, bezugsrahmen, einrasten, fangpunkte, formBox, formHoehen, formOberkante, gesamthoehe, hoehenanteil, massangaben, VORLAGEN, zahlText, kreisAus, neuesTeil, polygonAus, rechteckAus, rechteckMm, runden, teilVonServer, verschieben, verschiebenMitFang, type Form } from "./zeichnen";
 
 describe("Zeichnen", () => {
   it("rastet auf das Raster ein", () => {
@@ -188,8 +188,9 @@ describe("Zeichnen", () => {
     const dreieck: Form = { typ: "polygon", punkte: [[20, 10], [24, 10], [20, 14]], loch: false };
     const p = kreismuster(dreieck, [10, 10], 2, 360)[0] as { punkte: number[][] };
     expect(p.punkte).toEqual([[0, 10], [-4, 10], [0, 6]]);
-    expect(kreismuster({ typ: "rechteck", x: 0, y: 0, b: 5, t: 5, loch: false }, [0, 0], 4)).toEqual([]);
-    expect(laesstSichDrehen({ typ: "rechteck", x: 0, y: 0, b: 5, t: 5, loch: false })).toBe(false);
+    expect(kreismuster({ typ: "rechteck", x: 0, y: 0, b: 5, t: 5, loch: false, keil_mm: 2 }, [0, 0], 4)).toEqual([]);
+    expect(laesstSichDrehen({ typ: "rechteck", x: 0, y: 0, b: 5, t: 5, loch: false, keil_mm: 2 })).toBe(false);
+    expect(laesstSichDrehen({ typ: "rechteck", x: 0, y: 0, b: 5, t: 5, loch: false })).toBe(true);
     expect(kreismuster(loch, [10, 10], 1)).toEqual([]);
   });
 
@@ -208,5 +209,35 @@ describe("Zeichnen", () => {
     expect(spiegeln(k as unknown as Form, "y", 5, 4)).toMatchObject({ y: 0, h_mm: 4, keil_mm: 6 });
     expect(abstandsvorschlag(rechteck)).toEqual({ x: 25, y: 15 });
     expect(formMitte(rechteck)).toEqual([20, 10]);
+  });
+
+  it("rechnet gedrehte Rechtecke: Bounding-Box, Fangpunkte, Kreismuster, Spiegeln", () => {
+    const quadrat: Form = { typ: "rechteck", x: 0, y: 0, b: 10, t: 10, loch: false, winkel: 45 };
+    const [x0, y0, x1, y1] = formBox(quadrat);
+    expect(x1 - x0).toBeCloseTo(14.142, 2);
+    expect((x0 + x1) / 2).toBeCloseTo(5, 3);
+    expect((y0 + y1) / 2).toBeCloseTo(5, 3);
+    expect(formBox({ ...quadrat, winkel: 180 })).toEqual([0, 0, 10, 10]);
+    expect(formBox({ typ: "rechteck", x: 0, y: 0, b: 40, t: 20, loch: false, winkel: 90 })).toEqual([10, -10, 30, 30]);
+    // Eckpunkte des gedrehten Rechtecks gehören zu den Fangpunkten
+    const ecken = fangpunkteVon(quadrat);
+    expect(ecken.some(([x, y]) => Math.abs(x - 5) < 1e-6 && Math.abs(y - (5 + 5 * Math.SQRT2)) < 1e-3)).toBe(true);
+    // Kreismuster: Rechteck wandert auf den Kreis und dreht mit
+    const platte: Form = { typ: "rechteck", x: 18, y: -2, b: 4, t: 4, loch: true };
+    const kopien = kreismuster(platte, [0, 0], 4, 360);
+    expect(kopien).toHaveLength(3);
+    const k = kopien[0] as { x: number; y: number; winkel: number };
+    expect(k.x + 2).toBeCloseTo(0, 3);
+    expect(k.y + 2).toBeCloseTo(20, 3);
+    expect(k.winkel).toBe(90);
+    expect((kopien[1] as { winkel: number }).winkel).toBe(180);
+    // Spiegeln: Mitte wird gespiegelt, Winkel wechselt das Vorzeichen
+    const schraeg: Form = { typ: "rechteck", x: 0, y: 0, b: 10, t: 4, loch: false, winkel: 30 };
+    const g = spiegeln(schraeg, "x", 20, 5) as { x: number; y: number; winkel: number };
+    expect(g.x + 5).toBeCloseTo(35, 3);
+    expect(g.y).toBe(0);
+    expect(g.winkel).toBe(-30);
+    expect((spiegeln(g as unknown as Form, "x", 20, 5) as { winkel: number }).winkel).toBe(30);
+    expect(massangaben(schraeg, 3)[0].text).toBe("10 × 4 ∠ 30°");
   });
 });

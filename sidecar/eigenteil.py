@@ -136,6 +136,8 @@ def form_zusatz_pruefen(form: dict, marke: str, hoehe_form: float | None) -> lis
         else:
             if schraege > 0 or float(form.get("radius") or 0.0) > 0:
                 fehler.append("%s: Ein Keil lässt sich nicht mit Schräge oder Eckenradius kombinieren." % marke)
+            if float(form.get("winkel") or 0.0) % 360 != 0:
+                fehler.append("%s: Ein Keil lässt sich nicht drehen." % marke)
             if hoehe_form is not None and hoehe_form + keil < MIN_MASS_MM:
                 fehler.append("%s: Die Höhe vorn plus Keil ist zu klein." % marke)
     return fehler
@@ -157,7 +159,19 @@ def form_bbox(form: dict) -> tuple[float, float, float, float]:
     if typ == "rechteck":
         x = _zahl(form.get("x"), "x")
         y = _zahl(form.get("y"), "y")
-        return x, y, x + _zahl(form.get("b"), "b"), y + _zahl(form.get("t"), "t")
+        b = _zahl(form.get("b"), "b")
+        t = _zahl(form.get("t"), "t")
+        winkel = _zahl(form.get("winkel") or 0, "Drehwinkel")
+        if winkel % 180 == 0:
+            return x, y, x + b, y + t
+        # Gedrehtes Rechteck (um seine Mitte): exakte Bounding-Box, auch mit abgerundeten Ecken
+        r = _zahl(form.get("radius") or 0, "Eckenradius")
+        w = math.radians(winkel)
+        c, s = abs(math.cos(w)), abs(math.sin(w))
+        hx = (b / 2 - r) * c + (t / 2 - r) * s + r
+        hy = (b / 2 - r) * s + (t / 2 - r) * c + r
+        mx, my = x + b / 2, y + t / 2
+        return round(mx - hx, 6), round(my - hy, 6), round(mx + hx, 6), round(my + hy, 6)
     if typ == "kreis":
         x = _zahl(form.get("x"), "x")
         y = _zahl(form.get("y"), "y")
@@ -248,6 +262,7 @@ def eigenteil_pruefen(teil: Eigenteil, bauraum_mm=(256.0, 256.0, 256.0)) -> list
                 if _zahl(form.get("b"), "Breite") < MIN_MASS_MM or _zahl(form.get("t"), "Tiefe") < MIN_MASS_MM:
                     fehler.append("%s: Rechteck ist kleiner als %.1f mm." % (marke, MIN_MASS_MM))
                     continue
+                _zahl(form.get("winkel") or 0, "Drehwinkel")
                 radius = _zahl(form.get("radius") or 0, "Eckenradius")
                 grenze = min(_zahl(form.get("b"), "Breite"), _zahl(form.get("t"), "Tiefe")) / 2.0
                 if radius < 0 or radius > grenze + 1e-9:

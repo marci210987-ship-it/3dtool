@@ -65,9 +65,10 @@ Jedes Teil besteht aus Formen in der Draufsicht (Ursprung links unten, Millimete
 - **Muster, Kopie und Spiegeln** (aufklappbar bei der gewählten Form):
   - **Form kopieren** legt eine Kopie um 5 / 5 mm versetzt an.
   - **Reihe oder Gitter:** Spalten, Zeilen und Abstand von Mitte zu Mitte (Voreinstellung: Formgröße plus 5 mm). Das Original zählt mit; es entstehen nur die Kopien. Eine Reihe ist ein Gitter mit einer Zeile.
-  - **Kreismuster** für Kreise und Vielecke: Anzahl mit Original, Mitte (Voreinstellung: Mitte der übrigen Formen) und Gesamtwinkel. 360° verteilt gleichmäßig auf den Vollkreis, ein kleinerer Winkel auf den Bogen. Rechtecke bleiben achsparallel und lassen sich nicht drehen.
+  - **Kreismuster** für Kreise, Vielecke und Rechtecke: Anzahl mit Original, Mitte (Voreinstellung: Mitte der übrigen Formen) und Gesamtwinkel. 360° verteilt gleichmäßig auf den Vollkreis, ein kleinerer Winkel auf den Bogen. Rechtecke drehen mit. Ein Rechteck mit Keil lässt sich nicht drehen.
   - **Spiegeln** an der senkrechten oder waagrechten Mittelachse der übrigen Formen (ohne andere Formen: an der eigenen Mitte), als Kopie oder mit „Original ersetzen“. Ein Keil läuft nach dem Spiegeln in die Gegenrichtung.
   - Höchstens 200 Formen je Teil; ein Muster, das darüber hinausginge, wird abgelehnt. Jeder Schritt ist mit Rückgängig zurücknehmbar.
+- **Rechtecke drehen:** Das Feld „Drehwinkel“ (Grad, gegen den Uhrzeigersinn, um die Mitte) und die Knöpfe +15° und +90° drehen ein Rechteck, auch als Loch und mit Eckenradius oder Kante. Das Außenmaß und die Fangpunkte folgen der Drehung. Ein Rechteck mit Keil lässt sich nicht drehen.
 - **Ausrichten:** Bei einer gewählten Form richten die Knöpfe Mitte ↔, Mitte ↕, Links, Rechts, Unten, Oben sie am Außenmaß der übrigen Formen aus (ein Loch zum Beispiel an der Plattenmitte).
 - Das Raster rastet den Zeiger ein (0,1 bis 10 mm).
 - „Auswählen“: Form anklicken und ziehen, Entf löscht. Zahlenfelder ändern die genauen Maße.

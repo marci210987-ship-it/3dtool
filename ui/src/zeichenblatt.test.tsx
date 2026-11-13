@@ -168,11 +168,35 @@ describe("Zeichnen: Muster und Spiegeln", () => {
     expect(formAnzahl()).toBe(3);
   });
 
-  it("weist bei Rechtecken auf die fehlende Drehung hin", async () => {
+  it("bietet das Kreismuster auch für Rechtecke an, ausgenommen mit Keil", async () => {
+    const benutzer = userEvent.setup();
+    const { unmount } = render(<Huelle start={[teilMitLoch()]} />);
+    await waehle(benutzer, /Rechteck/);
+    expect(screen.queryByTestId("muster-kreis")).not.toBeNull();
+    // Kreismuster mit der Platte als Rechteck: Kopien drehen mit
+    await benutzer.click(screen.getByTestId("muster-kreis"));
+    expect(formAnzahl()).toBe(7);
+    unmount();
+
+    const keilTeil: Eigenteil = { ...neuesTeil([]), formen: [{ typ: "rechteck", x: 0, y: 0, b: 40, t: 20, loch: false, keil_mm: 5 }] };
+    render(<Huelle start={[keilTeil]} />);
+    await waehle(benutzer, /Rechteck/);
+    expect(screen.queryByTestId("muster-kreis")).toBeNull();
+    expect(screen.getByText(/Ein Rechteck mit Keil lässt sich nicht drehen/)).toBeTruthy();
+  });
+
+  it("dreht ein Rechteck per Feld und per Knopf", async () => {
     const benutzer = userEvent.setup();
     render(<Huelle start={[teilMitLoch()]} />);
     await waehle(benutzer, /Rechteck/);
-    expect(screen.queryByTestId("muster-kreis")).toBeNull();
-    expect(screen.getByText(/Rechtecke bleiben achsparallel/)).toBeTruthy();
+    await benutzer.click(screen.getByTestId("winkel-plus90"));
+    expect((screen.getByTestId("form-winkel") as HTMLInputElement).value).toBe("90");
+    await benutzer.click(screen.getByTestId("winkel-plus90"));
+    await benutzer.click(screen.getByTestId("winkel-plus90"));
+    await benutzer.click(screen.getByTestId("winkel-plus90"));
+    expect((screen.getByTestId("form-winkel") as HTMLInputElement).value).toBe(""); // 360 = keine Drehung
+    await benutzer.type(screen.getByTestId("form-winkel"), "30");
+    expect((screen.getByTestId("form-winkel") as HTMLInputElement).value).toBe("30");
+    expect(screen.getByTestId("teil-mass").textContent).toContain("Außenmaß");
   });
 });

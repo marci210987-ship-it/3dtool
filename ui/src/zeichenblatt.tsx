@@ -698,6 +698,24 @@ export function Zeichnen({
                   testid="form-schraege"
                   onChange={(v) => setzeFeld(auswahl, { schraege_mm: v })}
                 />
+                {gewaehlt.typ === "rechteck" && (
+                  <>
+                    <OptZahlfeld
+                      label="Drehwinkel (°, gegen den Uhrzeigersinn, um die Mitte)"
+                      wert={gewaehlt.winkel}
+                      testid="form-winkel"
+                      onChange={(v) => setzeFeld(auswahl, { winkel: v })}
+                    />
+                    <div className="knopfzeile">
+                      <button type="button" data-testid="winkel-plus90" onClick={() => setzeFeld(auswahl, { winkel: (((gewaehlt.winkel ?? 0) + 90) % 360) || undefined })}>
+                        +90°
+                      </button>
+                      <button type="button" data-testid="winkel-plus15" onClick={() => setzeFeld(auswahl, { winkel: (((gewaehlt.winkel ?? 0) + 15) % 360) || undefined })}>
+                        +15°
+                      </button>
+                    </div>
+                  </>
+                )}
                 {gewaehlt.typ === "rechteck" && !gewaehlt.loch && (
                   <OptZahlfeld
                     label="Keil: Höhenzuwachs nach hinten (mm, negativ = fällt)"
@@ -776,7 +794,19 @@ export function Zeichnen({
 }
 
 function formElement(f: Form) {
-  if (f.typ === "rechteck") return <rect x={f.x} y={f.y} width={f.b} height={f.t} rx={f.radius || 0} ry={f.radius || 0} />;
+  if (f.typ === "rechteck") {
+    return (
+      <rect
+        x={f.x}
+        y={f.y}
+        width={f.b}
+        height={f.t}
+        rx={f.radius || 0}
+        ry={f.radius || 0}
+        transform={f.winkel ? `rotate(${f.winkel} ${f.x + f.b / 2} ${f.y + f.t / 2})` : undefined}
+      />
+    );
+  }
   if (f.typ === "kreis") return <circle cx={f.x} cy={f.y} r={f.r} />;
   return <polygon points={f.punkte.map((p) => p.join(",")).join(" ")} />;
 }
@@ -1021,7 +1051,7 @@ function MusterPanel({
           </button>
         </>
       ) : (
-        <p className="leise">Rechtecke bleiben achsparallel und lassen sich nicht drehen. Das Kreismuster gilt für Kreise und Vielecke.</p>
+        <p className="leise">Ein Rechteck mit Keil lässt sich nicht drehen, daher gibt es dafür kein Kreismuster.</p>
       )}
 
       <h3>Spiegeln</h3>
