@@ -571,7 +571,15 @@ def auftrag_bauen(projekt: Projekt) -> dict:
             params["Deckel"] = 1 if box.deckel else 0
             params["Herausnehmbare_Trennwaende"] = 1 if box.herausnehmbar else 0
             params["Kabelkerben"] = 1 if box.kabelkerben else 0
-            params["Verriegelungsart"] = 2 if box.deckel else 1
+            # Verriegelungsart 1 und 2 erzwingen in make_phase4_box die Stapellippe.
+            # Ohne gewünschte Lippe bleibt Art 0, sonst weicht die Sollhöhe vom Körper ab.
+            if box.deckel:
+                params["Verriegelungsart"] = 2
+                params["Stapellippe"] = 1
+            elif params["Stapellippe"]:
+                params["Verriegelungsart"] = 1
+            else:
+                params["Verriegelungsart"] = 0
             rolle = "phase4"
         else:
             rolle = "box"

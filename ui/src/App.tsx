@@ -117,13 +117,12 @@ export function App() {
   }
 
   async function speichern() {
-    const pfad = speicherpfad || `${name.replace(/\s+/g, "_")}.cadstudio.json`;
-    const antwort = await api("save", { path: pfad, projekt });
+    const antwort = await api("save", { path: speicherpfad, projekt });
     if (!antwort.ok) {
       setMeldung(antwort.fehler || "Speichern fehlgeschlagen.");
       return;
     }
-    setSpeicherpfad(antwort.pfad || pfad);
+    setSpeicherpfad(antwort.pfad || speicherpfad);
     setMeldung(`Gespeichert: ${antwort.pfad}`);
     const liste = await api<Array<{ pfad: string; name: string }>>("recent");
     setRecent(liste.result || []);
@@ -157,7 +156,9 @@ export function App() {
   async function dateiOeffnen(file: File) {
     const text = await file.text();
     const roh = JSON.parse(text);
-    uebernehmen(roh, speicherpfad);
+    // Die Dateiauswahl liefert keinen Speicherort. Der alte Pfad würde sonst überschrieben.
+    await uebernehmen(roh, "");
+    setMeldung("Projekt gelesen. Speichern legt eine neue Datei an.");
   }
 
   async function erzeugen() {

@@ -433,9 +433,24 @@ def plane(projekt_dict: dict) -> dict:
     return plan_ansicht(projekt)
 
 
+def projekt_ziel(pfad: str, name: str) -> Path:
+    """Leere und relative Pfade liegen im Benutzerordner, nicht im Programmordner."""
+    ordner = app_home() / "projekte"
+    ordner.mkdir(parents=True, exist_ok=True)
+    text = (pfad or "").strip()
+    if not text:
+        basis = "".join(ch if ch.isalnum() or ch in "-_" else "_" for ch in (name or ""))
+        basis = basis.strip("_") or "schublade"
+        return ordner / ("%s.cadstudio.json" % basis)
+    ziel = Path(text)
+    if not ziel.is_absolute():
+        ziel = ordner / ziel
+    return ziel
+
+
 def speichere_und_merke(projekt_dict: dict, pfad: str) -> dict:
     projekt = Projekt.from_dict(projekt_dict)
-    ziel = Path(pfad)
+    ziel = projekt_ziel(pfad, projekt.name)
     projekt_speichern(projekt, ziel)
     recent_merken(ziel, projekt.name)
     return {"ok": True, "pfad": str(ziel.resolve())}

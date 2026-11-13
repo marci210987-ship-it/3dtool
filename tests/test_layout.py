@@ -116,6 +116,27 @@ class LayoutTest(unittest.TestCase):
         self.assertFalse(ansicht["ok"])
         self.assertTrue(any("Höhe" in f or "Hoehe" in f for f in ansicht["fehler"]))
 
+    def test_phase4_ohne_lippe_behaelt_die_sollhoehe(self):
+        box = Box("K1", "Kabelbox", 0, 0, 3, 3, 3, stapellippe=False, kabelkerben=True, fach_x=2, fach_y=2)
+        auftrag = auftrag_bauen(Projekt(schublade=Schublade(480, 420, 80), boxen=[box]))
+        teil = next(item for item in auftrag["teile"] if item["id"] == "K1")
+        self.assertEqual(teil["params"]["Verriegelungsart"], 0)
+        self.assertEqual(teil["params"]["Stapellippe"], 0)
+        self.assertAlmostEqual(teil["soll_mm"][2], 21.0)
+
+    def test_phase4_mit_lippe_und_deckel(self):
+        mit_lippe = Box("K2", "Kabelbox", 0, 0, 3, 3, 3, stapellippe=True, kabelkerben=True, fach_x=2, fach_y=2)
+        deckel = Box("D1", "Deckel", 4, 0, 2, 2, 3, stapellippe=False, deckel=True)
+        auftrag = auftrag_bauen(Projekt(schublade=Schublade(480, 420, 80), boxen=[mit_lippe, deckel]))
+        kabel = next(item for item in auftrag["teile"] if item["id"] == "K2")
+        lid = next(item for item in auftrag["teile"] if item["id"] == "D1")
+        self.assertEqual(kabel["params"]["Verriegelungsart"], 1)
+        self.assertEqual(kabel["params"]["Stapellippe"], 1)
+        self.assertAlmostEqual(kabel["soll_mm"][2], 25.4)
+        self.assertEqual(lid["params"]["Verriegelungsart"], 2)
+        self.assertEqual(lid["params"]["Stapellippe"], 1)
+        self.assertAlmostEqual(lid["soll_mm"][2], 25.4)
+
     def test_freier_bereich(self):
         projekt = Projekt(
             schublade=Schublade(480, 420, 80),

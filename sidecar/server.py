@@ -4,6 +4,8 @@
 from __future__ import annotations
 
 import json
+import os
+import secrets
 import threading
 import uuid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -27,6 +29,55 @@ from sidecar.paths import app_home
 JOBS: dict[str, dict] = {}
 JOBS_LOCK = threading.Lock()
 ERLAUBTE_DATEIEN: set[Path] = set()
+ERLAUBTE_URSPRUNGE = {
+    "http://localhost:1420",
+    "http://127.0.0.1:1420",
+    "tauri://localhost",
+    "http://tauri.localhost",
+    "https://tauri.localhost",
+}
+TOKEN = ""
+
+
+def sitzungstoken() -> str:
+    global TOKEN
+    if TOKEN:
+        return TOKEN
+    TOKEN = os.environ.get("CADSTUDIO_TOKEN") or secrets.token_hex(16)
+    ziel = app_home() / "sitzung.token"
+    ziel.write_text(TOKEN + "\n", encoding="utf-8")
+    try:
+        os.chmod(ziel, 0o600)
+    except OSError:
+        pass
+    return TOKEN
+
+
+def _ursprung_ok(handler: BaseHTTPRequestHandler) -> bool:
+    ursprung = handler.headers.get("Origin")
+    if not ursprung:
+        return True
+    return ursprung in ERLAUBTE_URSPRUNGE
+
+
+def _token_ok(handler: BaseHTTPRequestHandler) -> bool:
+    erwartet = sitzungstoken()
+    geliefert = handler.headers.get("X-CADStudio-Token") or ""
+    if not geliefert:
+        werte = parse_qs(urlparse(handler.path).query).get("token") or []
+        geliefert = werte[0] if werte else ""
+    if len(geliefert) != len(erwartet):
+        return False
+    return secrets.compare_digest(geliefert, erwartet)
+
+
+def _cors(handler: BaseHTTPRequestHandler) -> None:
+    ursprung = handler.headers.get("Origin")
+    if ursprung and ursprung in ERLAUBTE_URSPRUNGE:
+        handler.send_header("Access-Control-Allow-Origin", ursprung)
+        handler.send_header("Vary", "Origin")
+        handler.send_header("Access-Control-Allow-Headers", "Content-Type, X-CADStudio-Token")
+        handler.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
 
 
 def _json(handler: BaseHTTPRequestHandler, code: int, payload: dict):
@@ -34,11 +85,13 @@ def _json(handler: BaseHTTPRequestHandler, code: int, payload: dict):
     handler.send_response(code)
     handler.send_header("Content-Type", "application/json; charset=utf-8")
     handler.send_header("Content-Length", str(len(data)))
-    handler.send_header("Access-Control-Allow-Origin", "*")
-    handler.send_header("Access-Control-Allow-Headers", "Content-Type")
-    handler.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+    _cors(handler)
     handler.end_headers()
     handler.wfile.write(data)
+
+
+def _verboten(handler: BaseHTTPRequestHandler):
+    _json(handler, 403, {"ok": False, "fehler": "Dieser Aufruf ist nicht erlaubt."})
 
 
 def _registrieren(ergebnis: dict):
@@ -88,16 +141,27 @@ class Handler(BaseHTTPRequestHandler):
         return
 
     def do_OPTIONS(self):
+        if not _ursprung_ok(self):
+            self.send_response(403)
+            self.end_headers()
+            return
         self.send_response(204)
-        self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type")
-        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+        _cors(self)
         self.end_headers()
 
     def do_GET(self):
         url = urlparse(self.path)
+        if not _ursprung_ok(self):
+            _verboten(self)
+            return
         if url.path == "/health":
             _json(self, 200, {"ok": True, "dienst": "cad-studio"})
+            return
+        if url.path == "/sitzung":
+            _json(self, 200, {"ok": True, "token": sitzungstoken()})
+            return
+        if not _token_ok(self):
+            _verboten(self)
             return
         if url.path == "/api/job":
             job_id = parse_qs(url.query).get("id", [""])[0]
@@ -138,13 +202,16 @@ class Handler(BaseHTTPRequestHandler):
             self.send_response(200)
             self.send_header("Content-Type", art)
             self.send_header("Content-Length", str(len(data)))
-            self.send_header("Access-Control-Allow-Origin", "*")
+            _cors(self)
             self.end_headers()
             self.wfile.write(data)
             return
         _json(self, 404, {"ok": False, "fehler": "Unbekannter Pfad."})
 
     def do_POST(self):
+        if not _ursprung_ok(self) or not _token_ok(self):
+            _verboten(self)
+            return
         url = urlparse(self.path)
         if url.path != "/api":
             _json(self, 404, {"ok": False, "fehler": "Unbekannter Pfad."})
@@ -188,12 +255,17 @@ class Handler(BaseHTTPRequestHandler):
             _json(self, 200, {"ok": False, "fehler": str(exc)})
 
 
-def main():
-    import os
+def baue_server(host: str | None = None, port: int | None = None) -> ThreadingHTTPServer:
+    sitzungstoken()
+    host = host or os.environ.get("CADSTUDIO_HOST", "127.0.0.1")
+    if port is None:
+        port = int(os.environ.get("CADSTUDIO_PORT", "47321"))
+    return ThreadingHTTPServer((host, port), Handler)
 
-    host = os.environ.get("CADSTUDIO_HOST", "127.0.0.1")
-    port = int(os.environ.get("CADSTUDIO_PORT", "47321"))
-    server = ThreadingHTTPServer((host, port), Handler)
+
+def main():
+    server = baue_server()
+    host, port = server.server_address[:2]
     print("CADSTUDIO_HTTP http://%s:%d" % (host, port), flush=True)
     server.serve_forever()
 

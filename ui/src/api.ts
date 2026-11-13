@@ -1,9 +1,30 @@
 const BASIS = import.meta.env.VITE_API ?? "http://127.0.0.1:47321";
 
+let token = "";
+
+export async function sitzung(): Promise<string> {
+  if (token) return token;
+  const fenster = window as unknown as { __TAURI_INTERNALS__?: unknown };
+  if (fenster.__TAURI_INTERNALS__) {
+    const { invoke } = await import("@tauri-apps/api/core");
+    token = await invoke<string>("sitzungstoken");
+    return token;
+  }
+  const antwort = await fetch(`${BASIS}/sitzung`);
+  const daten = await antwort.json();
+  token = String(daten.token || "");
+  return token;
+}
+
+async function kopf(): Promise<Record<string, string>> {
+  const wert = await sitzung();
+  return { "Content-Type": "application/json", "X-CADStudio-Token": wert };
+}
+
 export async function api<T = unknown>(cmd: string, body: Record<string, unknown> = {}): Promise<{ ok: boolean; fehler?: string; result?: T; job?: string; out_dir?: string; projekt?: unknown; pfad?: string }> {
   const antwort = await fetch(`${BASIS}/api`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: await kopf(),
     body: JSON.stringify({ cmd, ...body }),
   });
   return antwort.json();
@@ -20,11 +41,12 @@ export async function gesundheit(): Promise<boolean> {
 }
 
 export function dateiUrl(pfad: string): string {
-  return `${BASIS}/datei?pfad=${encodeURIComponent(pfad)}`;
+  const zusatz = token ? `&token=${encodeURIComponent(token)}` : "";
+  return `${BASIS}/datei?pfad=${encodeURIComponent(pfad)}${zusatz}`;
 }
 
 export async function jobStatus(id: string): Promise<Record<string, unknown>> {
-  const antwort = await fetch(`${BASIS}/api/job?id=${encodeURIComponent(id)}`);
+  const antwort = await fetch(`${BASIS}/api/job?id=${encodeURIComponent(id)}`, { headers: await kopf() });
   return antwort.json();
 }
 

@@ -1,8 +1,25 @@
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command};
 use std::sync::Mutex;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use tauri::Manager;
+
+fn neues_token() -> String {
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|dauer| dauer.as_nanos())
+        .unwrap_or(0);
+    let mut wert = nanos ^ ((std::process::id() as u128) << 64) ^ 0xA5A5_F00D_C0FF_EE11;
+    let mut text = String::new();
+    for _ in 0..4 {
+        wert = wert
+            .wrapping_mul(0x9E37_79B9_7F4A_7C15)
+            .wrapping_add(0xBF58_476D_1CE4_E5B9);
+        text.push_str(&format!("{wert:032x}"));
+    }
+    text
+}
 
 struct Dienst(Mutex<Option<Child>>);
 
@@ -33,7 +50,7 @@ fn python_befehl() -> Option<Command> {
     None
 }
 
-fn dienst_starten(root: &Path) -> Option<Child> {
+fn dienst_starten(root: &Path, token: &str) -> Option<Child> {
     let mut cmd = python_befehl()?;
     cmd.arg("-m")
         .arg("sidecar.server")
@@ -41,8 +58,14 @@ fn dienst_starten(root: &Path) -> Option<Child> {
         .env("PYTHONPATH", root)
         .env("PYTHONUNBUFFERED", "1")
         .env("CADSTUDIO_HOST", "127.0.0.1")
-        .env("CADSTUDIO_PORT", "47321");
+        .env("CADSTUDIO_PORT", "47321")
+        .env("CADSTUDIO_TOKEN", token);
     cmd.spawn().ok()
+}
+
+#[tauri::command]
+fn sitzungstoken(token: tauri::State<String>) -> String {
+    token.inner().clone()
 }
 
 #[tauri::command]
@@ -67,12 +90,14 @@ fn dialog_oeffnen() -> Option<String> {
 pub fn run() {
     tauri::Builder::default()
         .setup(|app| {
+            let token = neues_token();
             let root = wurzel_zur_laufzeit(app.handle());
-            let kind = dienst_starten(&root);
+            let kind = dienst_starten(&root, &token);
+            app.manage(token);
             app.manage(Dienst(Mutex::new(kind)));
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![dialog_speichern, dialog_oeffnen])
+        .invoke_handler(tauri::generate_handler![sitzungstoken, dialog_speichern, dialog_oeffnen])
         .build(tauri::generate_context!())
         .expect("CAD Studio konnte nicht starten")
         .run(|app, event| {
