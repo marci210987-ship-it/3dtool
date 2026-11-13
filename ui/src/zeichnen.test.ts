@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { aussenmass, formHoehen, gesamthoehe, hoehenanteil, massangaben, VORLAGEN, zahlText, kreisAus, neuesTeil, polygonAus, rechteckAus, rechteckMm, runden, teilVonServer, verschieben } from "./zeichnen";
+import { aussenmass, ausrichten, bezugsrahmen, einrasten, fangpunkte, formBox, formHoehen, formOberkante, gesamthoehe, hoehenanteil, massangaben, VORLAGEN, zahlText, kreisAus, neuesTeil, polygonAus, rechteckAus, rechteckMm, runden, teilVonServer, verschieben, verschiebenMitFang, type Form } from "./zeichnen";
 
 describe("Zeichnen", () => {
   it("rastet auf das Raster ein", () => {
@@ -93,7 +93,7 @@ describe("Zeichnen", () => {
 
   it("zeigt Höhenangaben in den Maßen und hat brauchbare Vorlagen", () => {
     const m = massangaben({ typ: "rechteck", x: 0, y: 0, b: 10, t: 10, loch: false, z_mm: 5, h_mm: 20 }, 4);
-    expect(m.map((x) => x.text)).toContain("z 5 h 20");
+    expect(m.map((x) => x.text)).toContain("z 5 · h 20");
     expect(VORLAGEN.length).toBeGreaterThanOrEqual(4);
     for (const v of VORLAGEN) {
       const teil = { ...neuesTeil([]), ...v.erzeuge() };
@@ -103,5 +103,65 @@ describe("Zeichnen", () => {
       expect(gesamthoehe(teil)).toBeLessThanOrEqual(256);
     }
     expect(new Set(VORLAGEN.map((v) => v.id)).size).toBe(VORLAGEN.length);
+  });
+
+  it("rechnet Keil und Optionen in Höhen und Maße ein", () => {
+    const keil = { typ: "rechteck" as const, x: 0, y: 0, b: 40, t: 30, loch: false, keil_mm: 10 };
+    expect(formOberkante(keil, 5)).toBe(15);
+    expect(formOberkante({ ...keil, keil_mm: -3 }, 5)).toBe(5);
+    expect(gesamthoehe({ hoehe_mm: 5, formen: [keil] })).toBe(15);
+    const m = massangaben({ ...keil, schraege_mm: 0, kante_art: "fase", kante_mm: 1 } as never, 4);
+    expect(m.map((x) => x.text).join("|")).toContain("Keil 10");
+    expect(m.map((x) => x.text).join("|")).toContain("Fase 1");
+    const loch = massangaben({ typ: "kreis", x: 0, y: 0, r: 2, loch: true, schraege_mm: 1.5 }, 4);
+    expect(loch.map((x) => x.text)).toContain("Schräge 1,5");
+  });
+
+  it("rastet Punkte an Fluchtlinien anderer Formen ein", () => {
+    const platte: Form = { typ: "rechteck", x: 0, y: 0, b: 60, t: 40, loch: false };
+    const punkte = fangpunkte([platte]);
+    expect(punkte).toContainEqual([30, 20]);
+    expect(punkte).toContainEqual([60, 40]);
+    const r = einrasten([29.2, 15], punkte, 2);
+    expect(r.punkt).toEqual([30, 15]);
+    expect(r.fangX).toBe(30);
+    expect(r.fangY).toBeUndefined();
+    expect(einrasten([29.2, 20.5], punkte, 2).punkt).toEqual([30, 20]);
+    expect(einrasten([45, 10], punkte, 1).fangX).toBeUndefined();
+    expect(fangpunkte([platte], 0)).toEqual([]);
+  });
+
+  it("rastet beim Verschieben mit Kanten und Mitten ein", () => {
+    const platte: Form = { typ: "rechteck", x: 0, y: 0, b: 60, t: 40, loch: false };
+    const loch: Form = { typ: "kreis", x: 10, y: 10, r: 4, loch: true };
+    // Loch um (19.2, 9.1) schieben: Mitte x 29.2 -> 30 (Mitte der Platte), Mitte y 19.1 -> 20
+    const r = verschiebenMitFang(loch, 19.2, 9.1, [platte], 1.5);
+    expect(r.dx).toBeCloseTo(20);
+    expect(r.dy).toBeCloseTo(10);
+    expect(r.fangX).toBe(30);
+    expect(r.fangY).toBe(20);
+    // weit weg: keine Korrektur
+    const f = verschiebenMitFang(loch, 100, 100, [platte], 1.5);
+    expect(f).toEqual({ dx: 100, dy: 100, fangX: undefined, fangY: undefined });
+  });
+
+  it("richtet Formen am Bezugsrahmen aus", () => {
+    const formen: Form[] = [
+      { typ: "rechteck", x: 0, y: 0, b: 60, t: 40, loch: false },
+      { typ: "rechteck", x: 5, y: 7, b: 10, t: 10, loch: false },
+      { typ: "kreis", x: 3, y: 3, r: 2, loch: true },
+    ];
+    const rahmen = bezugsrahmen(formen, 1);
+    expect(rahmen).toEqual([0, 0, 60, 40]);
+    expect(formBox(ausrichten(formen[1], "mitte-x", rahmen))).toEqual([25, 7, 35, 17]);
+    expect(formBox(ausrichten(formen[1], "mitte-y", rahmen))).toEqual([5, 15, 15, 25]);
+    expect(formBox(ausrichten(formen[1], "rechts", rahmen))).toEqual([50, 7, 60, 17]);
+    expect(formBox(ausrichten(formen[1], "oben", rahmen))).toEqual([5, 30, 15, 40]);
+    expect(formBox(ausrichten(formen[1], "links", rahmen))[0]).toBe(0);
+    expect(formBox(ausrichten(formen[1], "unten", rahmen))[1]).toBe(0);
+    // Loch wird an der Platte zentriert; Löcher zählen nicht zum Rahmen
+    expect(bezugsrahmen(formen, 2)).toEqual([0, 0, 60, 40]);
+    expect(bezugsrahmen([formen[2]], 5)).toBeNull();
+    expect(ausrichten(formen[2], "mitte-x", null)).toBe(formen[2]);
   });
 });

@@ -239,6 +239,21 @@ class Handler(BaseHTTPRequestHandler):
             if cmd == "plane":
                 _json(self, 200, {"ok": True, "result": plane(anfrage.get("projekt") or {})})
                 return
+            if cmd == "vorlagen":
+                from sidecar.vorlagen import vorlagen_laden
+
+                _json(self, 200, {"ok": True, "result": vorlagen_laden()})
+                return
+            if cmd == "vorlage_save":
+                from sidecar.vorlagen import vorlage_speichern
+
+                _json(self, 200, {"ok": True, "result": vorlage_speichern(str(anfrage.get("name") or ""), anfrage.get("teil") or {})})
+                return
+            if cmd == "vorlage_delete":
+                from sidecar.vorlagen import vorlage_loeschen
+
+                _json(self, 200, {"ok": True, "result": vorlage_loeschen(str(anfrage.get("id") or ""))})
+                return
             if cmd == "autofill":
                 from sidecar.autofill import auto_bestuecken
                 from sidecar.layout import Projekt
@@ -249,6 +264,7 @@ class Handler(BaseHTTPRequestHandler):
                     int(anfrage.get("max_zellen") or 3),
                     wuensche=anfrage.get("wuensche") or None,
                     rest_fuellen=bool(anfrage.get("rest_fuellen", True)),
+                    stil=str(anfrage.get("stil") or "einheitlich"),
                 )
                 _json(self, 200, {"ok": antwort["ok"], "fehler": "; ".join(antwort["fehler"]), "result": antwort, "projekt": projekt.to_dict()})
                 return

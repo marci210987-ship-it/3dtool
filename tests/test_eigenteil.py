@@ -103,6 +103,30 @@ class Kanten(unittest.TestCase):
         self.assertEqual((e.kante_oben_art, e.kante_oben_mm, e.kante_unten_mm), ("keine", 0.0, 0.0))
 
 
+class Formoptionen(unittest.TestCase):
+    def _pruefe(self, form, hoehe=10, **teil):
+        return eigenteil_pruefen(Eigenteil(id="E", hoehe_mm=hoehe, formen=[form], **teil))
+
+    def test_gueltige_optionen(self):
+        self.assertEqual(self._pruefe(dict(_rechteck(40, 40), schraege_mm=5)), [])
+        self.assertEqual(self._pruefe(dict(_rechteck(40, 30), kante_art="fase", kante_mm=1)), [])
+        self.assertEqual(self._pruefe(dict(_rechteck(40, 30), keil_mm=10)), [])
+        self.assertEqual(eigenteil_sollgroesse(Eigenteil(id="E", hoehe_mm=5, formen=[dict(_rechteck(40, 30), keil_mm=10)]))[2], 15.0)
+
+    def test_ungueltige_optionen(self):
+        self.assertTrue(self._pruefe(dict(_rechteck(40, 30), schraege_mm=15)))  # läuft spitz zu
+        self.assertTrue(self._pruefe(dict(_rechteck(40, 30), kante_art="fase", kante_mm=6)))  # > halbe Höhe
+        self.assertTrue(self._pruefe(dict(_rechteck(40, 30), kante_art="keine", kante_mm=1)))
+        self.assertTrue(self._pruefe(dict(_rechteck(40, 30), kante_art="fase", kante_mm=1, schraege_mm=2)))
+        self.assertTrue(self._pruefe(dict(_rechteck(40, 30), kante_art="schief", kante_mm=1)))
+        self.assertTrue(self._pruefe(dict(_rechteck(40, 30), keil_mm=5, schraege_mm=2)))
+        self.assertTrue(self._pruefe(dict(_rechteck(40, 30), keil_mm=5, radius=3)))
+        self.assertTrue(self._pruefe(dict(typ="kreis", x=0, y=0, r=5, keil_mm=3)))
+        self.assertTrue(self._pruefe(dict(_rechteck(40, 30), keil_mm=-20)))  # vorn + Keil < 0
+        self.assertTrue(self._pruefe(dict(_rechteck(40, 30), keil_mm=3), kante_oben_art="fase", kante_oben_mm=1))
+        self.assertTrue(self._pruefe(dict(_rechteck(40, 30), schraege_mm=-1)))
+
+
 class Stufen(unittest.TestCase):
     def _stufenteil(self):
         # Sockel 60x40x5, darauf Stütze 20x20 bis 25 mm Gesamthöhe, Tasche im Sockel
@@ -276,6 +300,59 @@ class Wunschliste(unittest.TestCase):
         self.assertTrue(layout_pruefen(p)["ok"], layout_pruefen(p)["fehler"])
 
 
+class Verteilung(unittest.TestCase):
+    def _p(self, b=480, t=420):
+        return Projekt(schublade=Schublade(innenbreite_mm=b, innentiefe_mm=t, nutzhoehe_mm=80))
+
+    def test_wuensche_ruecken_in_ecken_und_aneinander(self):
+        def beruehrt(a, b):
+            ax, ay, aw, ah = footprint(a)
+            bx, by, bw, bh = footprint(b)
+            teilt_x = ax < bx + bw and bx < ax + aw
+            teilt_y = ay < by + bh and by < ay + ah
+            return (teilt_y and (ax + aw == bx or bx + bw == ax)) or (teilt_x and (ay + ah == by or by + bh == ay))
+
+        p = self._p()
+        auto_bestuecken(p, wuensche=[{"sorte": "kabel", "anzahl": 1}, {"sorte": "klein", "anzahl": 2}], rest_fuellen=False)
+        kabel = next(b for b in p.boxen if b.name == "Kabelbox")
+        kleine = [b for b in p.boxen if b.name == "Kleine Box"]
+        self.assertEqual((kabel.x, kabel.y), (0, 0))  # Ecke vorne links
+        for k in kleine:
+            # jede kleine Box berührt die Kabelbox oder eine andere Box oder die Schubladenwand
+            wand = k.x == 0 or k.y == 0
+            self.assertTrue(wand or any(beruehrt(k, o) for o in p.boxen if o is not k), (k.x, k.y))
+        self.assertTrue(any(beruehrt(k, kabel) for k in kleine))
+        self.assertTrue(layout_pruefen(p)["ok"], layout_pruefen(p)["fehler"])
+
+    def test_einheitlich_bevorzugt_grosse_gleiche_boxen(self):
+        from collections import Counter
+
+        for breite, tiefe in ((480, 420), (213, 377), (700, 150), (300, 300)):
+            gross, einheitlich, klein = self._p(breite, tiefe), self._p(breite, tiefe), self._p(breite, tiefe)
+            auto_bestuecken(gross, stil="gross")
+            r = auto_bestuecken(einheitlich, stil="einheitlich")
+            auto_bestuecken(klein, stil="klein")
+            self.assertTrue(r["ok"] and r["stil"] == "einheitlich")
+            zaehler = Counter((footprint(b)[2], footprint(b)[3]) for b in einheitlich.boxen)
+            groesse, anzahl = zaehler.most_common(1)[0]
+            zellen = sum(footprint(b)[2] * footprint(b)[3] for b in einheitlich.boxen)
+            # eine dominierende Größe, keine Streifen: Fläche mindestens 4 Felder, mindestens die Hälfte der Zellen
+            self.assertGreaterEqual(groesse[0] * groesse[1], 4, (breite, tiefe, groesse))
+            self.assertGreaterEqual(anzahl * groesse[0] * groesse[1], zellen * 0.5, (breite, tiefe, groesse))
+            self.assertLessEqual(len(einheitlich.boxen), len(klein.boxen))
+            self.assertTrue(layout_pruefen(einheitlich)["ok"], layout_pruefen(einheitlich)["fehler"])
+            # alle Stile belegen dieselben Felder
+            felder = lambda p: sum(footprint(b)[2] * footprint(b)[3] for b in p.boxen)
+            self.assertEqual(felder(einheitlich), felder(gross))
+            self.assertEqual(felder(klein), felder(gross))
+
+    def test_klein_und_unbekannter_stil(self):
+        p = self._p(200, 200)
+        auto_bestuecken(p, stil="klein")
+        self.assertTrue(all(footprint(b)[2:] == (1, 1) for b in p.boxen))
+        self.assertFalse(auto_bestuecken(self._p(), stil="quatsch")["ok"])
+
+
 class Autofill(unittest.TestCase):
     def test_fuellt_alles_ohne_ueberlappung(self):
         for breite, tiefe in ((480, 420), (213, 377), (95, 95), (700, 150)):
@@ -388,6 +465,46 @@ class MitFreeCAD(unittest.TestCase):
             self.assertAlmostEqual(solid["bbox_mm"][2], 25.0, delta=0.1)
             erwartet = 60 * 40 * 5 + 20 * 20 * 20 - 3.14159 * 16 * 2
             self.assertAlmostEqual(solid["volume_mm3"], erwartet, delta=2.0)
+
+    def test_formoptionen_export(self):
+        from sidecar.engine import generiere
+        import math
+
+        konus = dict(typ="kreis", x=20, y=20, r=3, loch=True, schraege_mm=2)
+        rand = dict(typ="kreis", x=20, y=20, r=4, loch=True, kante_art="fase", kante_mm=1)
+        teile = [
+            Eigenteil(id="E1", name="Verjuengt", hoehe_mm=10, formen=[dict(_rechteck(40, 40), schraege_mm=5)]),
+            Eigenteil(id="E2", name="Keil", hoehe_mm=5, formen=[dict(_rechteck(40, 30), keil_mm=10)]),
+            Eigenteil(id="E3", name="Senkung", hoehe_mm=10, formen=[_rechteck(40, 40), konus]),
+            Eigenteil(id="E4", name="FormKante", hoehe_mm=10, formen=[dict(_rechteck(40, 30), kante_art="fase", kante_mm=1)]),
+            Eigenteil(id="E5", name="Lochrand", hoehe_mm=10, formen=[_rechteck(40, 40), rand]),
+        ]
+        with tempfile.TemporaryDirectory() as tmp:
+            r = generiere(Projekt(nur_eigene=True, eigene=teile), Path(tmp), freecad_pfad=os.environ["FREECADCMD"])
+            self.assertTrue(r["ok"], r["fehler"])
+            solid = {d["id"]: d["solid"] for t in r["teile"] for d in t["dateien"]}
+            frustum = 10 / 3 * (1600 + 900 + math.sqrt(1600 * 900))
+            self.assertAlmostEqual(solid["E1"]["volume_mm3"], frustum, delta=frustum * 0.005)
+            self.assertAlmostEqual(solid["E1"]["bbox_mm"][2], 10.0, delta=0.1)
+            self.assertAlmostEqual(solid["E2"]["volume_mm3"], 40 * 30 * 10, delta=12000 * 0.005)
+            self.assertAlmostEqual(solid["E2"]["bbox_mm"][2], 15.0, delta=0.1)
+            kegel = math.pi * 10 / 3 * (9 + 15 + 25)
+            self.assertAlmostEqual(solid["E3"]["volume_mm3"], 16000 - kegel, delta=16000 * 0.005)
+            self.assertAlmostEqual(solid["E4"]["volume_mm3"], 12000 - 0.5 * 1 * 1 * 140, delta=1.5)
+            ring = 2 * math.pi * (4 + 1 / 3) * 0.5
+            self.assertAlmostEqual(solid["E5"]["volume_mm3"], 16000 - math.pi * 16 * 10 - ring, delta=2.5)
+
+    def test_kante_ohne_passende_flaeche_wird_gemeldet(self):
+        from sidecar.engine import generiere
+
+        # Fase an einer Form, deren Oberrand komplett von einer höheren Form verdeckt ist
+        unten = dict(_rechteck(40, 40), kante_art="fase", kante_mm=0.5, h_mm=3)
+        oben = dict(_rechteck(40, 40), z_mm=0, h_mm=8)
+        teil = Eigenteil(id="E1", hoehe_mm=8, formen=[unten, oben])
+        with tempfile.TemporaryDirectory() as tmp:
+            r = generiere(Projekt(nur_eigene=True, eigene=[teil]), Path(tmp), freecad_pfad=os.environ["FREECADCMD"])
+            self.assertFalse(r["ok"])
+            self.assertTrue(any("Kante an Form 1" in f for f in r["fehler"]), r["fehler"])
 
     def test_schwebende_form_wird_gemeldet(self):
         from sidecar.engine import generiere

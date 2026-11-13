@@ -209,3 +209,9 @@ input, select {
 
 .wunschliste { background: #fffdf8; border-radius: 16px; padding: 0.8rem; margin: 0.8rem 0; }
 .wunschliste summary { cursor: pointer; font-weight: 600; }
+
+.vorlage-speichern { margin: 0.6rem 0; }
+.meine-vorlagen ul { list-style: none; padding: 0; margin: 0.3rem 0 0; }
+.meine-vorlagen li { display: flex; justify-content: space-between; align-items: center; gap: 0.3rem; margin-bottom: 0.2rem; }
+.ausrichten { margin: 0.4rem 0; }
+.stil { flex-direction: row; align-items: center; gap: 0.4rem; }

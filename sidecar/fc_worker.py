@@ -178,6 +178,113 @@ def _kante_bearbeiten(shape, oben: bool, art: int, mm: float, bezeichnung: str):
     return neu
 
 
+def _kontur_abstand(form: dict, px: float, py: float) -> float:
+    """Abstand eines Punkts zur Umrisslinie einer Form (Draufsicht)."""
+    import math
+
+    typ = form["typ"]
+    if typ == "kreis":
+        return abs(math.hypot(px - float(form["x"]), py - float(form["y"])) - float(form["r"]))
+    if typ == "rechteck":
+        x, y, b, t = float(form["x"]), float(form["y"]), float(form["b"]), float(form["t"])
+        r = float(form.get("radius") or 0.0)
+        qx = abs(px - (x + b / 2.0)) - (b / 2.0 - r)
+        qy = abs(py - (y + t / 2.0)) - (t / 2.0 - r)
+        d = math.hypot(max(qx, 0.0), max(qy, 0.0)) + min(max(qx, qy), 0.0) - r
+        return abs(d)
+    punkte = [(float(a), float(c)) for a, c in form["punkte"]]
+    beste = float("inf")
+    for i, (ax, ay) in enumerate(punkte):
+        bx, by = punkte[(i + 1) % len(punkte)]
+        dx, dy = bx - ax, by - ay
+        laenge2 = dx * dx + dy * dy
+        u = 0.0 if laenge2 == 0 else max(0.0, min(1.0, ((px - ax) * dx + (py - ay) * dy) / laenge2))
+        beste = min(beste, math.hypot(px - (ax + u * dx), py - (ay + u * dy)))
+    return beste
+
+
+def _form_draht(form: dict):
+    import FreeCAD as App
+    import Part
+
+    typ = form["typ"]
+    if typ == "rechteck":
+        x, y, b, t = float(form["x"]), float(form["y"]), float(form["b"]), float(form["t"])
+        return _rechteck_draht(x, y, b, t, float(form.get("radius") or 0.0))
+    if typ == "kreis":
+        return Part.Wire(Part.makeCircle(float(form["r"]), App.Vector(float(form["x"]), float(form["y"]), 0), App.Vector(0, 0, 1)))
+    pts = [App.Vector(float(px), float(py), 0) for px, py in form["punkte"]]
+    return Part.makePolygon(pts + [pts[0]])
+
+
+def _form_koerper(form: dict, z0: float, h0: float, schraege: float):
+    """Körper einer Form: gerade Extrusion, mit Schräge (Verjüngung/Konus) oder als Keil."""
+    import FreeCAD as App
+    import Part
+
+    keil = float(form.get("keil_mm") or 0.0) if form["typ"] == "rechteck" else 0.0
+    if keil:
+        x, y, b, t = float(form["x"]), float(form["y"]), float(form["b"]), float(form["t"])
+        profil = Part.makePolygon([
+            App.Vector(x, y, 0), App.Vector(x, y + t, 0),
+            App.Vector(x, y + t, h0 + keil), App.Vector(x, y, h0), App.Vector(x, y, 0),
+        ])
+        koerper = Part.Face(profil).extrude(App.Vector(b, 0, 0))
+    elif schraege:
+        unten = _form_draht(form)
+        # Material: Schräge verjüngt nach oben (nach innen). Loch: weitet sich nach oben (nach außen).
+        versatz = schraege if form.get("loch") else -schraege
+        oben = unten.makeOffset2D(versatz, 2)
+        wires = oben.Wires if hasattr(oben, "Wires") else [oben]
+        if len(wires) != 1 or not wires[0].isClosed():
+            raise ValueError("Die Schräge lässt sich an dieser Form nicht berechnen. Kleineren Wert wählen.")
+        oben = wires[0].copy()
+        oben.translate(App.Vector(0, 0, h0))
+        koerper = Part.makeLoft([unten, oben], True, True)
+    else:
+        koerper = Part.Face(_form_draht(form)).extrude(App.Vector(0, 0, h0))
+    koerper.translate(App.Vector(0, 0, z0))
+    return koerper
+
+
+def _form_kanten(shape, formen: list, hoehe: float, boden: float):
+    """Fase oder Rundung am Oberrand einzelner Formen (Material) bzw. am Lochrand (Löcher)."""
+    for index, form in enumerate(formen, 1):
+        art = {"fase": 1, "rund": 2}.get(form.get("kante_art") or "keine", 0)
+        mm = float(form.get("kante_mm") or 0.0)
+        if not art or mm <= 1e-9:
+            continue
+        bezeichnung = "Kante an Form %d" % index
+        if form.get("loch"):
+            z0 = float(form["z_mm"]) if form.get("z_mm") not in (None, "") else boden
+            h0 = float(form["h_mm"]) if form.get("h_mm") not in (None, "") else hoehe - z0 + 1.0
+            z_min, z_max = z0, z0 + h0
+        else:
+            z0 = float(form.get("z_mm") or 0.0)
+            h0 = float(form["h_mm"]) if form.get("h_mm") not in (None, "") else hoehe - z0
+            z_min = z_max = z0 + h0
+        kandidaten = []
+        for e in shape.Edges:
+            bb = e.BoundBox
+            if bb.ZLength > 1e-5 or bb.ZMin < z_min - 1e-5 or bb.ZMax > z_max + 1e-5:
+                continue
+            mitte = e.valueAt((e.FirstParameter + e.LastParameter) / 2.0)
+            if _kontur_abstand(form, mitte.x, mitte.y) < 0.02:
+                kandidaten.append((bb.ZMin, e))
+        if not kandidaten:
+            raise ValueError("%s: Am Rand dieser Form wurde keine Kante gefunden (verdeckt oder weggeschnitten)." % bezeichnung)
+        z_oben = max(z for z, _ in kandidaten)
+        kanten = [e for z, e in kandidaten if abs(z - z_oben) < 1e-5]
+        try:
+            neu = shape.makeFillet(mm, kanten) if art == 2 else shape.makeChamfer(mm, kanten)
+        except Exception as exc:
+            raise ValueError("%s mit %.2f mm ist nicht möglich (%s). Kleineren Wert wählen." % (bezeichnung, mm, exc))
+        if not neu.isValid() or len(neu.Solids) != 1:
+            raise ValueError("%s mit %.2f mm ergibt keinen gültigen Körper. Kleineren Wert wählen." % (bezeichnung, mm))
+        shape = neu
+    return shape
+
+
 def _eigen_shape(params: dict):
     """Extrudiert die gezeichneten Formen. Löcher schneiden ab der Bodenhöhe."""
     import FreeCAD as App
@@ -185,37 +292,37 @@ def _eigen_shape(params: dict):
 
     hoehe = float(params["Hoehe"])
     boden = float(params.get("Boden") or 0.0)
+    hoehe_gesamt = hoehe
+    for f in params["Formen"]:
+        if not f.get("loch"):
+            z_f = float(f.get("z_mm") or 0.0)
+            h_f = float(f["h_mm"]) if f.get("h_mm") not in (None, "") else hoehe - z_f
+            k_f = float(f.get("keil_mm") or 0.0) if f["typ"] == "rechteck" else 0.0
+            hoehe_gesamt = max(hoehe_gesamt, z_f + h_f + max(0.0, k_f))
     plus = None
     minus = []
     for form in params["Formen"]:
-        typ = form["typ"]
-        if typ == "rechteck":
-            x, y, b, t = float(form["x"]), float(form["y"]), float(form["b"]), float(form["t"])
-            draht = _rechteck_draht(x, y, b, t, float(form.get("radius") or 0.0))
-        elif typ == "kreis":
-            draht = Part.Wire(Part.makeCircle(float(form["r"]), App.Vector(float(form["x"]), float(form["y"]), 0), App.Vector(0, 0, 1)))
-        else:
-            pts = [App.Vector(float(px), float(py), 0) for px, py in form["punkte"]]
-            draht = Part.makePolygon(pts + [pts[0]])
-        flaeche = Part.Face(draht)
+        schraege = float(form.get("schraege_mm") or 0.0)
         if form.get("loch"):
             # Loch: Standard ab Boden bis über die Oberkante, mit z_mm/h_mm auch als Tasche an beliebiger Höhe
             z0 = float(form["z_mm"]) if form.get("z_mm") not in (None, "") else boden
-            h0 = float(form["h_mm"]) if form.get("h_mm") not in (None, "") else hoehe - z0 + 1.0
-            koerper = flaeche.extrude(App.Vector(0, 0, h0))
-            koerper.translate(App.Vector(0, 0, z0))
-            minus.append(koerper)
+            standard = form.get("h_mm") in (None, "")
+            h0 = hoehe_gesamt - z0 + 1.0 if standard else float(form["h_mm"])
+            if standard and schraege:
+                # Die Aufweitung gilt bis zur Oberkante; das Werkzeug ragt 1 mm darüber hinaus
+                schraege = schraege * h0 / max(h0 - 1.0, 1e-6)
+            minus.append(_form_koerper(form, z0, h0, schraege))
         else:
             z0 = float(form.get("z_mm") or 0.0)
             h0 = float(form["h_mm"]) if form.get("h_mm") not in (None, "") else hoehe - z0
-            koerper = flaeche.extrude(App.Vector(0, 0, h0))
-            koerper.translate(App.Vector(0, 0, z0))
+            koerper = _form_koerper(form, z0, h0, schraege)
             plus = koerper if plus is None else plus.fuse(koerper)
     if plus is None:
         raise ValueError("Keine Form, die Material hinzufügt.")
     for loch in minus:
         plus = plus.cut(loch)
     plus = plus.removeSplitter()
+    plus = _form_kanten(plus, params["Formen"], hoehe_gesamt, boden)
     plus = _kante_bearbeiten(plus, True, int(params.get("KanteObenArt") or 0), float(params.get("KanteObenMm") or 0.0), "Obere Kante")
     plus = _kante_bearbeiten(plus, False, 1, float(params.get("KanteUntenMm") or 0.0), "Untere Fase")
     return plus

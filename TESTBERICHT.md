@@ -83,4 +83,14 @@ Fund: FreeCADs einfache `BoundBox` ist bei gekrümmten Flächen um bis zu ~1 mm 
 | `npm test`, `npm run build` | bestanden, 14 Tests (neu: Maßangaben, Höhen, Vorlagen) |
 | Live im Browser | alle fünf Vorlagen in einem Lauf exportiert, STL nachgemessen: Außenmaße und Volumina wie erwartet (z. B. Stufenblock 21 600 mm³ = 14 400 + 7 200). Wunschliste: 1 Kabelbox, 2 Besteckfächer, 3 kleine Boxen und 1 Bestecksortierer platziert, Rest bewusst nicht gefüllt |
 
+### Nachtrag: Schrägen, Keil, Kanten je Form, Einrasten, eigene Vorlagen, klügere Verteilung
+
+| Prüfung | Ergebnis |
+|---|---|
+| 9 Python-Module mit FreeCAD | bestanden, 71 Tests, 1 übersprungen. Geometrie gegen analytische Volumina: Pyramidenstumpf (Verjüngung 5 mm), Keil (12 000 mm³, 15 mm hoch), Konus-Senkung, Fase an Formkante (12 000 − 70 mm³), Fase am Lochrand; verdeckte Kante wird gemeldet. Vorlagen speichern/laden/ersetzen/löschen, beschädigte Datei. Verteilung: Kontakt, Füllstile |
+| `npm test`, `npm run build` | bestanden, 20 Tests (neu: Einrasten, Verschieben mit Fang, Ausrichten, Vorlagen speichern/einsetzen, Ausrichten per Knopf mit Rückgängig) |
+| Live im Browser | Kreis neben die Plattenmitte gezogen, rastet exakt auf 30 / 20 ein; Ausrichten setzt Mitte x von 12 auf 30; eigene Vorlage gespeichert, nach Neuladen gefunden, eingesetzt (6 Formen) und gelöscht; Rampe und Senkungsplatte exportiert und nachgemessen (Rampe 19 200 mm³, 13 mm hoch; Senkung 6 990 mm³ wie gerechnet); Füllstile an 480 × 420 mm: groß 9 × 3×3 + 3 × 2×3, einheitlich ebenso, klein 99 × 1×1 |
+
+Fund: Die erste Fassung des Stils „einheitlich“ (meiste Zellen mit gleichen Boxen) lieferte 33 schmale Boxen. Die Wahl nutzt jetzt eine Kostenregel (Boxanzahl + 4 je verschiedener Größe).
+
 Nicht ausgeführt: `npx playwright test` (Spezifikation auf die neue Schrittnummer „5. Drucken“ angepasst, aber nicht gelaufen), Start des Windows-Installers, Druck auf dem P2S, Passung der Füllplatten und Spiele.

@@ -1,7 +1,12 @@
 import { useId, useMemo, useRef, useState } from "react";
 import {
   aussenmass,
+  ausrichten,
+  type AusrichtModus,
+  bezugsrahmen,
+  einrasten,
   Eigenteil,
+  fangpunkte,
   gesamthoehe,
   hoehenanteil,
   Form,
@@ -13,8 +18,10 @@ import {
   rechteckAus,
   rechteckMm,
   runden,
+  teilVonServer,
   VORLAGEN,
   neueTeilId,
+  verschiebenMitFang,
   verschieben,
 } from "./zeichnen";
 
@@ -48,16 +55,29 @@ export interface Lageplan {
   boxen: Array<{ id: string; links_mm: number; vorne_mm: number; breite_mm: number; tiefe_mm: number }>;
 }
 
+export interface MeineVorlage {
+  id: string;
+  name: string;
+  teil: Record<string, unknown>;
+}
+
 export function Zeichnen({
   teile,
   onChange: onChangeProp,
   fehler,
   lageplan = null,
+  meineVorlagen = [],
+  onVorlageSpeichern,
+  onVorlageLoeschen,
 }: {
   teile: Eigenteil[];
   onChange: (teile: Eigenteil[]) => void;
   fehler: string[];
   lageplan?: Lageplan | null;
+  meineVorlagen?: MeineVorlage[];
+  /** Gibt einen Fehlertext zurück oder null bei Erfolg. */
+  onVorlageSpeichern?: (name: string, teil: Eigenteil) => Promise<string | null>;
+  onVorlageLoeschen?: (id: string) => void;
 }) {
   const maskenId = useId().replace(/[^a-zA-Z0-9]/g, "");
   const svgRef = useRef<SVGSVGElement>(null);
@@ -71,6 +91,10 @@ export function Zeichnen({
   const [auswahl, setAuswahl] = useState<number | null>(null);
   const [ziehen, setZiehen] = useState<Ziehen | null>(null);
   const [masseAn, setMasseAn] = useState(true);
+  const [vorlagenName, setVorlagenName] = useState("");
+  const [vorlagenMeldung, setVorlagenMeldung] = useState("");
+  const [fangAn, setFangAn] = useState(true);
+  const [fangLinien, setFangLinien] = useState<{ x?: number; y?: number }>({});
 
   const teil = teile.find((t) => t.id === aktivId) ?? teile[0] ?? null;
 
@@ -146,7 +170,9 @@ export function Zeichnen({
     aendereTeil((t) => ({ ...t, formen: neu }), art);
   }
 
-  function welt(e: { clientX: number; clientY: number }): Punkt {
+  const fangSchwelle = Math.max(raster, W / 55);
+
+  function welt(e: { clientX: number; clientY: number }, mitFang = true): Punkt {
     const svg = svgRef.current;
     if (!svg) return [0, 0];
     const m = svg.getScreenCTM();
@@ -155,7 +181,10 @@ export function Zeichnen({
     pt.x = e.clientX;
     pt.y = e.clientY;
     const p = pt.matrixTransform(m.inverse());
-    return [Math.max(0, runden(p.x, raster)), Math.max(0, runden(H - p.y, raster))];
+    const gerastet: Punkt = [Math.max(0, runden(p.x, raster)), Math.max(0, runden(H - p.y, raster))];
+    if (!mitFang || !fangAn || !teil) return gerastet;
+    const ziel = einrasten(gerastet, fangpunkte(teil.formen, ziehen ? ziehen.index : null), fangSchwelle);
+    return ziel.punkt;
   }
 
   function polygonFertig() {
@@ -193,16 +222,33 @@ export function Zeichnen({
   }
 
   function bewegt(e: React.PointerEvent<SVGSVGElement>) {
-    const p = welt(e);
+    const p = welt(e, !ziehen);
     setZeiger(p);
-    if (entwurf) setEntwurf({ ...entwurf, b: p });
+    if (entwurf) {
+      setEntwurf({ ...entwurf, b: p });
+      const f = fangAn ? einrasten(p, fangpunkte(teil?.formen ?? []), fangSchwelle) : null;
+      setFangLinien({ x: f?.fangX, y: f?.fangY });
+    }
+    if (polyPunkte.length > 0 && fangAn) {
+      const f = einrasten(p, fangpunkte(teil?.formen ?? []), fangSchwelle);
+      setFangLinien({ x: f.fangX, y: f.fangY });
+    }
     if (ziehen && teil) {
-      const neu = verschieben(ziehen.original, p[0] - ziehen.start[0], p[1] - ziehen.start[1]);
+      let dx = p[0] - ziehen.start[0];
+      let dy = p[1] - ziehen.start[1];
+      if (fangAn) {
+        const s = verschiebenMitFang(ziehen.original, dx, dy, teil.formen.filter((_, i) => i !== ziehen.index), fangSchwelle);
+        dx = s.dx;
+        dy = s.dy;
+        setFangLinien({ x: s.fangX, y: s.fangY });
+      }
+      const neu = verschieben(ziehen.original, dx, dy);
       formen(teil.formen.map((f, i) => (i === ziehen.index ? neu : f)), "zug");
     }
   }
 
   function hoch(e: React.PointerEvent<SVGSVGElement>) {
+    setFangLinien({});
     if (ziehen) setZiehen(null);
     if (!entwurf || !teil) return;
     const form = entwurf.typ === "rechteck" ? rechteckAus(entwurf.a, welt(e), loch) : kreisAus(entwurf.a, welt(e), loch);
@@ -219,7 +265,7 @@ export function Zeichnen({
     merke();
     svgRef.current?.setPointerCapture(e.pointerId);
     setAuswahl(index);
-    setZiehen({ index, start: welt(e), original: teil.formen[index] });
+    setZiehen({ index, start: welt(e, false), original: teil.formen[index] });
   }
 
   function taste(e: React.KeyboardEvent) {
@@ -242,7 +288,7 @@ export function Zeichnen({
     }
   }
 
-  function setzeFeld(index: number, patch: Record<string, number | boolean | undefined>) {
+  function setzeFeld(index: number, patch: Record<string, number | boolean | string | undefined>) {
     if (!teil) return;
     formen(teil.formen.map((f, i) => (i === index ? ({ ...f, ...patch } as Form) : f)), "tippen");
   }
@@ -271,9 +317,15 @@ export function Zeichnen({
             data-testid="vorlage"
             value=""
             onChange={(e) => {
-              const vorlage = VORLAGEN.find((v) => v.id === e.target.value);
-              if (!vorlage) return;
-              const neu = { ...neuesTeil(teile), ...vorlage.erzeuge(), id: neueTeilId(teile) } as Eigenteil;
+              const eigene = e.target.value.startsWith("v:") ? meineVorlagen.find((m) => "v:" + m.id === e.target.value) : undefined;
+              const vorlage = eigene ? undefined : VORLAGEN.find((v) => v.id === e.target.value);
+              if (!vorlage && !eigene) return;
+              const id = neueTeilId(teile);
+              const neu = (
+                eigene
+                  ? { ...teilVonServer({ ...eigene.teil, id }), id, platziert: false, x_mm: 0, y_mm: 0, drehung: 0 }
+                  : { ...neuesTeil(teile), ...vorlage!.erzeuge(), id }
+              ) as Eigenteil;
               onChange([...teile, neu]);
               setAktivId(neu.id);
               setAuswahl(null);
@@ -281,13 +333,66 @@ export function Zeichnen({
             }}
           >
             <option value="">Vorlage wählen …</option>
-            {VORLAGEN.map((v) => (
-              <option key={v.id} value={v.id} title={v.text}>
-                {v.name}
-              </option>
-            ))}
+            <optgroup label="Mitgelieferte Vorlagen">
+              {VORLAGEN.map((v) => (
+                <option key={v.id} value={v.id} title={v.text}>
+                  {v.name}
+                </option>
+              ))}
+            </optgroup>
+            {meineVorlagen.length > 0 && (
+              <optgroup label="Meine Vorlagen">
+                {meineVorlagen.map((m) => (
+                  <option key={m.id} value={"v:" + m.id}>
+                    {m.name}
+                  </option>
+                ))}
+              </optgroup>
+            )}
           </select>
         </label>
+        {onVorlageSpeichern && teil && (
+          <div className="vorlage-speichern" data-testid="vorlage-speichern">
+            <label>
+              Dieses Teil als Vorlage speichern
+              <input
+                data-testid="vorlage-name"
+                value={vorlagenName}
+                placeholder="Name der Vorlage"
+                maxLength={60}
+                onChange={(e) => setVorlagenName(e.target.value)}
+              />
+            </label>
+            <button
+              type="button"
+              data-testid="vorlage-sichern"
+              disabled={!vorlagenName.trim()}
+              onClick={async () => {
+                const fehlerText = await onVorlageSpeichern(vorlagenName, teil);
+                setVorlagenMeldung(fehlerText ?? `„${vorlagenName.trim()}“ gespeichert.`);
+                if (!fehlerText) setVorlagenName("");
+              }}
+            >
+              Als Vorlage speichern
+            </button>
+            {vorlagenMeldung && <p className="leise" data-testid="vorlage-meldung">{vorlagenMeldung}</p>}
+          </div>
+        )}
+        {meineVorlagen.length > 0 && onVorlageLoeschen && (
+          <details className="meine-vorlagen">
+            <summary>Meine Vorlagen verwalten</summary>
+            <ul>
+              {meineVorlagen.map((m) => (
+                <li key={m.id}>
+                  <span>{m.name}</span>
+                  <button type="button" aria-label={`Vorlage ${m.name} löschen`} data-testid={`vorlage-loeschen-${m.id}`} onClick={() => onVorlageLoeschen(m.id)}>
+                    ×
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </details>
+        )}
         <div className="knopfzeile">
           <button
             type="button"
@@ -352,6 +457,10 @@ export function Zeichnen({
                 Neue Form ist ein Loch
               </label>
               <label className="check">
+                <input type="checkbox" data-testid="fang-an" checked={fangAn} onChange={(e) => setFangAn(e.target.checked)} />
+                Einrasten
+              </label>
+              <label className="check">
                 <input type="checkbox" data-testid="masse-an" checked={masseAn} onChange={(e) => setMasseAn(e.target.checked)} />
                 Maße anzeigen
               </label>
@@ -409,6 +518,12 @@ export function Zeichnen({
                 {gewaehlt && (
                   <g fill="none" stroke="#1c1915" strokeWidth={0.9} pointerEvents="none">
                     {formElement(gewaehlt)}
+                  </g>
+                )}
+                {(fangLinien.x !== undefined || fangLinien.y !== undefined) && (
+                  <g stroke="#d4572b" strokeWidth={0.35} strokeDasharray="1.5 1" pointerEvents="none" data-testid="fanglinien">
+                    {fangLinien.x !== undefined && <line x1={fangLinien.x} y1={0} x2={fangLinien.x} y2={H} />}
+                    {fangLinien.y !== undefined && <line x1={0} y1={fangLinien.y} x2={W} y2={fangLinien.y} />}
                   </g>
                 )}
                 {entwurf && (
@@ -566,6 +681,60 @@ export function Zeichnen({
                   testid="form-h"
                   onChange={(v) => setzeFeld(auswahl, { h_mm: v })}
                 />
+                <OptZahlfeld
+                  label={gewaehlt.loch ? "Aufweitung nach oben, Senkung (mm)" : "Verjüngung nach oben (mm)"}
+                  wert={gewaehlt.schraege_mm}
+                  testid="form-schraege"
+                  onChange={(v) => setzeFeld(auswahl, { schraege_mm: v })}
+                />
+                {gewaehlt.typ === "rechteck" && !gewaehlt.loch && (
+                  <OptZahlfeld
+                    label="Keil: Höhenzuwachs nach hinten (mm, negativ = fällt)"
+                    wert={gewaehlt.keil_mm}
+                    testid="form-keil"
+                    onChange={(v) => setzeFeld(auswahl, { keil_mm: v })}
+                  />
+                )}
+                <div className="ausrichten" data-testid="ausrichten">
+                  <span className="leise">Ausrichten am Außenmaß der übrigen Formen</span>
+                  <div className="knopfzeile">
+                    {(
+                      [
+                        ["mitte-x", "Mitte ↔"],
+                        ["mitte-y", "Mitte ↕"],
+                        ["links", "Links"],
+                        ["rechts", "Rechts"],
+                        ["unten", "Unten"],
+                        ["oben", "Oben"],
+                      ] as Array<[AusrichtModus, string]>
+                    ).map(([modus, titel]) => (
+                      <button
+                        key={modus}
+                        type="button"
+                        data-testid={`ausrichten-${modus}`}
+                        disabled={!bezugsrahmen(teil.formen, auswahl)}
+                        onClick={() => formen(teil.formen.map((f, i) => (i === auswahl ? ausrichten(f, modus, bezugsrahmen(teil.formen, auswahl)) : f)))}
+                      >
+                        {titel}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <label>
+                  {gewaehlt.loch ? "Lochrand" : "Oberrand dieser Form"}
+                  <select
+                    data-testid="form-kante-art"
+                    value={gewaehlt.kante_art ?? "keine"}
+                    onChange={(e) => setzeFeld(auswahl, { kante_art: e.target.value, kante_mm: e.target.value === "keine" ? undefined : gewaehlt.kante_mm ?? 1 })}
+                  >
+                    <option value="keine">scharfkantig</option>
+                    <option value="fase">Fase</option>
+                    <option value="rund">Rundung</option>
+                  </select>
+                </label>
+                {gewaehlt.kante_art && gewaehlt.kante_art !== "keine" && (
+                  <OptZahlfeld label="Größe der Kante (mm)" wert={gewaehlt.kante_mm} testid="form-kante-mm" onChange={(v) => setzeFeld(auswahl, { kante_mm: v })} />
+                )}
               </div>
             )}
             {fehler.length > 0 && (

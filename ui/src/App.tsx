@@ -4,7 +4,7 @@ import { Editor } from "./editor";
 import { Box, KATALOG } from "./layout";
 import { Vorschau } from "./preview";
 import { Eigenteil, neuesTeil, teilVonServer } from "./zeichnen";
-import { Zeichnen } from "./zeichenblatt";
+import { type MeineVorlage, Zeichnen } from "./zeichenblatt";
 
 type Ansicht = "start" | "arbeit" | "einstellungen";
 
@@ -70,8 +70,10 @@ export function App() {
   const [boxen, setBoxen] = useState<Box[]>([]);
   const [eigene, setEigene] = useState<Eigenteil[]>([]);
   const [nurEigene, setNurEigene] = useState(false);
+  const [meineVorlagen, setMeineVorlagen] = useState<MeineVorlage[]>([]);
   const [wuensche, setWuensche] = useState<Record<string, number>>({});
   const [restFuellen, setRestFuellen] = useState(true);
+  const [fuellstil, setFuellstil] = useState("einheitlich");
   const [plan, setPlan] = useState<Plan | null>(null);
   const [dienst, setDienst] = useState<boolean | null>(null);
   const [recent, setRecent] = useState<Array<{ pfad: string; name: string }>>([]);
@@ -103,6 +105,7 @@ export function App() {
         );
       }
     }).catch(() => undefined);
+    api<MeineVorlage[]>("vorlagen").then((r) => setMeineVorlagen((r.result as MeineVorlage[]) || [])).catch(() => undefined);
     api("detect", { probe: false }).then((r) => setFreecad((r.result as Record<string, unknown>) || null)).catch(() => undefined);
   }, []);
 
@@ -124,6 +127,18 @@ export function App() {
     if (antwort.result) setPlan(antwort.result);
   }
 
+  async function vorlageSpeichern(vorlagenName: string, teil: Eigenteil): Promise<string | null> {
+    const antwort = await api<MeineVorlage[]>("vorlage_save", { name: vorlagenName, teil });
+    if (!antwort.ok) return antwort.fehler || "Die Vorlage ließ sich nicht speichern.";
+    setMeineVorlagen((antwort.result as MeineVorlage[]) || []);
+    return null;
+  }
+
+  async function vorlageLoeschen(id: string) {
+    const antwort = await api<MeineVorlage[]>("vorlage_delete", { id });
+    if (antwort.ok) setMeineVorlagen((antwort.result as MeineVorlage[]) || []);
+  }
+
   async function eigeneAktualisieren(neu: Eigenteil[]) {
     setEigene(neu);
     setErgebnis(null);
@@ -143,6 +158,7 @@ export function App() {
       max_zellen: 3,
       wuensche: liste,
       rest_fuellen: mitWuenschen ? restFuellen : true,
+      stil: fuellstil,
     });
     if (!antwort.ok || !antwort.projekt) {
       setMeldung(antwort.fehler || "Die Schublade ließ sich nicht automatisch füllen.");
@@ -417,6 +433,14 @@ export function App() {
                 dateien={null}
               />
               <div className="knopfzeile">
+                <label className="stil">
+                  Füllstil
+                  <select data-testid="fuellstil" value={fuellstil} onChange={(e) => setFuellstil(e.target.value)}>
+                    <option value="einheitlich">Einheitliche Größe</option>
+                    <option value="gross">Möglichst große Boxen</option>
+                    <option value="klein">Kleine Boxen (1 × 1)</option>
+                  </select>
+                </label>
                 <button type="button" data-testid="auto-fuellen" onClick={() => automatischFuellen(false)}>
                   Freie Felder automatisch füllen
                 </button>
@@ -436,6 +460,9 @@ export function App() {
               <Zeichnen
                 teile={eigene}
                 onChange={eigeneAktualisieren}
+                meineVorlagen={meineVorlagen}
+                onVorlageSpeichern={vorlageSpeichern}
+                onVorlageLoeschen={vorlageLoeschen}
                 fehler={plan && !plan.ok ? plan.fehler : []}
                 lageplan={
                   nurEigene || !plan

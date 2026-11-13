@@ -74,6 +74,13 @@ def form_hoehen(form: dict, teil_hoehe: float) -> tuple[float, float]:
     return z, h
 
 
+def form_oberkante(form: dict, teil_hoehe: float) -> float:
+    """Höchster Punkt einer hinzufügenden Form (bei einem Keil die hintere, höhere Kante)."""
+    z, h = form_hoehen(form, teil_hoehe)
+    keil = float(form.get("keil_mm") or 0.0) if form.get("typ") == "rechteck" else 0.0
+    return z + h + max(0.0, keil)
+
+
 def eigenteil_hoehe(teil: "Eigenteil") -> float:
     """Gesamthöhe: höchste Oberkante aller Formen, die Material hinzufügen."""
     hoechste = 0.0
@@ -81,11 +88,57 @@ def eigenteil_hoehe(teil: "Eigenteil") -> float:
         if form.get("loch"):
             continue
         try:
-            z, h = form_hoehen(form, float(teil.hoehe_mm))
+            hoechste = max(hoechste, form_oberkante(form, float(teil.hoehe_mm)))
         except (TypeError, ValueError):
             continue
-        hoechste = max(hoechste, z + h)
     return hoechste if hoechste > 0 else float(teil.hoehe_mm)
+
+
+def form_zusatz_pruefen(form: dict, marke: str, hoehe_form: float | None) -> list[str]:
+    """Prüft Kante, Schräge und Keil einer Form. hoehe_form: Höhe der Form (bei Material), sonst None."""
+    fehler: list[str] = []
+    loch = bool(form.get("loch"))
+    typ = form.get("typ")
+    try:
+        art = form.get("kante_art") or "keine"
+        kante = float(form.get("kante_mm") or 0.0)
+        schraege = float(form.get("schraege_mm") or 0.0)
+        keil = float(form.get("keil_mm") or 0.0)
+        x0, y0, x1, y1 = form_bbox(form)
+        klein = min(x1 - x0, y1 - y0)
+    except (TypeError, ValueError):
+        return ["%s: Kante, Schräge oder Keil ist keine Zahl." % marke]
+    if art not in KANTEN_ARTEN:
+        fehler.append("%s: Unbekannte Kantenart „%s“." % (marke, art))
+    if kante < 0 or schraege < 0:
+        fehler.append("%s: Kante und Schräge dürfen nicht negativ sein." % marke)
+    if art == "keine" and kante > 0:
+        fehler.append("%s: Für die Kante ist keine Art gewählt." % marke)
+    if art != "keine" and kante > 0:
+        if kante > klein / 2.0 + 1e-9:
+            fehler.append("%s: Kante darf höchstens die halbe kleinste Seite (%.1f mm) betragen." % (marke, klein / 2.0))
+        if hoehe_form is not None and kante > hoehe_form / 2.0 + 1e-9:
+            fehler.append("%s: Kante darf höchstens die halbe Höhe der Form (%.1f mm) betragen." % (marke, hoehe_form / 2.0))
+        if schraege > 0:
+            fehler.append("%s: Kante und Schräge lassen sich an einer Form nicht kombinieren." % marke)
+        if keil != 0:
+            fehler.append("%s: Kante und Keil lassen sich an einer Form nicht kombinieren." % marke)
+    if schraege > 0:
+        if not loch and schraege >= klein / 2.0 - 1e-9:
+            fehler.append("%s: Die Schräge muss kleiner als die halbe kleinste Seite (%.1f mm) sein, sonst läuft die Form spitz zu." % (marke, klein / 2.0))
+        if loch and schraege > 100:
+            fehler.append("%s: Die Aufweitung des Lochs ist zu groß." % marke)
+        if typ == "polygon" and not loch and schraege >= klein / 4.0:
+            fehler.append("%s: Bei einem Vieleck darf die Schräge höchstens ein Viertel der kleinsten Seite (%.1f mm) betragen." % (marke, klein / 4.0))
+    if keil != 0:
+        if typ != "rechteck" or loch:
+            fehler.append("%s: Ein Keil ist nur an einem Rechteck möglich, das Material hinzufügt." % marke)
+        else:
+            if schraege > 0 or float(form.get("radius") or 0.0) > 0:
+                fehler.append("%s: Ein Keil lässt sich nicht mit Schräge oder Eckenradius kombinieren." % marke)
+            if hoehe_form is not None and hoehe_form + keil < MIN_MASS_MM:
+                fehler.append("%s: Die Höhe vorn plus Keil ist zu klein." % marke)
+    return fehler
 
 
 def _zahl(wert, name: str) -> float:
@@ -229,16 +282,19 @@ def eigenteil_pruefen(teil: Eigenteil, bauraum_mm=(256.0, 256.0, 256.0)) -> list
                 z0, hh = form_hoehen(form, hoehe)
                 if hh < MIN_MASS_MM:
                     fehler.append("%s: Die Höhe der Form (%.1f mm) ist zu klein; Starthöhe und Höhe prüfen." % (marke, hh))
-                elif z0 + hh > float(bauraum_mm[2]) + 1e-6:
-                    fehler.append("%s: Oberkante bei %.1f mm liegt über dem Bauraum." % (marke, z0 + hh))
+                elif form_oberkante(form, hoehe) > float(bauraum_mm[2]) + 1e-6:
+                    fehler.append("%s: Oberkante bei %.1f mm liegt über dem Bauraum." % (marke, form_oberkante(form, hoehe)))
             elif hh not in (None, "") and float(hh) < MIN_MASS_MM:
                 fehler.append("%s: Die Höhe des Lochs ist zu klein." % marke)
+            fehler.extend(form_zusatz_pruefen(form, marke, hh if (not form.get("loch") and isinstance(hh, float)) else None))
         except (TypeError, ValueError):
             fehler.append("%s: Starthöhe oder Höhe ist keine Zahl." % marke)
             continue
         if not form.get("loch"):
             additiv += 1
             x0, y0, x1, y1 = min(x0, bx0), min(y0, by0), max(x1, bx1), max(y1, by1)
+    if teil.kante_oben_art != "keine" and any(f.get("keil_mm") for f in teil.formen if isinstance(f, dict)):
+        fehler.append("%s: Die obere Teilkante lässt sich nicht mit einem Keil kombinieren (die Oberseite ist schräg)." % name)
     if additiv == 0 and not fehler:
         fehler.append("%s: Es gibt nur Löcher, aber keine Form, die Material hinzufügt." % name)
     if additiv and not fehler:

@@ -2,12 +2,23 @@
 
 export type Punkt = [number, number];
 
-export type Form =
-  | { typ: "rechteck"; x: number; y: number; b: number; t: number; loch: boolean; radius?: number; z_mm?: number; h_mm?: number }
-  | { typ: "kreis"; x: number; y: number; r: number; loch: boolean; z_mm?: number; h_mm?: number }
-  | { typ: "polygon"; punkte: Punkt[]; loch: boolean; z_mm?: number; h_mm?: number };
-
 export type KantenArt = "keine" | "fase" | "rund";
+
+/** Optionen, die jede Form haben kann. */
+export interface FormOptionen {
+  z_mm?: number;
+  h_mm?: number;
+  /** Fase oder Rundung am Oberrand der Form bzw. am Lochrand */
+  kante_art?: KantenArt;
+  kante_mm?: number;
+  /** Material: Verjüngung nach oben; Loch: Aufweitung nach oben (Senkung) */
+  schraege_mm?: number;
+}
+
+export type Form =
+  | ({ typ: "rechteck"; x: number; y: number; b: number; t: number; loch: boolean; radius?: number; keil_mm?: number } & FormOptionen)
+  | ({ typ: "kreis"; x: number; y: number; r: number; loch: boolean } & FormOptionen)
+  | ({ typ: "polygon"; punkte: Punkt[]; loch: boolean } & FormOptionen);
 
 export interface Eigenteil {
   id: string;
@@ -65,13 +76,19 @@ export function formHoehen(form: Form, teilHoehe: number): { z: number; h: numbe
   return { z, h };
 }
 
+/** Höchster Punkt einer Material-Form; bei einem Keil die hintere, höhere Kante. */
+export function formOberkante(form: Form, teilHoehe: number): number {
+  const { z, h } = formHoehen(form, teilHoehe);
+  const keil = form.typ === "rechteck" ? form.keil_mm ?? 0 : 0;
+  return z + h + Math.max(0, keil);
+}
+
 /** Höchste Oberkante aller Formen, die Material hinzufügen (sonst die Standardhöhe). */
 export function gesamthoehe(teil: Pick<Eigenteil, "formen" | "hoehe_mm">): number {
   let hoechste = 0;
   for (const f of teil.formen) {
     if (f.loch) continue;
-    const { z, h } = formHoehen(f, teil.hoehe_mm);
-    hoechste = Math.max(hoechste, z + h);
+    hoechste = Math.max(hoechste, formOberkante(f, teil.hoehe_mm));
   }
   return hoechste > 0 ? bereinigen(hoechste) : teil.hoehe_mm;
 }
@@ -162,10 +179,16 @@ export function zahlText(wert: number): string {
  */
 export function massangaben(form: Form, abstand: number, mitKanten = false): Massangabe[] {
   const liste = formMasse(form, abstand, mitKanten);
-  if (form.z_mm !== undefined || form.h_mm !== undefined) {
+  const teile = [
+    form.z_mm !== undefined ? `z ${zahlText(form.z_mm)}` : "",
+    form.h_mm !== undefined ? `h ${zahlText(form.h_mm)}` : "",
+    form.typ === "rechteck" && form.keil_mm ? `Keil ${zahlText(form.keil_mm)}` : "",
+    form.schraege_mm ? `Schräge ${zahlText(form.schraege_mm)}` : "",
+    form.kante_art && form.kante_art !== "keine" && form.kante_mm ? `${form.kante_art === "fase" ? "Fase" : "Rundung"} ${zahlText(form.kante_mm)}` : "",
+  ].filter(Boolean);
+  if (teile.length) {
     const [x0, y0, x1, y1] = formBox(form);
-    const text = [form.z_mm !== undefined ? `z ${zahlText(form.z_mm)}` : "", form.h_mm !== undefined ? `h ${zahlText(form.h_mm)}` : ""].filter(Boolean).join(" ");
-    liste.push({ text, x: (x0 + x1) / 2, y: (y0 + y1) / 2 - abstand });
+    liste.push({ text: teile.join(" · "), x: (x0 + x1) / 2, y: (y0 + y1) / 2 - abstand });
   }
   return liste;
 }
@@ -252,6 +275,26 @@ export const VORLAGEN: Vorlage[] = [
     }),
   },
   {
+    id: "rampe",
+    name: "Rampe (Keil)",
+    text: "Platte 60 × 40 mit Keil: vorn 3 mm, hinten 13 mm hoch",
+    erzeuge: () => ({
+      name: "Rampe",
+      hoehe_mm: 3,
+      formen: [rechteck(0, 0, 60, 40, { keil_mm: 10 })],
+    }),
+  },
+  {
+    id: "senkung",
+    name: "Platte mit Senkungen",
+    text: "60 × 30 × 4 mm, zwei konische Senkungen für Schrauben",
+    erzeuge: () => ({
+      name: "Platte mit Senkungen",
+      hoehe_mm: 4,
+      formen: [rechteck(0, 0, 60, 30, { radius: 3 }), bohrung(12, 15, 1.75, { schraege_mm: 1.75 }), bohrung(48, 15, 1.75, { schraege_mm: 1.75 })],
+    }),
+  },
+  {
     id: "stabhalter",
     name: "Stabhalter",
     text: "40 × 20 × 25 mm mit zwei Bohrungen Ø 8, Fase oben",
@@ -269,6 +312,96 @@ export const VORLAGEN: Vorlage[] = [
 export function hoehenanteil(form: Form, teil: Pick<Eigenteil, "formen" | "hoehe_mm">): number {
   const gesamt = gesamthoehe(teil);
   if (!(gesamt > 0)) return 1;
-  const { z, h } = formHoehen(form, teil.hoehe_mm);
-  return Math.max(0, Math.min(1, (z + h) / gesamt));
+  return Math.max(0, Math.min(1, formOberkante(form, teil.hoehe_mm) / gesamt));
+}
+
+// ---------------------------------------------------------------- Einrasten und Ausrichten
+
+export interface FangErgebnis {
+  punkt: Punkt;
+  /** x- bzw. y-Linie, an der eingerastet wurde (für die Anzeige der Hilfslinien) */
+  fangX?: number;
+  fangY?: number;
+}
+
+/** Punkte einer Form, an denen andere einrasten: Ecken, Kantenmitten, Mitte, Vieleck-Ecken. */
+export function fangpunkteVon(form: Form): Punkt[] {
+  const [x0, y0, x1, y1] = formBox(form);
+  const xm = (x0 + x1) / 2;
+  const ym = (y0 + y1) / 2;
+  const punkte: Punkt[] = [
+    [x0, y0], [xm, y0], [x1, y0],
+    [x0, ym], [xm, ym], [x1, ym],
+    [x0, y1], [xm, y1], [x1, y1],
+  ];
+  if (form.typ === "polygon") punkte.push(...form.punkte.map((p) => [p[0], p[1]] as Punkt));
+  return punkte;
+}
+
+export function fangpunkte(formen: Form[], ausser: number | null = null): Punkt[] {
+  return formen.flatMap((f, i) => (i === ausser ? [] : fangpunkteVon(f)));
+}
+
+/** Rastet einen Punkt je Achse an der nächsten Fluchtlinie der Fangpunkte ein (innerhalb der Schwelle). */
+export function einrasten(p: Punkt, punkte: Punkt[], schwelle: number): FangErgebnis {
+  let bestX: number | undefined;
+  let bestY: number | undefined;
+  for (const [fx, fy] of punkte) {
+    if (Math.abs(fx - p[0]) <= schwelle && (bestX === undefined || Math.abs(fx - p[0]) < Math.abs(bestX - p[0]))) bestX = fx;
+    if (Math.abs(fy - p[1]) <= schwelle && (bestY === undefined || Math.abs(fy - p[1]) < Math.abs(bestY - p[1]))) bestY = fy;
+  }
+  return { punkt: [bestX ?? p[0], bestY ?? p[1]], fangX: bestX, fangY: bestY };
+}
+
+/**
+ * Verschiebt eine Form um (dx, dy) und rastet dabei ihre Kanten und Mitte an Kanten und Mitten
+ * der anderen Formen ein. Liefert die korrigierte Verschiebung.
+ */
+export function verschiebenMitFang(form: Form, dx: number, dy: number, andere: Form[], schwelle: number): { dx: number; dy: number; fangX?: number; fangY?: number } {
+  const [x0, y0, x1, y1] = formBox(form);
+  const meineX = [x0 + dx, (x0 + x1) / 2 + dx, x1 + dx];
+  const meineY = [y0 + dy, (y0 + y1) / 2 + dy, y1 + dy];
+  const ziele = andere.flatMap(fangpunkteVon);
+  let besteX: { delta: number; linie: number } | undefined;
+  let besteY: { delta: number; linie: number } | undefined;
+  for (const [fx, fy] of ziele) {
+    for (const mx of meineX) {
+      const d = fx - mx;
+      if (Math.abs(d) <= schwelle && (!besteX || Math.abs(d) < Math.abs(besteX.delta))) besteX = { delta: d, linie: fx };
+    }
+    for (const my of meineY) {
+      const d = fy - my;
+      if (Math.abs(d) <= schwelle && (!besteY || Math.abs(d) < Math.abs(besteY.delta))) besteY = { delta: d, linie: fy };
+    }
+  }
+  return { dx: bereinigen(dx + (besteX?.delta ?? 0)), dy: bereinigen(dy + (besteY?.delta ?? 0)), fangX: besteX?.linie, fangY: besteY?.linie };
+}
+
+export type AusrichtModus = "mitte-x" | "mitte-y" | "links" | "rechts" | "unten" | "oben";
+
+/** Bezugsrahmen: Außenmaß aller anderen Formen, die Material hinzufügen. */
+export function bezugsrahmen(formen: Form[], ausser: number): [number, number, number, number] | null {
+  const boxen = formen.filter((f, i) => i !== ausser && !f.loch).map(formBox);
+  if (!boxen.length) return null;
+  return [
+    Math.min(...boxen.map((b) => b[0])),
+    Math.min(...boxen.map((b) => b[1])),
+    Math.max(...boxen.map((b) => b[2])),
+    Math.max(...boxen.map((b) => b[3])),
+  ];
+}
+
+/** Richtet eine Form am Bezugsrahmen aus. Gibt die Form unverändert zurück, wenn es keinen Rahmen gibt. */
+export function ausrichten(form: Form, modus: AusrichtModus, rahmen: [number, number, number, number] | null): Form {
+  if (!rahmen) return form;
+  const [x0, y0, x1, y1] = formBox(form);
+  const [rx0, ry0, rx1, ry1] = rahmen;
+  switch (modus) {
+    case "mitte-x": return verschieben(form, (rx0 + rx1) / 2 - (x0 + x1) / 2, 0);
+    case "mitte-y": return verschieben(form, 0, (ry0 + ry1) / 2 - (y0 + y1) / 2);
+    case "links": return verschieben(form, rx0 - x0, 0);
+    case "rechts": return verschieben(form, rx1 - x1, 0);
+    case "unten": return verschieben(form, 0, ry0 - y0);
+    case "oben": return verschieben(form, 0, ry1 - y1);
+  }
 }

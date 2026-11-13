@@ -40,7 +40,8 @@ Links stehen fertige Sorten:
 
 Eine Box antippen setzt sie auf das nächste freie Feld. Danach:
 
-- **Wunschliste** (aufklappbar unter dem Editor): Anzahl je Sorte angeben, „Wünsche platzieren“ setzt sie zuerst (größte zuerst, bei Bedarf um 90° gedreht, an die erste freie Stelle), optional füllt das Tool danach den Rest. Passt etwas nicht, steht in der Meldung, wie viele von wie vielen platziert wurden und warum. Zu hohe Sorten werden in der Höhe abgesenkt, wenn die Schublade niedrig ist.
+- **Wunschliste** (aufklappbar unter dem Editor): Anzahl je Sorte angeben, „Wünsche platzieren“ setzt sie zuerst (größte zuerst, bei Bedarf um 90° gedreht, dorthin, wo sie am meisten Kontakt zu Wand, Boxen und eigenen Teilen haben, also in Ecken und aneinander), optional füllt das Tool danach den Rest. Passt etwas nicht, steht in der Meldung, wie viele von wie vielen platziert wurden und warum. Zu hohe Sorten werden in der Höhe abgesenkt, wenn die Schublade niedrig ist.
+- **Füllstil:** „Einheitliche Größe“ (Standard) wählt die Boxgröße mit den wenigsten Boxen und Größen, „Möglichst große Boxen“ nimmt überall die größte, „Kleine Boxen“ setzt lauter 1 × 1.
 - **Freie Felder automatisch füllen**: setzt auf jedes freie Feld die größte passende Rasterbox (bis 3 × 3 Felder, so hoch wie die Schublade erlaubt, höchstens 3 Stufen). Vorhandene Boxen bleiben unverändert, und Felder unter platzierten eigenen Teilen bleiben frei.
 - ziehen oder mit den Tasten Links, Rechts, Nach vorn, Nach hinten verschieben
 - drehen (90°)
@@ -60,6 +61,8 @@ Jedes Teil besteht aus Formen in der Draufsicht (Ursprung links unten, Millimete
 - Werkzeug wählen, mit gedrückter Maustaste ziehen (Rechteck, Kreis) oder Punkte anklicken (Vieleck; Klick auf den ersten Punkt, Enter oder „Fertig“ schließt).
 - **Rückgängig / Wiederholen:** Knöpfe in der Werkzeugleiste oder Strg+Z und Strg+Y (Strg+Umschalt+Z) mit dem Zeichenblatt im Fokus. Aufeinanderfolgende Eingaben in Zahlenfeldern zählen als ein Schritt; ein Ziehen ist ein Schritt.
 - **Maße anzeigen:** Breite, Tiefe und Durchmesser stehen am Blatt, auch live beim Ziehen. Bei der gewählten Form kommen Vieleck-Kantenlängen dazu. Der Haken „Maße anzeigen“ schaltet sie aus.
+- **Einrasten:** Beim Zeichnen und Verschieben rasten Formen an Ecken, Kanten und Mitten anderer Formen ein; orange Hilfslinien zeigen, woran. Der Haken „Einrasten“ schaltet das ab.
+- **Ausrichten:** Bei einer gewählten Form richten die Knöpfe Mitte ↔, Mitte ↕, Links, Rechts, Unten, Oben sie am Außenmaß der übrigen Formen aus (ein Loch zum Beispiel an der Plattenmitte).
 - Das Raster rastet den Zeiger ein (0,1 bis 10 mm).
 - „Auswählen“: Form anklicken und ziehen, Entf löscht. Zahlenfelder ändern die genauen Maße.
 - **In die Schublade stellen:** Mit dem Haken „In die Schublade stellen“ erscheint ein Lageplan. Das Teil lässt sich ziehen, per Zahl setzen und um 90° drehen. Es steht auf der Platte und darf keine Box und kein anderes Teil überlappen, nicht aus der Schublade ragen und nicht höher sein als die nutzbare Höhe. Platzierte Teile erscheinen grau mit ihrer Nummer im Montageplan.
@@ -71,7 +74,15 @@ Jedes Teil besteht aus Formen in der Draufsicht (Ursprung links unten, Millimete
 - Die Gesamthöhe ist die höchste Oberkante. Höhere Formen sind in der Vorschau dunkler.
 - Alle Formen müssen zusammen **einen** Körper ergeben. Eine schwebende Form, die nichts berührt, meldet der Export.
 
-**Vorlagen:** Unter „Aus Vorlage“ gibt es Platte mit Bohrungen, Winkelhalter, Stufenblock, Schale mit Mulde und Stabhalter. Sie legen ein neues Teil an, das du frei ändern kannst.
+**Vorlagen:** Unter „Aus Vorlage“ gibt es Platte mit Bohrungen, Winkelhalter, Stufenblock, Schale mit Mulde, Rampe, Platte mit Senkungen und Stabhalter. Sie legen ein neues Teil an, das du frei ändern kannst.
+
+**Eigene Vorlagen:** Ein gültiges Teil lässt sich mit „Als Vorlage speichern“ ablegen (gleicher Name ersetzt). Sie erscheinen unter „Meine Vorlagen“, bleiben nach einem Neustart erhalten und lassen sich unter „Meine Vorlagen verwalten“ löschen. Die Position in der Schublade wird nicht mitgespeichert. Die Datei `vorlagen.json` liegt im Programmordner (neben den Einstellungen), unter Windows in `%APPDATA%\CADStudio`.
+
+**Schräge, Keil und Kanten je Form**
+- **Verjüngung nach oben** (Material): die Form wird nach oben schmaler, etwa ein Sockel mit schrägen Seiten. Muss kleiner als die halbe kleinste Seite sein.
+- **Aufweitung nach oben** (Loch): ein Konus, zum Beispiel für Senkschrauben.
+- **Keil** (nur Rechteck, Material): der Höhenzuwachs nach hinten (negativ: fällt nach hinten), für Rampen und geneigte Auflagen. Nicht mit Schräge, Eckenradius oder Teilkante kombinierbar.
+- **Oberrand dieser Form / Lochrand:** Fase oder Rundung nur an der Oberkante dieser einen Form bzw. am Rand eines Lochs. Nicht mit Schräge oder Keil an derselben Form kombinierbar; die Teilkante oben lässt sich mit Formkanten an derselben Kante nicht sinnvoll kombinieren. Ist die Kante verdeckt oder passt der Wert nicht, meldet der Export das.
 
 **Rundungen und Fasen**
 - **Eckenradius** am Rechteck (Formfeld, 0 = eckig): höchstens die halbe kürzere Seite.
@@ -79,7 +90,7 @@ Jedes Teil besteht aus Formen in der Draufsicht (Ursprung links unten, Millimete
 - **Fase unten** (mm): bricht die untere Außenkante, gegen den „Elefantenfuß“ beim Druck.
 - Obere und untere Kante zusammen dürfen höchstens die halbe Höhe betragen. Passt ein Wert geometrisch nicht, meldet der Export das und bleibt gesperrt.
 
-Grenzen: keine Schrägen, Rundungen an Löchern, Gewinde oder mehrere Ebenen. Ein Vieleck darf sich nicht selbst schneiden. Maße über 256 mm werden abgelehnt.
+Grenzen: keine Gewinde, keine frei geformten Flächen, keine Texte. Ein Vieleck darf sich nicht selbst schneiden. Maße über 256 mm werden abgelehnt.
 
 ## 5. Berechnen und speichern
 
