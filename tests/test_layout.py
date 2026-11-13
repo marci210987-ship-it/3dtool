@@ -35,7 +35,6 @@ class LayoutTest(unittest.TestCase):
         self.assertAlmostEqual(ansicht["rest_y"], 40.0, places=3)
         self.assertEqual(len(ansicht["platten"]), 4)
         self.assertEqual(ansicht["randstreifen"], [])
-        self.assertFalse(ansicht["randstreifen_geometrie"])
         erwartet = [
             (5, 4, 0, 0, 16.0, 0.0, 20.0, 0.0, 226.0, 188.0),
             (5, 5, 0, 4, 16.0, 0.0, 0.0, 20.0, 226.0, 230.0),
@@ -64,14 +63,14 @@ class LayoutTest(unittest.TestCase):
         self.assertEqual(ansicht["verbinder_anzahl"], 16)
         self.assertTrue(all(p["breite_mm"] <= 256 and p["tiefe_mm"] <= 256 for p in ansicht["platten"]))
 
-    def test_randstreifen_werden_nur_ausgewiesen(self):
+    def test_randstreifen_werden_als_fuellplatten_ausgewiesen(self):
         # 12 Einheiten, Rest größer als die Reserve beider 6er-Platten.
         projekt = Projekt(schublade=Schublade(innenbreite_mm=526, innentiefe_mm=200, nutzhoehe_mm=50, spiel_mm=1.0))
         # nutz_x = 524, 12*42=504, rest=20, Reserve je 6er-Platte = 4 mm.
         ansicht = plan_ansicht(projekt)
         self.assertTrue(ansicht["randstreifen"], ansicht["text"])
-        self.assertFalse(ansicht["randstreifen_geometrie"])
-        self.assertIn("nicht", ansicht["randstreifen_hinweis"].lower())
+        self.assertTrue(ansicht["randstreifen_geometrie"])
+        self.assertIn("füllplatten", ansicht["randstreifen_hinweis"].lower())
 
     def test_vier_boxen_drehen_verschieben_ueberlappung(self):
         boxen = [

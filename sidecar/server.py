@@ -239,6 +239,14 @@ class Handler(BaseHTTPRequestHandler):
             if cmd == "plane":
                 _json(self, 200, {"ok": True, "result": plane(anfrage.get("projekt") or {})})
                 return
+            if cmd == "autofill":
+                from sidecar.autofill import auto_bestuecken
+                from sidecar.layout import Projekt
+
+                projekt = Projekt.from_dict(anfrage.get("projekt") or {})
+                antwort = auto_bestuecken(projekt, int(anfrage.get("max_zellen") or 3))
+                _json(self, 200, {"ok": antwort["ok"], "fehler": "; ".join(antwort["fehler"]), "result": antwort, "projekt": projekt.to_dict()})
+                return
             if cmd == "save":
                 _json(self, 200, speichere_und_merke(anfrage.get("projekt") or {}, anfrage.get("path") or ""))
                 return

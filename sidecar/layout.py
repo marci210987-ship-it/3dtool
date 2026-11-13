@@ -34,6 +34,7 @@ from hausraster_const import (  # noqa: E402
     pruefe_parameter,
 )
 from hausraster_plan import plane_schublade, plan_als_text  # noqa: E402
+from sidecar.eigenteil import Eigenteil, eigenteil_pruefen  # noqa: E402
 
 
 FORMAT = "cadstudio.projekt"
@@ -100,6 +101,8 @@ class Projekt:
     name: str = "Neue Schublade"
     schublade: Schublade = field(default_factory=Schublade)
     boxen: list = field(default_factory=list)
+    eigene: list = field(default_factory=list)
+    nur_eigene: bool = False  # nur gezeichnete Teile, ohne Schublade, Platten und Boxen
     notiz: str = ""
 
     def to_dict(self) -> dict:
@@ -109,6 +112,8 @@ class Projekt:
             "name": self.name,
             "schublade": asdict(self.schublade),
             "boxen": [asdict(b) for b in self.boxen],
+            "eigene": [e.to_dict() for e in self.eigene],
+            "nur_eigene": bool(self.nur_eigene),
             "notiz": self.notiz,
         }
 
@@ -122,6 +127,8 @@ class Projekt:
             name=data.get("name") or "Schublade",
             schublade=Schublade.from_dict(data.get("schublade") or {}),
             boxen=[Box.from_dict(b) for b in data.get("boxen") or []],
+            eigene=[Eigenteil.from_dict(e) for e in data.get("eigene") or []],
+            nur_eigene=bool(data.get("nur_eigene", False)),
             notiz=data.get("notiz") or "",
         )
 
@@ -307,6 +314,12 @@ def layout_pruefen(projekt: Projekt, plan=None) -> dict:
         plan = plan_berechnen(projekt.schublade)
     fehler = []
     hinweise = []
+    if projekt.nur_eigene:
+        for eigen in projekt.eigene:
+            fehler.extend(eigenteil_pruefen(eigen, projekt.schublade.bauraum_mm))
+        if not projekt.eigene:
+            fehler.append("Es ist noch kein Teil gezeichnet.")
+        return {"ok": not fehler, "fehler": fehler, "hinweise": [], "kollisionen": []}
     if plan.ungueltig:
         fehler.append("Für diese Schublade lässt sich kein Raster bilden.")
         fehler.extend(plan.hinweise)
@@ -347,10 +360,12 @@ def layout_pruefen(projekt: Projekt, plan=None) -> dict:
         else:
             fehler.append("%s hat die unbekannte Art „%s“." % (box.name or box.id, box.art))
     fehler.extend(item["text"] for item in kollisionen(projekt.boxen))
+    for eigen in projekt.eigene:
+        fehler.extend(eigenteil_pruefen(eigen, projekt.schublade.bauraum_mm))
     if plan.randstreifen:
         hinweise.append(
-            "Es bleiben Randstreifen übrig. Dafür gibt es noch kein druckbares Modell; "
-            "sie werden in der Stückliste nur ausgewiesen."
+            "Es bleiben Randstreifen übrig. Sie werden als einfache, glatte Füllplatten "
+            "mit exportiert und lose neben die Grundplatten gelegt (ohne Verbinder)."
         )
     hinweise.append(
         "Schubladenspiel %.2f mm und Verbinder-Spiel %.2f mm sind ungeprüfte Vorgaben, keine Messwerte."
@@ -451,10 +466,10 @@ def plan_ansicht(projekt: Projekt) -> dict:
         "raster_mm": plan.raster_mm,
         "plattenhoehe_mm": plan.plattenhoehe_mm,
         "randstreifen": [asdict(s) for s in plan.randstreifen],
-        "randstreifen_geometrie": False,
+        "randstreifen_geometrie": True,
         "randstreifen_hinweis": (
-            "Separate Randstreifen werden nur genannt. Ein druckbarer Streifenkörper "
-            "ist im Hausraster-Generator nicht vorhanden und wird nicht erfunden."
+            "Randstreifen werden als glatte Füllplatten in Plattenhöhe erzeugt. "
+            "Sie haben keine Verbinder und werden lose eingelegt; die Passung ist ungeprüft."
             if plan.randstreifen
             else ""
         ),
@@ -478,6 +493,23 @@ def bauteil_sollgroesse(part: dict) -> tuple[float, float, float] | None:
 
 def auftrag_bauen(projekt: Projekt) -> dict:
     """Beschreibt alle Körper, ohne sie zu erzeugen."""
+    if projekt.nur_eigene:
+        fehler = layout_pruefen(projekt)["fehler"]
+        ansicht = {
+            "fehler": fehler, "ungueltig": False, "hinweise": [], "randstreifen": [], "platten": [],
+            "verbinder_anzahl": 0, "einheiten_x": 0, "einheiten_y": 0,
+        }
+        if fehler:
+            return {"ok": False, "fehler": fehler, "ansicht": ansicht, "teile": []}
+        teile = [
+            {
+                "id": e.id, "rolle": "eigen", "name": e.name,
+                "params": {"Hoehe": float(e.hoehe_mm), "Boden": float(e.boden_mm), "Formen": e.formen},
+                "soll_mm": None, "lage": None, "anzahl": int(e.anzahl), "passt_in_bauraum": True,
+            }
+            for e in projekt.eigene
+        ]
+        return {"ok": True, "fehler": [], "ansicht": ansicht, "teile": teile}
     ansicht = plan_ansicht(projekt)
     if ansicht["ungueltig"] or ansicht["fehler"]:
         return {
@@ -604,6 +636,44 @@ def auftrag_bauen(projekt: Projekt) -> dict:
                 "anzahl": 1,
                 "passt_in_bauraum": True,
                 "deckel": bool(box.deckel),
+            }
+        )
+    for nr, streifen in enumerate(ansicht["randstreifen"], 1):
+        stuecke = max(1, int(streifen["teile"]))
+        laenge = round(float(streifen["laenge_mm"]) / stuecke, 3)
+        breite = round(float(streifen["breite_mm"]), 3)
+        hoehe = round(plattenhoehe(float(projekt.schublade.boden_platte_mm)), 3)
+        teile.append(
+            {
+                "id": "S%d" % nr,
+                "rolle": "eigen",
+                "name": "Randstreifen %d" % nr,
+                "params": {
+                    "Hoehe": hoehe,
+                    "Boden": 0.0,
+                    "Formen": [{"typ": "rechteck", "x": 0.0, "y": 0.0, "b": breite, "t": laenge, "loch": False}],
+                },
+                "soll_mm": [breite, laenge, hoehe],
+                "lage": None,
+                "anzahl": stuecke,
+                "passt_in_bauraum": breite <= BAURAUM_X and laenge <= BAURAUM_Y,
+            }
+        )
+    for eigen in projekt.eigene:
+        teile.append(
+            {
+                "id": eigen.id,
+                "rolle": "eigen",
+                "name": eigen.name,
+                "params": {
+                    "Hoehe": float(eigen.hoehe_mm),
+                    "Boden": float(eigen.boden_mm),
+                    "Formen": eigen.formen,
+                },
+                "soll_mm": None,
+                "lage": None,
+                "anzahl": int(eigen.anzahl),
+                "passt_in_bauraum": True,
             }
         )
     if ansicht["verbinder_anzahl"]:

@@ -181,3 +181,28 @@ input, select {
   .editor { grid-template-columns: 1fr; }
   header { flex-wrap: wrap; }
 }
+
+.zeichnen {
+  display: grid;
+  grid-template-columns: 200px 1fr 280px;
+  gap: 0.8rem;
+  align-items: start;
+}
+
+.teileliste {
+  background: #fffdf8;
+  border-radius: 16px;
+  padding: 0.8rem;
+}
+
+.teileliste ul, .formliste { list-style: none; padding: 0; margin: 0; }
+.teileliste li button { width: 100%; text-align: left; margin-bottom: 0.3rem; }
+.teileliste li button.aktiv, .werkzeuge button.aktiv { background: #1c1915; color: #fff; }
+.werkzeuge { display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; margin-bottom: 0.4rem; }
+.formliste li { display: flex; gap: 0.3rem; margin-bottom: 0.3rem; }
+.formliste li button:first-child { flex: 1; text-align: left; }
+.formliste li.aktiv button:first-child { background: #9fd0cb; }
+
+@media (max-width: 900px) {
+  .zeichnen { grid-template-columns: 1fr; }
+}

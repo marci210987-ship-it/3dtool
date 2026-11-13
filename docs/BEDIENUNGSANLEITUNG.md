@@ -6,7 +6,7 @@ Der Druckerbezug ist ein Bambu Lab P2S mit 256 × 256 × 256 mm Bauraum. Das Ras
 
 ## Start
 
-Auf der Startseite liegen vier Bereiche. Nur **Schubladen-Konfigurator** ist benutzbar. Ersatzteile, Kabelmanagement und Elektronikgehäuse stehen auf „in Vorbereitung“.
+Auf der Startseite liegen vier Bereiche. **Schubladen-Konfigurator** und **Eigene Teile zeichnen** sind benutzbar. Ersatzteile, Kabelmanagement und Elektronikgehäuse stehen auf „in Vorbereitung“.
 
 Darunter stehen die zuletzt geöffneten Projekte. Ein Klick lädt die Datei wieder, auch nach einem Neustart des Programms.
 
@@ -20,7 +20,7 @@ Darunter stehen die zuletzt geöffneten Projekte. Ein Klick lädt die Datei wied
 
 „Raster erzeugen“ teilt die Fläche in 42-mm-Felder und in Grundplatten, die auf das Druckbett passen. Der Rest neben den ganzen Feldern wird nach Möglichkeit in die äußeren Platten eingearbeitet.
 
-Wenn ein Rest nicht mehr in den Bauraum passt, nennt das Programm einen **Randstreifen**. Dafür gibt es noch keinen druckbaren Körper. Er erscheint in der Stückliste mit dem Vermerk, dass kein Modell vorhanden ist.
+Wenn ein Rest nicht mehr in den Bauraum passt, bleibt ein **Randstreifen** übrig. Er wird als glatte Füllplatte in Plattenhöhe erzeugt (Teile S1, S2, …), ohne Verbinder. Du legst ihn lose neben die Grundplatten. Die Passung ist nicht geprüft.
 
 ## 2. Raster ansehen
 
@@ -40,6 +40,7 @@ Links stehen fertige Sorten:
 
 Eine Box antippen setzt sie auf das nächste freie Feld. Danach:
 
+- **Freie Felder automatisch füllen**: setzt auf jedes freie Feld die größte passende Rasterbox (bis 3 × 3 Felder, so hoch wie die Schublade erlaubt, höchstens 3 Stufen). Vorhandene Boxen bleiben unverändert.
 - ziehen oder mit den Tasten Links, Rechts, Nach vorn, Nach hinten verschieben
 - drehen (90°)
 - duplizieren
@@ -51,7 +52,18 @@ Freie Felder sind hellgrün. Überlappende Boxen werden rot und mit einem Hinwei
 
 Die 3D-Ansicht in diesem Schritt ist eine **vereinfachte Vorschau**. Sie ist ausdrücklich nicht die Druckgeometrie.
 
-## 4. Berechnen und speichern
+## 4. Eigene Teile zeichnen
+
+Jedes Teil besteht aus Formen in der Draufsicht (Ursprung links unten, Millimeter): Rechteck, Kreis und Vieleck. Eine Form fügt Material hinzu. Eine Form mit „Loch“ schneidet es weg. Das Teil wird auf die eingestellte **Höhe** gerade nach oben gezogen. Mit **Boden unter Löchern** (mm) werden Löcher zu Sacklöchern; 0 heißt durchgehend.
+
+- Werkzeug wählen, mit gedrückter Maustaste ziehen (Rechteck, Kreis) oder Punkte anklicken (Vieleck; Klick auf den ersten Punkt, Enter oder „Fertig“ schließt).
+- Das Raster rastet den Zeiger ein (0,1 bis 10 mm).
+- „Auswählen“: Form anklicken und ziehen, Entf löscht. Zahlenfelder ändern die genauen Maße.
+- Auf der Startseite gibt es „Eigene Teile zeichnen“ ohne Schublade. Dann entstehen nur diese Teile und eine Stückliste, kein Montageplan.
+
+Grenzen: keine Rundungen, Schrägen, Gewinde oder mehrere Ebenen. Ein Vieleck darf sich nicht selbst schneiden. Maße über 256 mm werden abgelehnt.
+
+## 5. Berechnen und speichern
 
 „Alle Teile berechnen“ startet FreeCAD im Hintergrund und erzeugt:
 

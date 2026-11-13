@@ -3,6 +3,8 @@ import { api, dateiUrl, gesundheit, jobStatus, leereSchublade, Schublade } from 
 import { Editor } from "./editor";
 import { Box } from "./layout";
 import { Vorschau } from "./preview";
+import { Eigenteil, neuesTeil, teilVonServer } from "./zeichnen";
+import { Zeichnen } from "./zeichenblatt";
 
 type Ansicht = "start" | "arbeit" | "einstellungen";
 
@@ -53,6 +55,7 @@ interface Ergebnis {
 
 const BEREICHE = [
   { id: "schublade", titel: "Schubladen-Konfigurator", text: "Schublade ausmessen, Raster legen, Boxen verteilen, Druckdateien erzeugen.", bereit: true },
+  { id: "zeichnen", titel: "Eigene Teile zeichnen", text: "Formen zeichnen, extrudieren und als STL/FCStd ausgeben, ohne Schublade.", bereit: true },
   { id: "ersatz", titel: "Ersatzteile", text: "Einzelteile nachbestellen und neu ausgeben.", bereit: false },
   { id: "kabel", titel: "Kabelmanagement", text: "Kanäle und Führungen.", bereit: false },
   { id: "gehaeuse", titel: "Elektronikgehäuse", text: "Gehäuse um Platinen.", bereit: false },
@@ -64,6 +67,8 @@ export function App() {
   const [name, setName] = useState("Schublade");
   const [schublade, setSchublade] = useState<Schublade>(leereSchublade());
   const [boxen, setBoxen] = useState<Box[]>([]);
+  const [eigene, setEigene] = useState<Eigenteil[]>([]);
+  const [nurEigene, setNurEigene] = useState(false);
   const [plan, setPlan] = useState<Plan | null>(null);
   const [dienst, setDienst] = useState<boolean | null>(null);
   const [recent, setRecent] = useState<Array<{ pfad: string; name: string }>>([]);
@@ -75,7 +80,7 @@ export function App() {
   const [ergebnis, setErgebnis] = useState<Ergebnis | null>(null);
   const [rechnet, setRechnet] = useState(false);
 
-  const projekt = useMemo(() => anProjekt(name, schublade, boxen), [name, schublade, boxen]);
+  const projekt = useMemo(() => anProjekt(name, schublade, boxen, eigene, nurEigene), [name, schublade, boxen, eigene, nurEigene]);
 
   useEffect(() => {
     gesundheit().then(setDienst);
@@ -112,8 +117,28 @@ export function App() {
   async function boxenAktualisieren(neu: Box[]) {
     setBoxen(neu);
     setErgebnis(null);
-    const antwort = await api<Plan>("plane", { projekt: anProjekt(name, schublade, neu) });
+    const antwort = await api<Plan>("plane", { projekt: anProjekt(name, schublade, neu, eigene, nurEigene) });
     if (antwort.result) setPlan(antwort.result);
+  }
+
+  async function eigeneAktualisieren(neu: Eigenteil[]) {
+    setEigene(neu);
+    setErgebnis(null);
+    const antwort = await api<Plan>("plane", { projekt: anProjekt(name, schublade, boxen, neu, nurEigene) });
+    if (antwort.result) setPlan(antwort.result);
+  }
+
+  async function automatischFuellen() {
+    setMeldung("");
+    const antwort = await api<{ neu: number }>("autofill", { projekt, max_zellen: 3 });
+    if (!antwort.ok || !antwort.projekt) {
+      setMeldung(antwort.fehler || "Die Schublade ließ sich nicht automatisch füllen.");
+      return;
+    }
+    const roh = antwort.projekt as Record<string, unknown>;
+    const neueBoxen = ((roh.boxen as Array<Record<string, unknown>>) || []).map(boxVonServer);
+    await boxenAktualisieren(neueBoxen);
+    setMeldung((antwort.result?.neu ?? 0) + " Boxen ergänzt. Vorhandene Boxen blieben unverändert.");
   }
 
   async function speichern() {
@@ -144,12 +169,16 @@ export function App() {
     setName(geladenName);
     setSchublade(geladenSchublade);
     setBoxen(geladenBoxen);
+    const geladeneEigene = ((roh.eigene as Array<Record<string, unknown>>) || []).map(teilVonServer);
+    const geladenNurEigene = Boolean(roh.nur_eigene);
+    setEigene(geladeneEigene);
+    setNurEigene(geladenNurEigene);
     setSpeicherpfad(pfad);
     setErgebnis(null);
-    setSchritt(1);
+    setSchritt(geladenNurEigene ? 4 : 1);
     setAnsicht("arbeit");
     setMeldung("");
-    const antwort = await api<Plan>("plane", { projekt: anProjekt(geladenName, geladenSchublade, geladenBoxen) });
+    const antwort = await api<Plan>("plane", { projekt: anProjekt(geladenName, geladenSchublade, geladenBoxen, geladeneEigene, geladenNurEigene) });
     if (antwort.result) setPlan(antwort.result);
   }
 
@@ -221,6 +250,8 @@ export function App() {
               nutzhoehe_mm: Number(einstellungen.nutzhoehe_mm ?? 80),
             }));
             setBoxen([]);
+            setEigene([]);
+            setNurEigene(false);
             setPlan(null);
             setErgebnis(null);
             setSchritt(1);
@@ -228,8 +259,24 @@ export function App() {
             setAnsicht("arbeit");
           }}
           onOeffnen={oeffnen}
-          onBereich={(id) => {
-            if (id === "schublade") setAnsicht("arbeit");
+          onBereich={async (id) => {
+            if (id === "schublade") {
+              setNurEigene(false);
+              setAnsicht("arbeit");
+            }
+            if (id === "zeichnen") {
+              const start = [neuesTeil([])];
+              setName("Eigene Teile");
+              setBoxen([]);
+              setEigene(start);
+              setNurEigene(true);
+              setErgebnis(null);
+              setSpeicherpfad("");
+              setSchritt(4);
+              setAnsicht("arbeit");
+              const antwort = await api<Plan>("plane", { projekt: anProjekt("Eigene Teile", schublade, [], start, true) });
+              if (antwort.result) setPlan(antwort.result);
+            }
           }}
         />
       )}
@@ -252,13 +299,16 @@ export function App() {
       {ansicht === "arbeit" && (
         <main>
           <ol className="schritte">
-            {["Vermessen", "Raster", "Boxen", "Drucken"].map((titel, index) => (
-              <li key={titel} className={schritt === index + 1 ? "aktiv" : ""}>
-                <button type="button" onClick={() => setSchritt(index + 1)}>
-                  {index + 1}. {titel}
-                </button>
-              </li>
-            ))}
+            {["Vermessen", "Raster", "Boxen", "Eigene Teile", "Drucken"]
+              .map((titel, index) => ({ titel, nr: index + 1 }))
+              .filter((eintrag) => !nurEigene || eintrag.nr >= 4)
+              .map(({ titel, nr }) => (
+                <li key={titel} className={schritt === nr ? "aktiv" : ""}>
+                  <button type="button" onClick={() => setSchritt(nr)}>
+                    {nr}. {titel}
+                  </button>
+                </li>
+              ))}
           </ol>
           {schritt === 1 && (
             <section>
@@ -325,12 +375,30 @@ export function App() {
                 plattenhoehe={plan.plattenhoehe_mm}
                 dateien={null}
               />
-              <button type="button" className="primaer" data-testid="weiter-druck" onClick={() => setSchritt(4)}>
+              <div className="knopfzeile">
+                <button type="button" data-testid="auto-fuellen" onClick={automatischFuellen}>
+                  Freie Felder automatisch füllen
+                </button>
+                <button type="button" onClick={() => setSchritt(4)}>
+                  Eigene Teile zeichnen
+                </button>
+                <button type="button" className="primaer" data-testid="weiter-druck" onClick={() => setSchritt(5)}>
+                  Weiter zur Konstruktion
+                </button>
+              </div>
+            </section>
+          )}
+          {schritt === 4 && (
+            <section>
+              <h1>Eigene Teile zeichnen</h1>
+              <p className="leise">Formen zeichnen, Höhe festlegen, als STL und FCStd ausgeben. Löcher schneiden Material weg.</p>
+              <Zeichnen teile={eigene} onChange={eigeneAktualisieren} fehler={plan && !plan.ok ? plan.fehler : []} />
+              <button type="button" className="primaer" onClick={() => setSchritt(5)}>
                 Weiter zur Konstruktion
               </button>
             </section>
           )}
-          {schritt === 4 && (
+          {schritt === 5 && (
             <section>
               <h1>Konstruktion und Export</h1>
               <p className="leise">STL und FCStd entstehen erst hier, mit FreeCAD 1.1 und dem Hausraster-Generator 0.2-qs1. Ohne bestandene Mesh-Prüfung gibt es keine Erfolgsmeldung.</p>
@@ -345,7 +413,7 @@ export function App() {
                 {rechnet ? "Berechnet …" : "Alle Teile berechnen"}
               </button>
               {jobText && rechnet && <p data-testid="fortschritt">{jobText}</p>}
-              {ergebnis && <ErgebnisAnsicht ergebnis={ergebnis} schublade={schublade} boxen={boxen} plan={plan} />}
+              {ergebnis && <ErgebnisAnsicht ergebnis={ergebnis} schublade={schublade} boxen={boxen} plan={nurEigene ? null : plan} />}
               <div className="speichern">
                 <label>
                   Projektdatei
@@ -592,13 +660,15 @@ function Zahl({ label, wert, onChange, testid }: { label: string; wert: number; 
   );
 }
 
-function anProjekt(name: string, schublade: Schublade, boxen: Box[]) {
+function anProjekt(name: string, schublade: Schublade, boxen: Box[], eigene: Eigenteil[] = [], nurEigene = false) {
   return {
     format: "cadstudio.projekt",
     version: 1,
     name,
     schublade,
     notiz: "",
+    eigene,
+    nur_eigene: nurEigene,
     boxen: boxen.map((box) => ({
       id: box.id,
       name: box.name,

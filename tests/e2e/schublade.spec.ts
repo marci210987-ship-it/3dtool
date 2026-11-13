@@ -42,7 +42,7 @@ test("Schublade anlegen, prüfen, speichern, neu öffnen, erzeugen", async ({ pa
   await expect(page.getByTestId("ueberlappung")).toBeVisible();
   await page.screenshot({ path: path.join(BILDER, "editor-ueberlappung.png"), fullPage: true });
 
-  await page.getByRole("button", { name: "4. Drucken" }).click();
+  await page.getByRole("button", { name: "5. Drucken" }).click();
   await expect(page.getByTestId("erzeugen")).toBeDisabled();
   await expect(page.getByTestId("export-gesperrt")).toBeVisible();
 
@@ -54,7 +54,7 @@ test("Schublade anlegen, prüfen, speichern, neu öffnen, erzeugen", async ({ pa
   await page.getByTestId("hoehe").fill("4");
   await expect(page.getByTestId("vorschau-art")).toContainText("Vereinfachte Vorschau");
 
-  await page.getByRole("button", { name: "4. Drucken" }).click();
+  await page.getByRole("button", { name: "5. Drucken" }).click();
   await expect(page.getByTestId("erzeugen")).toBeEnabled();
   await page.getByTestId("speicherpfad").fill(PROJEKT);
   await page.getByTestId("speichern").click();
@@ -70,7 +70,7 @@ test("Schublade anlegen, prüfen, speichern, neu öffnen, erzeugen", async ({ pa
   await page.getByTestId("box-B4").click();
   await expect(page.getByTestId("hoehe")).toHaveValue("4");
 
-  await page.getByRole("button", { name: "4. Drucken" }).click();
+  await page.getByRole("button", { name: "5. Drucken" }).click();
   await page.getByTestId("erzeugen").click();
   await expect(page.getByTestId("export-erfolg")).toBeVisible({ timeout: 120000 });
   await expect(page.getByTestId("vorschau-art").last()).toContainText("STL");

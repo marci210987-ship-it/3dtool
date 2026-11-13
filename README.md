@@ -1,6 +1,6 @@
 # CAD Studio
 
-Windows-Programm für die eigenen 3D-Druck-Entwürfe. Phase B enthält den Schubladen-Konfigurator. Die Oberfläche ist Deutsch, die Maße sind Millimeter.
+Windows-Programm für die eigenen 3D-Druck-Entwürfe. Phase B enthält den Schubladen-Konfigurator, Phase C ergänzt automatisches Füllen, druckbare Randstreifen und selbst gezeichnete Teile. Die Oberfläche ist Deutsch, die Maße sind Millimeter.
 
 Der Druckerbezug ist ein Bambu Lab P2S, Bauraum 256 × 256 × 256 mm. Das Raster kommt aus Hausraster 0.2-qs1: 42 mm je Feld, 7 mm je Höhenstufe, anschlussfähig an Gridfinity. Es wird nur diese korrigierte Generatorversion verwendet. Die älteren Grundplatten ohne QS1 sind fehlerhaft und werden nicht geladen.
 
@@ -12,7 +12,8 @@ Projektdateien sind JSON (`.cadstudio.json`) auf dem eigenen Rechner. Es gibt ke
 
 ```
 geometry/hausraster/   Generator 0.2-qs1 (const, plan, geom, fcstd, Phase 3 und 4, Makros, Workbenches)
-sidecar/               Planung, FreeCAD-Sitzung, Exportprüfung, Stückliste, Montageplan
+sidecar/               Planung, FreeCAD-Sitzung, Exportprüfung, Stückliste, Montageplan,
+                       eigenteil.py (gezeichnete Teile), autofill.py (automatische Bestückung)
 ui/                    Deutsche Oberfläche
 src-tauri/             Fenster, Start des Dienstes, Dateidialog
 examples/              Beispielprojekt der Abnahmeschublade 480 × 420 mm
@@ -84,4 +85,4 @@ Diese Schritte sind die Anleitung für den ersten Start. Sie sind kein bereits d
 
 ## Was noch nicht da ist
 
-Ersatzteile, Kabelmanagement und Elektronikgehäuse sind auf der Startseite sichtbar und als „in Vorbereitung“ markiert. Separate Randstreifen haben kein Modell. Der Windows-Installer wird in GitHub Actions gebaut; auf einem Windows-PC wurde er nicht installiert und nicht gestartet.
+Ersatzteile, Kabelmanagement und Elektronikgehäuse sind auf der Startseite sichtbar und als „in Vorbereitung“ markiert. Gezeichnete Teile kennen nur gerade Extrusion aus Rechteck, Kreis und Vieleck, mit Löchern. Rundungen, Schrägen, 3D-Skizzen und Bauteilverbindungen gibt es nicht. Randstreifen sind einfache, glatte Füllplatten ohne Verbinder. Der Windows-Installer wird in GitHub Actions gebaut; auf einem Windows-PC wurde er nicht installiert und nicht gestartet.

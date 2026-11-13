@@ -35,3 +35,18 @@ Nichts in dieser Liste ist geschätzt. „Bestanden“ heißt, der genannte Lauf
 | Lebensmittelkontakt, Spülmaschine, Wärme, gemessene Rastkraft | nicht ausgeführt. |
 
 Ein Export gilt in den bestandenen Läufen nur als erfolgreich, wenn die Datei existiert und die Netzprüfung einen geschlossenen Körper mit plausibler Bounding-Box ergeben hat. Der absichtlich überlappende Stand wurde nicht als Erfolg gewertet.
+
+
+## Phase C (Windows 11, 13. November 2026)
+
+FreeCAD 1.1.4 (portable Windows-Version py311), Python 3.14, Node 22. Nichts hier ist geschätzt.
+
+| Prüfung | Ergebnis |
+|---|---|
+| `python -m unittest tests.test_layout tests.test_stlcheck tests.test_detect tests.test_projekt tests.test_server tests.test_abnahme tests.test_sonder tests.test_eigenteil` mit `FREECADCMD` | bestanden, 36 Tests, 1 übersprungen |
+| `tests.test_eigenteil` | Formenprüfung, Auftrag, Randstreifen als Füllplatten (Breiten 500, 537, 613 mm), Auto-Bestückung (480×420, 213×377, 95×95, 700×150) ohne Überlappung, Export von Vieleck, Sackloch und Füllplatte mit FreeCAD, Modus „nur eigene Teile“ |
+| `npm test` (Vitest) | bestanden, 8 Tests |
+| `npm run build` | bestanden |
+| Oberfläche live im Browser gegen den Sidecar | Rechteck und Kreisloch gezeichnet, Export „Alle Teile berechnen“ erfolgreich (E1). Schublade 537×301 mm: Raster 12×7, 12 Boxen automatisch gesetzt, Export mit P1–P4, 12 Boxen, S1 (Füllplatte), V und R erfolgreich |
+
+Nicht ausgeführt: `npx playwright test` (Spezifikation auf die neue Schrittnummer „5. Drucken“ angepasst, aber nicht gelaufen), Start des Windows-Installers, Druck auf dem P2S, Passung der Füllplatten und Spiele.

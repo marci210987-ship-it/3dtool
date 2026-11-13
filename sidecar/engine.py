@@ -327,42 +327,28 @@ def generiere(projekt: Projekt, out_dir: Path, freecad_pfad: str | None = None, 
     hinweise = list(auftrag["ansicht"].get("hinweise") or [])
     if auftrag["ansicht"].get("randstreifen"):
         hinweise.append(auftrag["ansicht"].get("randstreifen_hinweis") or "")
-        for streifen in auftrag["ansicht"]["randstreifen"]:
-            stueck.append(
-                {
-                    "Teil": "Randstreifen",
-                    "Bezeichnung": streifen.get("seite", "Randstreifen"),
-                    "Anzahl": streifen.get("teile", 1),
-                    "Breite_mm": streifen.get("breite_mm"),
-                    "Tiefe_mm": streifen.get("laenge_mm"),
-                    "Hoehe_mm": "",
-                    "Material": "",
-                    "Masse_geschaetzt_g": "",
-                    "Bauraum": "nicht erzeugt",
-                    "STL": "",
-                    "FCStd": "",
-                    "Pruefung": "kein Modell vorhanden",
-                }
-            )
     hinweise.append("Masse in Gramm ist eine Schätzung über das CAD-Volumen, kein gewogenes Teil.")
     if any(t.get("anzahl_ist_vorschlag") for t in teile_ausgabe):
         hinweise.append("Die Anzahl der Rastclips ist ein Vorschlag, keine gemessene Empfehlung.")
 
     schreibe_stueckliste(out_dir / "Stueckliste.json", out_dir / "Stueckliste.csv", stueck, hinweise)
-    boxen_zeichnung = _boxen_zeichnung(projekt, auftrag["ansicht"])
-    uebersicht = schreibe_uebersicht(
-        out_dir,
-        projekt.name,
-        {
-            "innenbreite_mm": projekt.schublade.innenbreite_mm,
-            "innentiefe_mm": projekt.schublade.innentiefe_mm,
-            "nutzhoehe_mm": projekt.schublade.nutzhoehe_mm,
-            "spiel_mm": projekt.schublade.spiel_mm,
-        },
-        auftrag["ansicht"],
-        boxen_zeichnung,
-        hinweise,
-    )
+    if projekt.nur_eigene:
+        uebersicht = {}
+    else:
+        boxen_zeichnung = _boxen_zeichnung(projekt, auftrag["ansicht"])
+        uebersicht = schreibe_uebersicht(
+            out_dir,
+            projekt.name,
+            {
+                "innenbreite_mm": projekt.schublade.innenbreite_mm,
+                "innentiefe_mm": projekt.schublade.innentiefe_mm,
+                "nutzhoehe_mm": projekt.schublade.nutzhoehe_mm,
+                "spiel_mm": projekt.schublade.spiel_mm,
+            },
+            auftrag["ansicht"],
+            boxen_zeichnung,
+            hinweise,
+        )
     ergebnis = {
         "ok": ok,
         "fehler": fehler,

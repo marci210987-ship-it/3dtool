@@ -118,6 +118,41 @@ def _neu_laden(App, pfad: Path) -> dict:
         App.closeDocument(doc.Name)
 
 
+def _eigen_shape(params: dict):
+    """Extrudiert die gezeichneten Formen. Löcher schneiden ab der Bodenhöhe."""
+    import FreeCAD as App
+    import Part
+
+    hoehe = float(params["Hoehe"])
+    boden = float(params.get("Boden") or 0.0)
+    plus = None
+    minus = []
+    for form in params["Formen"]:
+        typ = form["typ"]
+        if typ == "rechteck":
+            x, y, b, t = float(form["x"]), float(form["y"]), float(form["b"]), float(form["t"])
+            draht = Part.makePolygon([App.Vector(x, y, 0), App.Vector(x + b, y, 0), App.Vector(x + b, y + t, 0), App.Vector(x, y + t, 0), App.Vector(x, y, 0)])
+        elif typ == "kreis":
+            draht = Part.Wire(Part.makeCircle(float(form["r"]), App.Vector(float(form["x"]), float(form["y"]), 0), App.Vector(0, 0, 1)))
+        else:
+            pts = [App.Vector(float(px), float(py), 0) for px, py in form["punkte"]]
+            draht = Part.makePolygon(pts + [pts[0]])
+        flaeche = Part.Face(draht)
+        if form.get("loch"):
+            koerper = flaeche.extrude(App.Vector(0, 0, hoehe - boden + 1.0))
+            koerper.translate(App.Vector(0, 0, boden))
+            minus.append(koerper)
+        else:
+            koerper = flaeche.extrude(App.Vector(0, 0, hoehe))
+            plus = koerper if plus is None else plus.fuse(koerper)
+    if plus is None:
+        raise ValueError("Keine Form, die Material hinzufügt.")
+    for loch in minus:
+        plus = plus.cut(loch)
+    plus = plus.removeSplitter()
+    return plus
+
+
 def _shapes_fuer(teil: dict):
     import FreeCAD as App
     rolle = teil["rolle"]
@@ -143,6 +178,8 @@ def _shapes_fuer(teil: dict):
         from hausraster_geom import make_rastclip_shape
 
         return {"Rastclip": _drucklage(make_rastclip_shape(params), App)}, {"zentriert": False}
+    if rolle == "eigen":
+        return {"Eigenteil": _drucklage(_eigen_shape(params), App)}, {"zentriert": False}
     if rolle == "besteck":
         from hausraster_phase3_geom import besteck_teile
 
@@ -199,7 +236,7 @@ def baue_teil(teil: dict, out_dir: Path) -> dict:
             continue
         bauraum = _bauraum_fehler(info["bbox_mm"])
         soll_fehler = ""
-        if haupt and teil["rolle"] in ("grundplatte", "box", "phase4"):
+        if haupt and teil["rolle"] in ("grundplatte", "box", "phase4", "eigen"):
             soll_fehler = _passt_soll(info["bbox_mm"], soll)
         haupt = False
         if bauraum or soll_fehler:
@@ -208,9 +245,10 @@ def baue_teil(teil: dict, out_dir: Path) -> dict:
             continue
         export_stl(shape, stl)
         params = dict(teil["params"])
-        if teil["rolle"] == "besteck":
-            # Besteckparameter nicht mit den Raster-Standardwerten vermischen.
-            params = dict(teil["params"])
+        formen_text = ""
+        if teil["rolle"] == "eigen":
+            # Das Tabellenblatt kennt nur Zahlen; die Formen stehen im Lesen-Text.
+            formen_text = "\nFormen (mm, Draufsicht): " + json.dumps(params.pop("Formen", []), ensure_ascii=False)
         bemerkung = (
             "Hausraster 0.2-qs1, erzeugt von CAD Studio.\n"
             "Teil %s – %s.\n"
@@ -219,7 +257,7 @@ def baue_teil(teil: dict, out_dir: Path) -> dict:
             "Ursprungsplatten ohne QS1 nicht verwenden.\n"
             "Schubladenspiel und Verbinder-Spiel sind ungeprüfte Vorgaben."
             % (datei_id, teil.get("name") or name)
-        )
+        ) + formen_text
         _speichern(App, fcstd, datei_id, params, {name: shape}, HAUSRASTER_SRC, bemerkung)
         mesh = _mesh_info(Mesh, stl)
         reload = _neu_laden(App, fcstd)

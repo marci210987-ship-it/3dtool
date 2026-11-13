@@ -11,3 +11,5 @@ tests/out/
 *.AppImage
 squashfs-root/
 .DS_Store
+export_*/
+Montageuebersicht.png
