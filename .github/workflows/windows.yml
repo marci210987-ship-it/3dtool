@@ -1,0 +1,31 @@
+name: Windows
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test-und-installer:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Abhängigkeiten
+        run: npm ci
+      - name: Oberfläche ohne FreeCAD
+        run: npm test
+      - name: Layout ohne FreeCAD
+        run: python -m unittest tests.test_layout tests.test_stlcheck tests.test_detect tests.test_projekt
+      - name: Windows-Installer
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          projectPath: src-tauri
+          args: --bundles msi nsis

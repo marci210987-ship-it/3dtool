@@ -1,0 +1,113 @@
+# -*- coding: utf-8 -*-
+"""Hausraster Phase 3: Geometrie aus HIER_MASSE_AENDERN neu aufbauen."""
+from __future__ import annotations
+
+import os
+import sys
+from pathlib import Path
+
+import FreeCAD as App
+try:
+    import FreeCADGui  # nur in der GUI vorhanden
+except ImportError:
+    FreeCADGui = None
+
+def _here():
+    try:
+        return Path(__file__).resolve().parent
+    except NameError:
+        return Path()
+
+CANDIDATES = []
+appdata = os.environ.get("APPDATA")
+if appdata:
+    CANDIDATES += [
+        Path(appdata) / "FreeCAD" / "Mod" / "HausrasterPhase3",
+        Path(appdata) / "FreeCAD" / "Mod" / "Hausraster",
+    ]
+home = Path.home()
+CANDIDATES += [
+    home / ".local/share/FreeCAD/v1-1/Mod/HausrasterPhase3",
+    home / ".local/share/FreeCAD/v1-1/Mod/Hausraster",
+    home / ".local/share/FreeCAD/Mod/HausrasterPhase3",
+    home / ".local/share/FreeCAD/Mod/Hausraster",
+    Path("/workspace/ordnungssystem/src"),
+    Path("/workspace/ordnungssystem/FreeCAD_Mod/HausrasterPhase3"),
+    Path("/workspace/ordnungssystem/FreeCAD_Mod/Hausraster"),
+    _here().parent / "src",
+    _here().parent / "FreeCAD_Mod" / "HausrasterPhase3",
+    _here().parent / "FreeCAD_Mod" / "Hausraster",
+]
+doc = App.ActiveDocument
+if doc and getattr(doc, "FileName", ""):
+    d = Path(doc.FileName).resolve().parent
+    CANDIDATES += [d, d / "src", d.parent / "src",
+                   d.parent / "FreeCAD_Mod" / "HausrasterPhase3",
+                   d.parent / "FreeCAD_Mod" / "Hausraster"]
+
+for p in CANDIDATES:
+    if p and p.exists() and str(p) not in sys.path:
+        sys.path.insert(0, str(p))
+
+from hausraster_phase3_fcstd import params_from_sheet
+from hausraster_phase3_geom import (
+    besteck_teile, stufen_teile, schraege_teile, halter_teile,
+    make_passung_segmentverbinder, make_segmentverbinder_clip,
+)
+
+def _ist_schale(params):
+    typ = str(params.get("Modelltyp", "")).strip().lower()
+    if typ.endswith("_schale") or typ in ("schale",):
+        return True
+    try:
+        return float(params.get("Schalenwand", 0) or 0) > 0
+    except Exception:
+        return False
+
+def _replace_shapes(doc, shapes):
+    existing = {o.Name: o for o in doc.Objects if o.TypeId == "Part::Feature"}
+    for name, shape in shapes.items():
+        if name in existing:
+            existing[name].Shape = shape
+        else:
+            obj = doc.addObject("Part::Feature", name)
+            obj.Shape = shape
+    doc.recompute()
+
+def run():
+    doc = App.ActiveDocument
+    if doc is None:
+        raise RuntimeError("Kein aktives Dokument.")
+    sheet = doc.getObject("HIER_MASSE_AENDERN")
+    if sheet is None:
+        raise RuntimeError("Tabellenblatt HIER_MASSE_AENDERN fehlt.")
+    params = params_from_sheet(sheet)
+    typ = str(params.get("Modelltyp", "besteck")).strip().lower()
+    if typ in ("schräge", "schraege_schale"):
+        typ = "schraege" if typ == "schräge" else typ
+    schale = _ist_schale(params)
+    if typ == "besteck":
+        _plan, shapes = besteck_teile(params)
+    elif typ in ("stufenregal", "stufenregal_schale"):
+        if schale or typ == "stufenregal_schale":
+            from hausraster_phase3_schale import stufen_schale_teile
+            _plan, shapes = stufen_schale_teile(params)
+        else:
+            _plan, shapes = stufen_teile(params)
+    elif typ in ("schraege", "schräge", "schraege_schale"):
+        if schale or typ == "schraege_schale":
+            from hausraster_phase3_schale import schraege_schale_teile
+            _plan, shapes = schraege_schale_teile(params)
+        else:
+            _plan, shapes = schraege_teile(params)
+    elif typ == "halter":
+        _plan, shapes = halter_teile(params)
+    elif typ == "segmentverbinder":
+        a, b, c = make_passung_segmentverbinder(params)
+        shapes = {"Schiene_A": a, "Schiene_B": b, "Segmentverbinder": c}
+    else:
+        raise RuntimeError("Unbekannter Modelltyp: %s" % typ)
+    _replace_shapes(doc, shapes)
+    App.Console.PrintMessage("Hausraster Phase 3: %s neu berechnet (%d Körper, Schale=%s).\n" % (typ, len(shapes), schale))
+
+run()

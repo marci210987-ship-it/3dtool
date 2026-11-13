@@ -1,0 +1,33 @@
+# Testbericht CAD Studio, Phase B
+
+**Datum:** 13. November 2026, Europe/Berlin  
+**FreeCAD:** 1.1.4 (AppImage `FreeCAD_1.1.4-Linux-x86_64-py311.AppImage`, Aufruf über `AppRun freecadcmd`)  
+**Hausraster:** 0.2-qs1, Quellen im Repository unter `geometry/hausraster`
+
+Nichts in dieser Liste ist geschätzt. „Bestanden“ heißt, der genannte Lauf ist auf dieser Maschine ohne Fehler durchgelaufen. „Nicht ausgeführt“ heißt, der Lauf hat nicht stattgefunden.
+
+## Bestanden
+
+| Test | Ergebnis | Anmerkung |
+|---|---|---|
+| `python3 -m unittest tests.test_layout` | bestanden | 5 Tests. Plan 480×420 mm: 11×9 Felder, vier Platten 5×4, 5×5, 6×4, 6×5, alle im Bauraum, 16 Verbinder. Randstreifen werden nur ausgewiesen. Überlappung, Drehung, Höhe, freie Felder. |
+| `python3 -m unittest tests.test_stlcheck` | bestanden | 4 Tests. Geschlossener Würfel besteht, offenes Netz und falsches Sollmaß fallen durch, fehlende Datei fällt durch. |
+| `python3 -m unittest tests.test_detect` | bestanden | 4 Tests. Version 1.1 wird erkannt, 1.0 und 0.21 nicht. Nachgebautes `FreeCAD 1.1\bin\FreeCADCmd.exe` wird gefunden. Registry-Funktion liefert auf Linux eine leere Liste. |
+| `python3 -m unittest tests.test_projekt` | bestanden | Speichern und Laden in einem zweiten Python-Prozess, einschließlich der Liste zuletzt geöffneter Projekte. |
+| `FREECADCMD=…/AppRun python3 -m unittest tests.test_abnahme` | bestanden | 13. November 2026, etwa 20 Sekunden. Schublade 480×420 mm, Spiel 1,0 mm. Raster 11×9, vier Platten. Vier Boxen, eine verschoben, eine um 90° gedreht, Höhe einer Box von 3 auf 4 Stufen. Überlappung wird erkannt, der Export dazu ist nicht erfolgreich (`ok` falsch). Nach dem Auflösen: STL und FCStd für P1–P4, B1–B4, Verbinder und Rastclip. Unabhängige Netzprüfung und FreeCAD-Meshprüfung bestanden. Zweiter FreeCAD-Prozess lädt jede FCStd-Datei erneut als gültigen Körper mit Tabellenblatt. Stückliste, HTML, PDF und PNG der Montageübersicht sind vorhanden. Maße unter anderem: P1 226×188×5,45 mm, P4 252×230×5,45 mm, B1 41,5×41,5×25,4 mm, B3 nach Drehung 125,5×41,5×18,4 mm, B4 83,5×125,5×32,4 mm. Auszug: `examples/abnahme_manifest_auszug.json`. |
+| `python3 -m unittest tests.test_sonder` | bestanden | 13. November 2026. Dieselbe Schublade mit Box plus Deckel (`D1_Box`, `D1_Deckel`), Kabelbox und Bestecksortierer (`S1_Segment_*`, `S1_Segmentverbinder`). Gesamtergebnis `ok` wahr, also Dateien vorhanden und Netzprüfung bestanden. |
+| `npm test` (Vitest) | bestanden | 4 Tests. Layout und der Editor: vier Boxen, Verschieben, Drehen, Überlappungstext, Höhenänderung. |
+| `npx playwright test` | bestanden | 13. November 2026, 21,7 Sekunden, Chromium, kopflos. Startseite mit den vier Bereichen, drei davon „in Vorbereitung“. Neue Schublade 480×420, Raster 11×9 und Platten im Bauraum. Vier Boxen, Verschieben, Drehen, Überlappung, Export-Knopf gesperrt. Konflikt aufgelöst, Höhe geändert, Projekt gespeichert, Seite neu geladen, Projekt aus „Zuletzt geöffnet“ wieder da (Breite 480, Box B4 Höhe 4). „Alle Teile berechnen“ endet mit der Erfolgsmeldung und der Kennzeichnung „3D-Ansicht aus den erzeugten STL-Dateien“. |
+
+## Nicht ausgeführt
+
+| Prüfung | Ergebnis |
+|---|---|
+| GitHub Actions `windows.yml` (Installer MSI/NSIS und die Tests ohne FreeCAD auf `windows-latest`) | nicht ausgeführt. Die Workflow-Datei liegt im Repository. Von dieser Linux-Umgebung wurde der Lauf nicht gestartet und nicht beobachtet. |
+| Start der Tauri-Fensteranwendung und `cargo check` | nicht ausgeführt bzw. nicht abgeschlossen. `cargo check` auf dieser Maschine bricht ab: Rust 1.83, die Tauri-Abhängigkeiten verlangen die Edition 2024. WebKit-Entwicklungsbibliotheken für ein Linux-Fenster sind nicht installiert. Die Oberfläche wurde im Browser gegen denselben lokalen Dienst geprüft. |
+| FreeCAD-Suche in der Windows-Registry auf einem Windows-Rechner | nicht ausgeführt. Der Code ist vorhanden. Auf dieser Maschine gibt es keine Windows-Registry. |
+| Nativer Start unter Windows, FreeCADCmd.exe, MSI/NSIS | nicht ausgeführt. |
+| Druck auf dem Bambu Lab P2S, Slicer, Passung der Vorgaben 1,0 mm und 0,20 mm | nicht ausgeführt. |
+| Lebensmittelkontakt, Spülmaschine, Wärme, gemessene Rastkraft | nicht ausgeführt. |
+
+Ein Export gilt in den bestandenen Läufen nur als erfolgreich, wenn die Datei existiert und die Netzprüfung einen geschlossenen Körper mit plausibler Bounding-Box ergeben hat. Der absichtlich überlappende Stand wurde nicht als Erfolg gewertet.

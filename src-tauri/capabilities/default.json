@@ -1,0 +1,6 @@
+{
+  "identifier": "default",
+  "description": "Hauptfenster",
+  "windows": ["main"],
+  "permissions": ["core:default"]
+}

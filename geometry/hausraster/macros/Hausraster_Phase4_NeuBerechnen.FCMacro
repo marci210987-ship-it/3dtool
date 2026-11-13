@@ -1,0 +1,93 @@
+# -*- coding: utf-8 -*-
+# Hausraster Phase 4: Geometrie aus HIER_MASSE_AENDERN neu berechnen.
+import os
+import sys
+from pathlib import Path
+import FreeCAD as App
+
+def _here():
+    try:
+        return Path(__file__).resolve().parent
+    except NameError:
+        return Path()
+
+CANDIDATES = []
+appdata = os.environ.get("APPDATA")
+if appdata:
+    CANDIDATES += [
+        Path(appdata) / "FreeCAD" / "Mod" / "HausrasterPhase4",
+        Path(appdata) / "FreeCAD" / "Mod" / "Hausraster",
+    ]
+CANDIDATES += [
+    Path.home() / ".local/share/FreeCAD/v1-1/Mod/HausrasterPhase4",
+    Path.home() / ".local/share/FreeCAD/Mod/HausrasterPhase4",
+    Path("/workspace/ordnungssystem/src"),
+    Path("/workspace/ordnungssystem/FreeCAD_Mod/HausrasterPhase4"),
+    _here().parent / "src",
+    _here().parent / "FreeCAD_Mod" / "HausrasterPhase4",
+    Path.home() / "ordnungssystem" / "src",
+]
+src = None
+for c in CANDIDATES:
+    if c.exists() and ((c / "hausraster_phase4_geom.py").exists() or (c / "hausraster_phase4_geom.py").exists()):
+        src = c
+        break
+if src is None:
+    raise RuntimeError(
+        "hausraster_phase4_geom.py nicht gefunden. Bitte FreeCAD_Mod/HausrasterPhase4 "
+        "nach %APPDATA%\\FreeCAD\\Mod\\ (Windows) oder ~/.local/share/FreeCAD/Mod/ kopieren."
+    )
+if str(src) not in sys.path:
+    sys.path.insert(0, str(src))
+
+from hausraster_phase4_geom import make_phase4_box, phase4_params
+
+doc = App.ActiveDocument
+if doc is None:
+    raise RuntimeError("Kein aktives Dokument.")
+sheet = doc.getObject("HIER_MASSE_AENDERN")
+if sheet is None:
+    raise RuntimeError("Tabellenblatt HIER_MASSE_AENDERN fehlt.")
+
+params = {}
+row = 2
+while True:
+    name = sheet.get("A%d" % row)
+    if not name or name == "NACH DEM AENDERN":
+        break
+    # Apostroph in Namen entfernen
+    name = str(name).strip().strip("'").strip('"')
+    raw = sheet.get("B%d" % row)
+    try:
+        if raw is None or raw == "":
+            row += 1
+            continue
+        if isinstance(raw, str):
+            raw = raw.strip().strip("'").strip('"')
+        if isinstance(raw, str) and raw.strip().isdigit():
+            params[str(name)] = int(raw)
+        else:
+            val = float(raw)
+            params[str(name)] = int(val) if val.is_integer() and str(name) not in (
+                "Wandstaerke", "Bodenstaerke_Box", "Trennwandstaerke", "Passungsspiel",
+                "Deckelstaerke", "Deckel_Spiel", "Trennwand_Spiel", "Innenradius",
+                "Raster_mm", "Hoeheneinheit_mm",
+            ) else val
+    except Exception:
+        params[str(name)] = raw
+    row += 1
+
+p, shapes, hinweise = make_phase4_box(params)
+existing = {o.Name: o for o in doc.Objects if hasattr(o, "Shape")}
+for name, shape in shapes.items():
+    if name in existing:
+        existing[name].Shape = shape
+        del existing[name]
+    else:
+        obj = doc.addObject("Part::Feature", name)
+        obj.Shape = shape
+for name, obj in list(existing.items()):
+    if name.startswith("Trennwand") or name in ("Deckel",):
+        doc.removeObject(name)
+doc.recompute()
+App.Console.PrintMessage("Hausraster Phase 4 neu berechnet. %s\n" % " ".join(hinweise))

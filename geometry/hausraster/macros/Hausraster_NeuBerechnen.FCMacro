@@ -1,0 +1,102 @@
+# -*- coding: utf-8 -*-
+# Hausraster: Geometrie nach Änderung von HIER_MASSE_AENDERN neu erzeugen.
+# Voraussetzung: Der Ordner FreeCAD_Mod/Hausraster liegt im FreeCAD-Mod-Pfad
+# oder das Verzeichnis src/ ist über Bearbeiten → Einstellungen → Python → Pfade erreichbar.
+
+import os
+import sys
+from pathlib import Path
+
+def _here():
+    try:
+        return Path(__file__).resolve().parent
+    except NameError:
+        return Path()
+
+CANDIDATES = []
+appdata = os.environ.get("APPDATA")
+if appdata:
+    CANDIDATES += [
+        Path(appdata) / "FreeCAD" / "Mod" / "Hausraster",
+        Path(appdata) / "FreeCAD" / "Macro",
+    ]
+CANDIDATES += [
+    Path.home() / ".local/share/FreeCAD/v1-1/Mod/Hausraster",
+    Path.home() / ".local/share/FreeCAD/Mod/Hausraster",
+    _here().parent / "src",
+    _here().parent / "FreeCAD_Mod" / "Hausraster",
+    Path("/workspace/ordnungssystem/src"),
+    Path("/workspace/ordnungssystem/FreeCAD_Mod/Hausraster"),
+]
+for c in CANDIDATES:
+    if c.exists() and str(c) not in sys.path:
+        sys.path.insert(0, str(c))
+
+import FreeCAD as App
+from hausraster_const import default_params
+from hausraster_geom import (
+    make_plate_shape, make_box_shape, make_fuss_stumpf_shape,
+    make_verbinder_clip_shape, make_rastclip_shape, make_passung_verbinder_shape,
+)
+
+doc = App.ActiveDocument
+if doc is None:
+    raise RuntimeError("Kein Dokument geöffnet.")
+sheet = doc.getObject("HIER_MASSE_AENDERN")
+if sheet is None:
+    raise RuntimeError("Tabellenblatt HIER_MASSE_AENDERN fehlt.")
+
+params = {}
+# Zellen mit Alias einlesen
+for r in range(2, 80):
+    alias = None
+    try:
+        alias = sheet.getAlias("B%d" % r)
+    except Exception:
+        alias = None
+    if not alias:
+        continue
+    raw = sheet.get("B%d" % r)
+    try:
+        if isinstance(raw, str) and "." not in raw and raw.strip().lstrip("-").isdigit():
+            params[alias] = int(raw)
+        else:
+            params[alias] = float(raw)
+    except Exception:
+        continue
+
+# Bauteil anhand vorhandener Objektnamen erkennen
+names = [o.Name for o in doc.Objects]
+def replace_shape(name, shape):
+    obj = doc.getObject(name)
+    if obj is None:
+        obj = doc.addObject("Part::Feature", name)
+    obj.Shape = shape
+
+try:
+    if "Grundplatte" in names or doc.Name.lower().startswith("hr_grundplatte") or "Grundplatte" in (doc.Label or ""):
+        replace_shape("Grundplatte", make_plate_shape(params))
+    elif "Box" in names or "box" in doc.Name.lower():
+        replace_shape("Box", make_box_shape(params))
+    elif "Fussstumpf" in names or "Passung_Fuss" in doc.Name:
+        replace_shape("Fussstumpf", make_fuss_stumpf_shape(params))
+        p1 = dict(params)
+        p1["Einheiten_X"] = 1
+        p1["Einheiten_Y"] = 1
+        p1["Verbinder"] = 0
+        p1["Verriegelung"] = 0
+        replace_shape("Grundplatte_1x1", make_plate_shape(p1))
+    elif "Plattenverbinder" in names:
+        replace_shape("Plattenverbinder", make_verbinder_clip_shape(params))
+    elif "Rastclip" in names:
+        replace_shape("Rastclip", make_rastclip_shape(params))
+    else:
+        raise RuntimeError(
+            "Bauteiltyp nicht erkannt. Das Macro funktioniert mit den mitgelieferten "
+            "Referenzdateien (Grundplatte, Box, Fussstumpf, Plattenverbinder, Rastclip)."
+        )
+    doc.recompute()
+    App.Console.PrintMessage("Hausraster: Geometrie neu berechnet.\n")
+except Exception as exc:
+    App.Console.PrintError("Hausraster NeuBerechnen fehlgeschlagen: %s\n" % exc)
+    raise

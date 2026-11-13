@@ -1,0 +1,176 @@
+{
+  "ok": true,
+  "freecad": {
+    "pfad": "/tmp/freecad/squashfs-root/AppRun",
+    "version": "1.1.4",
+    "hausraster": "0.2-qs1"
+  },
+  "ansicht": {
+    "einheiten_x": 11,
+    "einheiten_y": 9,
+    "platten": 4,
+    "verbinder": 16
+  },
+  "teile": [
+    {
+      "id": "P1",
+      "ok": true,
+      "dateien": [
+        {
+          "id": "P1",
+          "bytes_stl": 895284,
+          "bbox": [
+            226.00000000000045,
+            188.00000000000068,
+            5.450000000000005
+          ],
+          "mesh": true
+        }
+      ]
+    },
+    {
+      "id": "P2",
+      "ok": true,
+      "dateien": [
+        {
+          "id": "P2",
+          "bytes_stl": 1119884,
+          "bbox": [
+            226.00000000000068,
+            230.00000000000057,
+            5.450000000000005
+          ],
+          "mesh": true
+        }
+      ]
+    },
+    {
+      "id": "P3",
+      "ok": true,
+      "dateien": [
+        {
+          "id": "P3",
+          "bytes_stl": 1051284,
+          "bbox": [
+            252.000000000001,
+            188.00000000000077,
+            5.450000000000005
+          ],
+          "mesh": true
+        }
+      ]
+    },
+    {
+      "id": "P4",
+      "ok": true,
+      "dateien": [
+        {
+          "id": "P4",
+          "bytes_stl": 1314884,
+          "bbox": [
+            252.0000000000013,
+            230.00000000000074,
+            5.450000000000005
+          ],
+          "mesh": true
+        }
+      ]
+    },
+    {
+      "id": "B1",
+      "ok": true,
+      "dateien": [
+        {
+          "id": "B1",
+          "bytes_stl": 164684,
+          "bbox": [
+            41.50000000000001,
+            41.50000000000001,
+            25.4
+          ],
+          "mesh": true
+        }
+      ]
+    },
+    {
+      "id": "B2",
+      "ok": true,
+      "dateien": [
+        {
+          "id": "B2",
+          "bytes_stl": 351484,
+          "bbox": [
+            83.50000000000081,
+            83.50000000000081,
+            25.4
+          ],
+          "mesh": true
+        }
+      ]
+    },
+    {
+      "id": "B3",
+      "ok": true,
+      "dateien": [
+        {
+          "id": "B3",
+          "bytes_stl": 300684,
+          "bbox": [
+            125.50000000000021,
+            41.50000000000011,
+            18.4
+          ],
+          "mesh": true
+        }
+      ]
+    },
+    {
+      "id": "B4",
+      "ok": true,
+      "dateien": [
+        {
+          "id": "B4",
+          "bytes_stl": 414684,
+          "bbox": [
+            83.50000000000081,
+            125.50000000000087,
+            32.4
+          ],
+          "mesh": true
+        }
+      ]
+    },
+    {
+      "id": "V",
+      "ok": true,
+      "dateien": [
+        {
+          "id": "V",
+          "bytes_stl": 1084,
+          "bbox": [
+            16.0,
+            12.0,
+            3.9499999999999997
+          ],
+          "mesh": true
+        }
+      ]
+    },
+    {
+      "id": "R",
+      "ok": true,
+      "dateien": [
+        {
+          "id": "R",
+          "bytes_stl": 1684,
+          "bbox": [
+            3.6,
+            12.0,
+            30.1575
+          ],
+          "mesh": true
+        }
+      ]
+    }
+  ]
+}
