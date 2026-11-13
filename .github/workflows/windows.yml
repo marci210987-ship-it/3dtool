@@ -4,24 +4,93 @@ on:
   push:
   pull_request:
 
+env:
+  FREECAD_VERSION: "1.1.4"
+  FREECAD_ARCHIV: FreeCAD_1.1.4-Windows-x86_64-py311.7z
+
 jobs:
-  test-und-installer:
+  # Alle Tests mit echtem FreeCAD: Python (Planung, Export, Abnahme), Oberfläche (Vitest) und Bedienung (Playwright)
+  tests:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: npm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: FreeCAD zwischenspeichern
+        id: freecad-cache
+        uses: actions/cache@v4
+        with:
+          path: .cache/freecad
+          key: freecad-${{ env.FREECAD_VERSION }}-win-py311
+      - name: FreeCAD herunterladen
+        if: steps.freecad-cache.outputs.cache-hit != 'true'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download $env:FREECAD_VERSION -R FreeCAD/FreeCAD -p "$env:FREECAD_ARCHIV*" -D .cache/freecad --clobber
+          Get-ChildItem .cache/freecad | Select-Object Name, Length
+      - name: FreeCAD prüfen und entpacken
+        shell: pwsh
+        run: |
+          $archiv = Join-Path (Get-Location) ".cache/freecad/$env:FREECAD_ARCHIV"
+          $erwartet = ((Get-Content "$archiv-SHA256.txt" -Raw) -split '\s+')[0].ToLower()
+          $ist = (Get-FileHash $archiv -Algorithm SHA256).Hash.ToLower()
+          if ($erwartet -ne $ist) { throw "Prüfsumme von FreeCAD stimmt nicht: erwartet $erwartet, erhalten $ist" }
+          $ziel = Join-Path $env:RUNNER_TEMP "freecad"
+          $sz = Get-Command 7z -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source
+          if (-not $sz) { $sz = "C:\Program Files\7-Zip\7z.exe" }
+          & $sz x -y "-o$ziel" $archiv | Out-Null
+          $exe = Get-ChildItem $ziel -Recurse -Filter freecadcmd.exe | Select-Object -First 1
+          if (-not $exe) { throw "freecadcmd.exe nicht gefunden" }
+          "FREECADCMD=$($exe.FullName)" | Out-File -Append -Encoding utf8 $env:GITHUB_ENV
+          & $exe.FullName --version
+
+      - name: Abhängigkeiten
+        run: npm ci
+      - name: Oberfläche (Typen, Tests, Build)
+        run: |
+          npm test
+          npm run build
+      - name: Python-Tests mit FreeCAD
+        run: python -m unittest tests.test_layout tests.test_stlcheck tests.test_detect tests.test_projekt tests.test_server tests.test_abnahme tests.test_sonder tests.test_eigenteil tests.test_vorlagen
+      - name: Browser für Playwright
+        run: npx playwright install chromium
+      - name: Bedienung (Playwright, mit FreeCAD-Export)
+        run: npx playwright test
+      - name: Bericht bei Fehlern sichern
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-bericht
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
+
+  # Installer mit mitgeliefertem Python; danach wird er auf dem Runner installiert und gestartet
+  installer:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
       - uses: dtolnay/rust-toolchain@stable
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      - name: Python für den Installer einrichten
+        run: python scripts/python_einbetten.py
       - name: Abhängigkeiten
         run: npm ci
-      - name: Oberfläche ohne FreeCAD
-        run: npm test
-      - name: Layout ohne FreeCAD
-        run: python -m unittest tests.test_layout tests.test_stlcheck tests.test_detect tests.test_projekt
       - name: Windows-Installer
         uses: tauri-apps/tauri-action@v0
         env:
@@ -45,3 +114,38 @@ jobs:
           if-no-files-found: error
           retention-days: 14
           compression-level: 0
+
+      - name: Installierte App starten und Dienst prüfen
+        shell: pwsh
+        run: |
+          $setup = Get-ChildItem "src-tauri/target/release/bundle/nsis/*-setup.exe" | Select-Object -First 1
+          Write-Host "Installiere $($setup.Name) (still)"
+          Start-Process -FilePath $setup.FullName -ArgumentList "/S" -Wait
+          $kandidaten = @("$env:LOCALAPPDATA\CAD Studio", "$env:ProgramFiles\CAD Studio")
+          $exe = $null
+          foreach ($ordner in $kandidaten) {
+            if (Test-Path $ordner) { $exe = Get-ChildItem $ordner -Filter "cad-studio.exe" -Recurse | Select-Object -First 1 }
+            if ($exe) { break }
+          }
+          if (-not $exe) { Get-ChildItem $kandidaten -ErrorAction SilentlyContinue | Out-Host; throw "cad-studio.exe wurde nicht installiert" }
+          $installordner = $exe.DirectoryName
+          Write-Host "Installiert in $installordner"
+          Get-ChildItem $installordner | Select-Object Name | Out-Host
+          foreach ($pflicht in @("python\python.exe", "sidecar\server.py", "geometry\hausraster\src\hausraster_const.py")) {
+            if (-not (Test-Path (Join-Path $installordner $pflicht))) { throw "Im Installationsordner fehlt $pflicht" }
+          }
+          $prozess = Start-Process -FilePath $exe.FullName -PassThru
+          $antwort = $null
+          for ($i = 0; $i -lt 60; $i++) {
+            try { $antwort = Invoke-RestMethod "http://127.0.0.1:47321/health" -TimeoutSec 2; if ($antwort.ok) { break } } catch { }
+            Start-Sleep -Seconds 1
+          }
+          $log = Join-Path $env:APPDATA "CADStudio\dienst.log"
+          if (Test-Path $log) { Write-Host "dienst.log:"; Get-Content $log | Select-Object -First 40 | Out-Host }
+          if (-not $antwort -or -not $antwort.ok) { throw "Der Dienst antwortet nicht auf /health" }
+          Write-Host "Dienst antwortet: $($antwort | ConvertTo-Json -Compress)"
+          # Läuft der Dienst mit dem mitgelieferten Python (und nicht mit dem System-Python des Runners)?
+          $dienst = Get-CimInstance Win32_Process -Filter "Name='python.exe'" | Where-Object { $_.ExecutablePath -like "$installordner\python\*" }
+          if (-not $dienst) { throw "Der Dienst läuft nicht mit dem mitgelieferten Python" }
+          Write-Host "Dienst läuft mit $($dienst.ExecutablePath)"
+          Stop-Process -Id $prozess.Id -Force -ErrorAction SilentlyContinue

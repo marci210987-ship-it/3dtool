@@ -13,3 +13,9 @@ squashfs-root/
 .DS_Store
 export_*/
 Montageuebersicht.png
+# Mitgeliefertes Python (wird von scripts/python_einbetten.py eingerichtet)
+src-tauri/python/*
+!src-tauri/python/.gitkeep
+.cache/
+
+src-tauri/gen/

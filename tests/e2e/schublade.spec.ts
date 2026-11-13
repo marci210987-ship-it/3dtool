@@ -1,8 +1,13 @@
 import { expect, test } from "@playwright/test";
+import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 
-const PROJEKT = "/tmp/cadstudio-e2e/kueche.cadstudio.json";
-const BILDER = "/opt/cursor/artifacts";
+const PROJEKT = path.join(os.tmpdir(), "cadstudio-e2e", "kueche.cadstudio.json");
+const BILDER = path.join("test-results", "bilder");
+// Der Export braucht FreeCADCmd 1.1 (Umgebungsvariable FREECADCMD); ohne FreeCAD entfällt nur dieser Schritt.
+const MIT_FREECAD = Boolean(process.env.FREECADCMD);
+fs.mkdirSync(BILDER, { recursive: true });
 
 test("Schublade anlegen, prüfen, speichern, neu öffnen, erzeugen", async ({ page }) => {
   await page.goto("/");
@@ -71,6 +76,8 @@ test("Schublade anlegen, prüfen, speichern, neu öffnen, erzeugen", async ({ pa
   await expect(page.getByTestId("hoehe")).toHaveValue("4");
 
   await page.getByRole("button", { name: "5. Drucken" }).click();
+  await expect(page.getByTestId("erzeugen")).toBeEnabled();
+  if (!MIT_FREECAD) return;
   await page.getByTestId("erzeugen").click();
   await expect(page.getByTestId("export-erfolg")).toBeVisible({ timeout: 120000 });
   await expect(page.getByTestId("vorschau-art").last()).toContainText("STL");

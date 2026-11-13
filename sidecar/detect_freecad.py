@@ -21,6 +21,8 @@ import shutil
 import subprocess
 from pathlib import Path
 
+from sidecar.paths import KEIN_FENSTER
+
 
 VERSION_RE = re.compile(r"(\d+)\.(\d+)\.(\d+)")
 
@@ -267,6 +269,7 @@ def probe_version(cmd: Path, timeout: float = 120.0) -> tuple[str | None, str]:
             capture_output=True,
             timeout=timeout,
             env=env,
+            creationflags=KEIN_FENSTER,
         )
     except (OSError, subprocess.TimeoutExpired) as exc:
         return None, str(exc)

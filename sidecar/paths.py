@@ -11,6 +11,10 @@ HAUSRASTER_SRC = ROOT / "geometry" / "hausraster" / "src"
 HAUSRASTER_ROOT = ROOT / "geometry" / "hausraster"
 
 
+# Unter Windows keine Konsolenfenster für Kindprozesse (FreeCADCmd, Versionsabfragen) aufblitzen lassen.
+KEIN_FENSTER = 0x08000000 if os.name == "nt" else 0
+
+
 def app_home() -> Path:
     env = os.environ.get("CADSTUDIO_HOME")
     if env:

@@ -24,7 +24,7 @@ from sidecar.layout import (
     projekt_speichern,
 )
 from sidecar.montage import _masse_g, schreibe_stueckliste, schreibe_uebersicht
-from sidecar.paths import HAUSRASTER_SRC, ROOT, app_home
+from sidecar.paths import HAUSRASTER_SRC, KEIN_FENSTER, ROOT, app_home
 from sidecar.stlcheck import pruefe_stl
 
 
@@ -116,6 +116,7 @@ class FreeCADSession:
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             env=env,
+            creationflags=KEIN_FENSTER,
         )
         self._log: list[bytes] = []
 

@@ -1,9 +1,17 @@
+use std::fs::File;
 use std::path::{Path, PathBuf};
-use std::process::{Child, Command};
+use std::process::{Child, Command, Stdio};
 use std::sync::Mutex;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use tauri::Manager;
+
+#[cfg(windows)]
+use std::os::windows::process::CommandExt;
+
+/// Unter Windows keine Konsolenfenster für Kindprozesse.
+#[cfg(windows)]
+const KEIN_FENSTER: u32 = 0x0800_0000;
 
 fn neues_token() -> String {
     let nanos = SystemTime::now()
@@ -39,23 +47,61 @@ fn wurzel_zur_laufzeit(app: &tauri::AppHandle) -> PathBuf {
     wurzel()
 }
 
-fn python_befehl() -> Option<Command> {
+/// Pfad des mitgelieferten Pythons (Installer) im Ressourcenordner.
+fn eingebettetes_python(root: &Path) -> Option<PathBuf> {
+    let pfad = if cfg!(windows) {
+        root.join("python").join("python.exe")
+    } else {
+        root.join("python").join("bin").join("python3")
+    };
+    pfad.is_file().then_some(pfad)
+}
+
+fn befehl_ohne_fenster(programm: &Path) -> Command {
+    let mut cmd = Command::new(programm);
+    #[cfg(windows)]
+    cmd.creation_flags(KEIN_FENSTER);
+    cmd
+}
+
+/// Bevorzugt das mitgelieferte Python, sonst ein vorhandenes (Entwicklung, Linux/macOS).
+fn python_befehl(root: &Path) -> Option<Command> {
+    if let Some(exe) = eingebettetes_python(root) {
+        return Some(befehl_ohne_fenster(&exe));
+    }
     for name in ["python3", "python", "py"] {
-        let mut cmd = Command::new(name);
-        cmd.arg("--version");
-        if cmd.output().map(|o| o.status.success()).unwrap_or(false) {
-            return Some(Command::new(name));
+        let mut probe = befehl_ohne_fenster(Path::new(name));
+        probe.arg("--version");
+        if probe.output().map(|o| o.status.success()).unwrap_or(false) {
+            return Some(befehl_ohne_fenster(Path::new(name)));
         }
     }
     None
 }
 
+/// Protokolldatei des Dienstes im Programmordner des Benutzers (`dienst.log`), falls anlegbar.
+fn dienst_log() -> Option<File> {
+    let basis = std::env::var_os("APPDATA")
+        .map(PathBuf::from)
+        .or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".config")))?;
+    let ordner = basis.join(if cfg!(windows) { "CADStudio" } else { "cad-studio" });
+    std::fs::create_dir_all(&ordner).ok()?;
+    File::create(ordner.join("dienst.log")).ok()
+}
+
 fn dienst_starten(root: &Path, token: &str) -> Option<Child> {
-    let mut cmd = python_befehl()?;
+    let mut cmd = python_befehl(root)?;
+    // Das mitgelieferte Python liest seine Suchpfade aus python312._pth (dort steht der Ordner darüber);
+    // PYTHONPATH gilt für ein vorhandenes System-Python.
     cmd.arg("-m")
         .arg("sidecar.server")
         .current_dir(root)
+        .stdin(Stdio::null())
+        .stdout(dienst_log().map(Stdio::from).unwrap_or_else(Stdio::null))
+        .stderr(dienst_log().map(Stdio::from).unwrap_or_else(Stdio::null))
         .env("PYTHONPATH", root)
+        .env("PYTHONUTF8", "1")
+        .env("PYTHONDONTWRITEBYTECODE", "1")
         .env("PYTHONUNBUFFERED", "1")
         .env("CADSTUDIO_HOST", "127.0.0.1")
         .env("CADSTUDIO_PORT", "47321")

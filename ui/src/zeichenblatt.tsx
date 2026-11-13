@@ -177,6 +177,17 @@ export function Zeichnen({
   const W = ausdehnung.w;
   const H = ausdehnung.h;
 
+  /** Setzt ein Teil aus einer Vorlage oder Datei ein. Ein leeres aktives Teil wird ersetzt statt ergänzt. */
+  function einsetzen(inhalt: Partial<Eigenteil>) {
+    const leer = teil !== null && teil.formen.length === 0;
+    const id = leer && teil ? teil.id : neueTeilId(teile);
+    const eintrag = { ...neuesTeil(teile), ...inhalt, id } as Eigenteil;
+    onChange(leer && teil ? teile.map((t) => (t.id === teil.id ? eintrag : t)) : [...teile, eintrag]);
+    setAktivId(id);
+    setAuswahl(null);
+    abbrechen();
+  }
+
   function aendereTeil(fn: (t: Eigenteil) => Eigenteil, art: "einmal" | "zug" | "tippen" = "einmal") {
     if (!teil) return;
     onChange(teile.map((t) => (t.id === teil.id ? fn(t) : t)), art);
@@ -336,16 +347,11 @@ export function Zeichnen({
               const eigene = e.target.value.startsWith("v:") ? meineVorlagen.find((m) => "v:" + m.id === e.target.value) : undefined;
               const vorlage = eigene ? undefined : VORLAGEN.find((v) => v.id === e.target.value);
               if (!vorlage && !eigene) return;
-              const id = neueTeilId(teile);
-              const neu = (
+              einsetzen(
                 eigene
-                  ? { ...teilVonServer({ ...eigene.teil, id }), id, platziert: false, x_mm: 0, y_mm: 0, drehung: 0 }
-                  : { ...neuesTeil(teile), ...vorlage!.erzeuge(), id }
-              ) as Eigenteil;
-              onChange([...teile, neu]);
-              setAktivId(neu.id);
-              setAuswahl(null);
-              abbrechen();
+                  ? { ...teilVonServer({ ...eigene.teil, id: "E" }), platziert: false, x_mm: 0, y_mm: 0, drehung: 0 }
+                  : vorlage!.erzeuge(),
+              );
             }}
           >
             <option value="">Vorlage wählen …</option>
@@ -368,14 +374,7 @@ export function Zeichnen({
           </select>
         </label>
         <ImportPanel
-          onEinfuegen={(neu) => {
-            const id = neueTeilId(teile);
-            const eintrag = { ...neuesTeil(teile), ...neu, id } as Eigenteil;
-            onChange([...teile, eintrag]);
-            setAktivId(id);
-            setAuswahl(null);
-            abbrechen();
-          }}
+          onEinfuegen={einsetzen}
         />
         {onVorlageSpeichern && teil && (
           <div className="vorlage-speichern" data-testid="vorlage-speichern">

@@ -81,7 +81,8 @@ describe("Zeichnen: Vorlagen und Ausrichten", () => {
     expect(gespeichert.map((g) => g[0])).toEqual(["kaputt", "Gut"]);
 
     await benutzer.selectOptions(screen.getByTestId("vorlage"), "v:v-1");
-    expect(screen.getByTestId("anzahl").textContent).toBe("2");
+    // das leere Startteil wird ersetzt, nicht ergänzt
+    expect(screen.getByTestId("anzahl").textContent).toBe("1");
     expect((screen.getByTestId("teil-name") as HTMLInputElement).value).toBe("Mein Winkel");
     expect((screen.getByTestId("teil-hoehe") as HTMLInputElement).value).toBe("7");
   });
@@ -262,7 +263,7 @@ describe("Zeichnen: Umriss importieren", () => {
     await benutzer.clear(screen.getByTestId("import-hoehe"));
     await benutzer.type(screen.getByTestId("import-hoehe"), "8");
     await benutzer.click(screen.getByTestId("import-einfuegen"));
-    expect(screen.getByTestId("anzahl").textContent).toBe("2");
+    expect(screen.getByTestId("anzahl").textContent).toBe("1");
     expect((screen.getByTestId("teil-name") as HTMLInputElement).value).toBe("Gehaeuse Deckel");
     expect((screen.getByTestId("teil-hoehe") as HTMLInputElement).value).toBe("8");
     expect(document.querySelectorAll(".formliste li")).toHaveLength(2);
@@ -297,5 +298,31 @@ describe("Zeichnen: Umriss importieren", () => {
     await benutzer.upload(screen.getByTestId("import-datei"), new File([dxf], "platte.dxf"));
     const vorschau = await screen.findByTestId("import-vorschau");
     expect(vorschau.textContent).toContain("1 Formen, davon 0 Löcher, 30 × 20 mm");
+  });
+});
+
+describe("Zeichnen: Vorlagen ersetzen nur leere Teile", () => {
+  it("ergänzt ein neues Teil, wenn das aktive Teil schon Formen hat", async () => {
+    const benutzer = userEvent.setup();
+    const belegt: Eigenteil = { ...neuesTeil([]), formen: [{ typ: "rechteck", x: 0, y: 0, b: 10, t: 10, loch: false }] };
+    render(<Huelle start={[belegt]} />);
+    await benutzer.selectOptions(screen.getByTestId("vorlage"), "platte");
+    expect(screen.getByTestId("anzahl").textContent).toBe("2");
+    expect((screen.getByTestId("teil-name") as HTMLInputElement).value).toBe("Platte mit Bohrungen");
+    // jetzt ist das aktive Teil belegt: eine zweite Vorlage ergänzt wieder
+    await benutzer.selectOptions(screen.getByTestId("vorlage"), "stufe");
+    expect(screen.getByTestId("anzahl").textContent).toBe("3");
+  });
+
+  it("ersetzt das leere Startteil durch eine mitgelieferte Vorlage und behält die Id", async () => {
+    const benutzer = userEvent.setup();
+    render(<Huelle start={[neuesTeil([])]} />);
+    await benutzer.selectOptions(screen.getByTestId("vorlage"), "winkel");
+    expect(screen.getByTestId("anzahl").textContent).toBe("1");
+    expect((screen.getByTestId("teil-name") as HTMLInputElement).value).toBe("Winkelhalter");
+    expect(document.querySelectorAll(".teileliste li button")[0].textContent).toContain("E1");
+    // Rückgängig stellt das leere Teil wieder her
+    await benutzer.click(screen.getByTestId("rueckgaengig"));
+    expect((screen.getByTestId("teil-name") as HTMLInputElement).value).toBe("Eigenes Teil 1");
   });
 });

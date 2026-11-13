@@ -113,4 +113,17 @@ Fund: Zahlenfelder, die bei jedem Tastendruck auf einen Mindestwert klammerten, 
 
 Fund: jsdom kennt `getScreenCTM` nicht; der Zugriff ist jetzt optional abgesichert.
 
+### Nachtrag: mitgeliefertes Python, Starter, CI, Playwright
+
+| Prüfung | Ergebnis |
+|---|---|
+| 10 Python-Module mit FreeCAD | bestanden, 79 Tests, 1 übersprungen. Neu: `tests.test_einbetten` (Prüfsumme, Entpacken, Suchpfade, Wiederholung, Versionswechsel, ohne Netz) |
+| Eingebettetes Python 3.12.10 (python.org, SHA256 geprüft) | Selbsttest bestanden. Simulierter Installationsordner (`python/`, `sidecar/`, `geometry/`): `python.exe -m sidecar.server` startet aus einem fremden Arbeitsordner, `/health` antwortet, ein echter Export über FreeCAD (gedrehtes Rechteck mit Radius und Loch) endet erfolgreich |
+| `cargo check` (Windows, Rust-Starter mit Konsolenfenster-Unterdrückung, Log, bevorzugtem Python) | ohne Fehler |
+| Playwright lokal mit Chromium und FreeCAD | 6 von 6 bestanden (Schubladenablauf mit Export, Zeichnen mit Mauszug, Maß per Eingabe und Rückgängig, Vorlagen und SVG-Import, Muster und Ausrichten, Wunschliste und Füllstil, Export eigener Teile). Ohne FreeCAD: 5 bestanden, Export übersprungen |
+| `npm test`, `npm run build` | bestanden, 49 Tests |
+| Workflow-Datei | YAML gültig; die Prüfsummenlogik für FreeCAD gegen das echte Archiv getestet. Der neue Lauf in GitHub Actions ist noch nicht gelaufen |
+
+Fund: Eine Vorlage oder ein Import neben einem leeren Startteil ließ das leere Teil stehen und blockierte den Export. Ein leeres aktives Teil wird jetzt ersetzt. Der E2E-Test lief vorher nur mit Linux-Pfaden und startete keine Server; er ist portabel und startet Dienst und Oberfläche selbst.
+
 Nicht ausgeführt: `npx playwright test` (Spezifikation auf die neue Schrittnummer „5. Drucken“ angepasst, aber nicht gelaufen), Start des Windows-Installers, Druck auf dem P2S, Passung der Füllplatten und Spiele.
