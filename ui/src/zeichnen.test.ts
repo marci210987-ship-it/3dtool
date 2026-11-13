@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { aussenmass, ausrichten, bezugsrahmen, einrasten, fangpunkte, formBox, formHoehen, formOberkante, gesamthoehe, hoehenanteil, massangaben, VORLAGEN, zahlText, kreisAus, neuesTeil, polygonAus, rechteckAus, rechteckMm, runden, teilVonServer, verschieben, verschiebenMitFang, type Form } from "./zeichnen";
+import { abstandsvorschlag, aussenmass, ausrichten, formMitte, gitter, kopieren, kreismuster, laesstSichDrehen, reihe, spiegeln, bezugsrahmen, einrasten, fangpunkte, formBox, formHoehen, formOberkante, gesamthoehe, hoehenanteil, massangaben, VORLAGEN, zahlText, kreisAus, neuesTeil, polygonAus, rechteckAus, rechteckMm, runden, teilVonServer, verschieben, verschiebenMitFang, type Form } from "./zeichnen";
 
 describe("Zeichnen", () => {
   it("rastet auf das Raster ein", () => {
@@ -163,5 +163,50 @@ describe("Zeichnen", () => {
     expect(bezugsrahmen(formen, 2)).toEqual([0, 0, 60, 40]);
     expect(bezugsrahmen([formen[2]], 5)).toBeNull();
     expect(ausrichten(formen[2], "mitte-x", null)).toBe(formen[2]);
+  });
+
+  it("erzeugt Reihen und Gitter ohne das Original", () => {
+    const loch: Form = { typ: "kreis", x: 5, y: 5, r: 2, loch: true };
+    const r = reihe(loch, 4, 10, 0);
+    expect(r.map((f) => (f as { x: number }).x)).toEqual([15, 25, 35]);
+    expect(reihe(loch, 1, 10, 0)).toEqual([]);
+    const g = gitter(loch, 3, 2, 10, 8);
+    expect(g).toHaveLength(5);
+    expect(g.map((f) => [(f as { x: number }).x, (f as { y: number }).y])).toEqual([[15, 5], [25, 5], [5, 13], [15, 13], [25, 13]]);
+    expect(gitter(loch, 1, 1, 10, 8)).toEqual([]);
+    expect(kopieren(loch, 3, -2)).toMatchObject({ x: 8, y: 3 });
+  });
+
+  it("erzeugt Kreismuster für Kreise und Vielecke, nicht für Rechtecke", () => {
+    const loch: Form = { typ: "kreis", x: 20, y: 10, r: 2, loch: true };
+    const kopien = kreismuster(loch, [10, 10], 4, 360);
+    expect(kopien).toHaveLength(3);
+    expect(kopien.map((f) => [(f as { x: number }).x, (f as { y: number }).y])).toEqual([[10, 20], [0, 10], [10, 0]]);
+    // Bogen: 3 Formen über 90 Grad -> 45 und 90 Grad
+    const bogen = kreismuster(loch, [10, 10], 3, 90);
+    expect(bogen.map((f) => [(f as { x: number }).x, (f as { y: number }).y])).toEqual([[17.071, 17.071], [10, 20]]);
+    const dreieck: Form = { typ: "polygon", punkte: [[20, 10], [24, 10], [20, 14]], loch: false };
+    const p = kreismuster(dreieck, [10, 10], 2, 360)[0] as { punkte: number[][] };
+    expect(p.punkte).toEqual([[0, 10], [-4, 10], [0, 6]]);
+    expect(kreismuster({ typ: "rechteck", x: 0, y: 0, b: 5, t: 5, loch: false }, [0, 0], 4)).toEqual([]);
+    expect(laesstSichDrehen({ typ: "rechteck", x: 0, y: 0, b: 5, t: 5, loch: false })).toBe(false);
+    expect(kreismuster(loch, [10, 10], 1)).toEqual([]);
+  });
+
+  it("spiegelt Formen an Achsen und dreht den Keil um", () => {
+    const rechteck: Form = { typ: "rechteck", x: 10, y: 5, b: 20, t: 10, loch: false };
+    expect(spiegeln(rechteck, "x", 30, 5)).toMatchObject({ x: 30, y: 5, b: 20 });
+    expect(spiegeln(rechteck, "x", 20, 5)).toMatchObject({ x: 10 });
+    expect(spiegeln(rechteck, "y", 20, 5)).toMatchObject({ x: 10, y: 25, t: 10 });
+    expect(spiegeln({ typ: "kreis", x: 4, y: 6, r: 2, loch: true }, "x", 10, 5)).toMatchObject({ x: 16, y: 6 });
+    const dreieck: Form = { typ: "polygon", punkte: [[0, 0], [10, 0], [0, 6]], loch: false };
+    expect(spiegeln(dreieck, "x", 5, 5)).toMatchObject({ punkte: [[10, 0], [0, 0], [10, 6]] });
+    const keil: Form = { typ: "rechteck", x: 0, y: 0, b: 20, t: 10, loch: false, keil_mm: 6, h_mm: 4 };
+    const k = spiegeln(keil, "y", 5, 4) as { y: number; h_mm: number; keil_mm: number };
+    expect(k).toMatchObject({ y: 0, h_mm: 10, keil_mm: -6 });
+    // doppelt gespiegelt = Ausgangsform
+    expect(spiegeln(k as unknown as Form, "y", 5, 4)).toMatchObject({ y: 0, h_mm: 4, keil_mm: 6 });
+    expect(abstandsvorschlag(rechteck)).toEqual({ x: 25, y: 15 });
+    expect(formMitte(rechteck)).toEqual([20, 10]);
   });
 });

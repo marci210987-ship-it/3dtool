@@ -45,7 +45,8 @@ export function runden(wert: number, raster: number): number {
 }
 
 export function bereinigen(wert: number): number {
-  return Math.round(wert * 1000) / 1000;
+  // "+ 0" macht aus -0 eine 0
+  return Math.round(wert * 1000) / 1000 + 0;
 }
 
 export function neueTeilId(vorhanden: Eigenteil[]): string {
@@ -404,4 +405,102 @@ export function ausrichten(form: Form, modus: AusrichtModus, rahmen: [number, nu
     case "unten": return verschieben(form, 0, ry0 - y0);
     case "oben": return verschieben(form, 0, ry1 - y1);
   }
+}
+
+// ---------------------------------------------------------------- Muster und Spiegeln
+
+/** Höchstzahl an Formen je Teil (wie im Sidecar). */
+export const MAX_FORMEN = 200;
+
+/** Kopie einer Form, um (dx, dy) verschoben. */
+export function kopieren(form: Form, dx: number, dy: number): Form {
+  return verschieben(form, dx, dy);
+}
+
+/** Gitter aus Spalten × Zeilen. Gibt nur die Kopien zurück, nicht das Original (Position 0/0). */
+export function gitter(form: Form, spalten: number, zeilen: number, abstandX: number, abstandY: number): Form[] {
+  const kopien: Form[] = [];
+  for (let z = 0; z < Math.max(1, zeilen); z++) {
+    for (let sp = 0; sp < Math.max(1, spalten); sp++) {
+      if (sp === 0 && z === 0) continue;
+      kopien.push(verschieben(form, bereinigen(sp * abstandX), bereinigen(z * abstandY)));
+    }
+  }
+  return kopien;
+}
+
+/** Reihe: wie ein Gitter mit einer Zeile, in beliebiger Richtung. Anzahl zählt das Original mit. */
+export function reihe(form: Form, anzahl: number, dx: number, dy: number): Form[] {
+  const kopien: Form[] = [];
+  for (let i = 1; i < Math.max(1, anzahl); i++) kopien.push(verschieben(form, bereinigen(i * dx), bereinigen(i * dy)));
+  return kopien;
+}
+
+function drehePunkt(p: Punkt, mitte: Punkt, grad: number): Punkt {
+  const w = (grad * Math.PI) / 180;
+  const dx = p[0] - mitte[0];
+  const dy = p[1] - mitte[1];
+  return [bereinigen(mitte[0] + dx * Math.cos(w) - dy * Math.sin(w)), bereinigen(mitte[1] + dx * Math.sin(w) + dy * Math.cos(w))];
+}
+
+/** Ob sich die Form drehen lässt: Rechtecke bleiben achsparallel und sind ausgenommen. */
+export function laesstSichDrehen(form: Form): boolean {
+  return form.typ !== "rechteck";
+}
+
+/**
+ * Kreismuster um eine Mitte. Anzahl zählt das Original mit. Bei 360° oder mehr verteilen sich die Formen
+ * gleichmäßig auf den Vollkreis, sonst über den Bogen von der Ausgangslage bis zum Winkel (gegen den Uhrzeigersinn).
+ * Gibt nur die Kopien zurück; Rechtecke ergeben eine leere Liste.
+ */
+export function kreismuster(form: Form, mitte: Punkt, anzahl: number, gesamtWinkel = 360): Form[] {
+  if (!laesstSichDrehen(form) || anzahl < 2) return [];
+  const schritt = gesamtWinkel >= 360 ? gesamtWinkel / anzahl : gesamtWinkel / (anzahl - 1);
+  const kopien: Form[] = [];
+  for (let i = 1; i < anzahl; i++) {
+    const grad = i * schritt;
+    if (form.typ === "kreis") {
+      const [x, y] = drehePunkt([form.x, form.y], mitte, grad);
+      kopien.push({ ...form, x, y });
+    } else if (form.typ === "polygon") {
+      kopien.push({ ...form, punkte: form.punkte.map((p) => drehePunkt(p, mitte, grad)) });
+    }
+  }
+  return kopien;
+}
+
+/**
+ * Spiegelt eine Form an einer senkrechten (achse "x": x = pos) oder waagrechten Achse (achse "y": y = pos).
+ * Ein Keil läuft nach dem Spiegeln an der waagrechten Achse in die Gegenrichtung (vorn und hinten tauschen).
+ */
+export function spiegeln(form: Form, achse: "x" | "y", pos: number, teilHoehe: number): Form {
+  const sp = (v: number) => bereinigen(2 * pos - v);
+  if (form.typ === "kreis") {
+    return achse === "x" ? { ...form, x: sp(form.x) } : { ...form, y: sp(form.y) };
+  }
+  if (form.typ === "polygon") {
+    return { ...form, punkte: form.punkte.map(([x, y]) => (achse === "x" ? [sp(x), y] : [x, sp(y)]) as Punkt) };
+  }
+  if (achse === "x") return { ...form, x: sp(form.x + form.b) };
+  const gespiegelt = { ...form, y: sp(form.y + form.t) };
+  if (form.keil_mm) {
+    const { z, h } = formHoehen(form, teilHoehe);
+    // Vorn war h, hinten h + keil. Nach dem Spiegeln ist vorn h + keil und hinten h.
+    gespiegelt.h_mm = bereinigen(h + form.keil_mm);
+    gespiegelt.z_mm = z;
+    gespiegelt.keil_mm = -form.keil_mm;
+  }
+  return gespiegelt;
+}
+
+/** Vorschlag für den Abstand zweier Kopien: Breite bzw. Tiefe der Form plus 5 mm. */
+export function abstandsvorschlag(form: Form): { x: number; y: number } {
+  const [x0, y0, x1, y1] = formBox(form);
+  return { x: bereinigen(x1 - x0 + 5), y: bereinigen(y1 - y0 + 5) };
+}
+
+/** Mittelpunkt der Form (Mitte ihrer Bounding-Box). */
+export function formMitte(form: Form): Punkt {
+  const [x0, y0, x1, y1] = formBox(form);
+  return [bereinigen((x0 + x1) / 2), bereinigen((y0 + y1) / 2)];
 }

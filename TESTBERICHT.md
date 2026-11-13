@@ -93,4 +93,14 @@ Fund: FreeCADs einfache `BoundBox` ist bei gekrümmten Flächen um bis zu ~1 mm 
 
 Fund: Die erste Fassung des Stils „einheitlich“ (meiste Zellen mit gleichen Boxen) lieferte 33 schmale Boxen. Die Wahl nutzt jetzt eine Kostenregel (Boxanzahl + 4 je verschiedener Größe).
 
+### Nachtrag: Muster und Spiegeln
+
+| Prüfung | Ergebnis |
+|---|---|
+| 9 Python-Module mit FreeCAD | bestanden, 71 Tests, 1 übersprungen (unverändert, Backend nicht berührt) |
+| `npm test`, `npm run build` | bestanden, 27 Tests (neu: Gitter, Reihe, Kreismuster, Spiegeln inkl. Keil, Abstandsvorschlag; Panel: Gitter mit Rückgängig, Kreismuster um die Plattenmitte, Spiegelkopie und Ersetzen, Formenlimit, Hinweis bei Rechtecken) |
+| Live im Browser | 80 × 80 mm Platte mit einem Loch, Kreismuster mit 6 Löchern um die Plattenmitte, exportiert: 62 305,6 mm³ gemessen gegenüber 62 303,5 mm³ gerechnet (Kreisnäherung im STL) |
+
+Fund: Zahlenfelder, die bei jedem Tastendruck auf einen Mindestwert klammerten, ließen aus „2“ nach dem Leeren „12“ werden. Die Muster-Eingaben halten jetzt den Text und werten ihn erst beim Erzeugen aus. Die Erfolgsmeldung liegt im übergeordneten Zustand, weil das Panel nach dem Erzeugen neu aufgebaut wird (neue Auswahl). `bereinigen` lieferte vereinzelt `-0`.
+
 Nicht ausgeführt: `npx playwright test` (Spezifikation auf die neue Schrittnummer „5. Drucken“ angepasst, aber nicht gelaufen), Start des Windows-Installers, Druck auf dem P2S, Passung der Füllplatten und Spiele.

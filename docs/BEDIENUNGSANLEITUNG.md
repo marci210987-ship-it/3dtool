@@ -62,6 +62,12 @@ Jedes Teil besteht aus Formen in der Draufsicht (Ursprung links unten, Millimete
 - **Rückgängig / Wiederholen:** Knöpfe in der Werkzeugleiste oder Strg+Z und Strg+Y (Strg+Umschalt+Z) mit dem Zeichenblatt im Fokus. Aufeinanderfolgende Eingaben in Zahlenfeldern zählen als ein Schritt; ein Ziehen ist ein Schritt.
 - **Maße anzeigen:** Breite, Tiefe und Durchmesser stehen am Blatt, auch live beim Ziehen. Bei der gewählten Form kommen Vieleck-Kantenlängen dazu. Der Haken „Maße anzeigen“ schaltet sie aus.
 - **Einrasten:** Beim Zeichnen und Verschieben rasten Formen an Ecken, Kanten und Mitten anderer Formen ein; orange Hilfslinien zeigen, woran. Der Haken „Einrasten“ schaltet das ab.
+- **Muster, Kopie und Spiegeln** (aufklappbar bei der gewählten Form):
+  - **Form kopieren** legt eine Kopie um 5 / 5 mm versetzt an.
+  - **Reihe oder Gitter:** Spalten, Zeilen und Abstand von Mitte zu Mitte (Voreinstellung: Formgröße plus 5 mm). Das Original zählt mit; es entstehen nur die Kopien. Eine Reihe ist ein Gitter mit einer Zeile.
+  - **Kreismuster** für Kreise und Vielecke: Anzahl mit Original, Mitte (Voreinstellung: Mitte der übrigen Formen) und Gesamtwinkel. 360° verteilt gleichmäßig auf den Vollkreis, ein kleinerer Winkel auf den Bogen. Rechtecke bleiben achsparallel und lassen sich nicht drehen.
+  - **Spiegeln** an der senkrechten oder waagrechten Mittelachse der übrigen Formen (ohne andere Formen: an der eigenen Mitte), als Kopie oder mit „Original ersetzen“. Ein Keil läuft nach dem Spiegeln in die Gegenrichtung.
+  - Höchstens 200 Formen je Teil; ein Muster, das darüber hinausginge, wird abgelehnt. Jeder Schritt ist mit Rückgängig zurücknehmbar.
 - **Ausrichten:** Bei einer gewählten Form richten die Knöpfe Mitte ↔, Mitte ↕, Links, Rechts, Unten, Oben sie am Außenmaß der übrigen Formen aus (ein Loch zum Beispiel an der Plattenmitte).
 - Das Raster rastet den Zeiger ein (0,1 bis 10 mm).
 - „Auswählen“: Form anklicken und ziehen, Entf löscht. Zahlenfelder ändern die genauen Maße.

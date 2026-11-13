@@ -6,7 +6,17 @@ import {
   bezugsrahmen,
   einrasten,
   Eigenteil,
+  abstandsvorschlag,
   fangpunkte,
+  formMitte,
+  gitter,
+  kopieren,
+  kreismuster,
+  laesstSichDrehen,
+  MAX_FORMEN,
+  reihe,
+  spiegeln,
+  type Form as FormTyp,
   gesamthoehe,
   hoehenanteil,
   Form,
@@ -91,6 +101,7 @@ export function Zeichnen({
   const [auswahl, setAuswahl] = useState<number | null>(null);
   const [ziehen, setZiehen] = useState<Ziehen | null>(null);
   const [masseAn, setMasseAn] = useState(true);
+  const [musterMeldung, setMusterMeldung] = useState("");
   const [vorlagenName, setVorlagenName] = useState("");
   const [vorlagenMeldung, setVorlagenMeldung] = useState("");
   const [fangAn, setFangAn] = useState(true);
@@ -720,6 +731,20 @@ export function Zeichnen({
                     ))}
                   </div>
                 </div>
+                <MusterPanel
+                  key={`${teil.id}-${auswahl}`}
+                  form={gewaehlt}
+                  rahmen={bezugsrahmen(teil.formen, auswahl)}
+                  teilHoehe={teil.hoehe_mm}
+                  anzahlFormen={teil.formen.length}
+                  meldung={musterMeldung}
+                  onMeldung={setMusterMeldung}
+                  onAdd={(neu) => {
+                    formen([...teil.formen, ...neu]);
+                    setAuswahl(teil.formen.length + neu.length - 1);
+                  }}
+                  onErsetzen={(neu) => formen(teil.formen.map((f, i) => (i === auswahl ? neu : f)))}
+                />
                 <label>
                   {gewaehlt.loch ? "Lochrand" : "Oberrand dieser Form"}
                   <select
@@ -877,5 +902,158 @@ function OptZahlfeld({ label, wert, onChange, testid }: { label: string; wert: n
         }}
       />
     </label>
+  );
+}
+
+function MusterPanel({
+  form,
+  rahmen,
+  teilHoehe,
+  anzahlFormen,
+  meldung,
+  onMeldung,
+  onAdd,
+  onErsetzen,
+}: {
+  form: FormTyp;
+  rahmen: [number, number, number, number] | null;
+  teilHoehe: number;
+  anzahlFormen: number;
+  meldung: string;
+  onMeldung: (text: string) => void;
+  onAdd: (neu: FormTyp[]) => void;
+  onErsetzen: (neu: FormTyp) => void;
+}) {
+  const vorschlag = abstandsvorschlag(form);
+  const mitteStart = rahmen ? ([(rahmen[0] + rahmen[2]) / 2, (rahmen[1] + rahmen[3]) / 2] as [number, number]) : formMitte(form);
+  // Eingaben bleiben als Text stehen und werden erst beim Erzeugen ausgewertet.
+  const [spalten, setSpalten] = useState("3");
+  const [zeilen, setZeilen] = useState("1");
+  const [abstandX, setAbstandX] = useState(String(vorschlag.x));
+  const [abstandY, setAbstandY] = useState(String(vorschlag.y));
+  const [anzahl, setAnzahl] = useState("6");
+  const [winkel, setWinkel] = useState("360");
+  const [mitteX, setMitteX] = useState(String(mitteStart[0]));
+  const [mitteY, setMitteY] = useState(String(mitteStart[1]));
+  const [ersetzen, setErsetzen] = useState(false);
+  const setMeldung = onMeldung;
+
+  function hinzufuegen(neu: FormTyp[], text: string) {
+    if (neu.length === 0) {
+      setMeldung("Es entstehen keine neuen Formen.");
+      return;
+    }
+    if (anzahlFormen + neu.length > MAX_FORMEN) {
+      setMeldung(`Zu viele Formen: höchstens ${MAX_FORMEN} je Teil.`);
+      return;
+    }
+    onAdd(neu);
+    setMeldung(`${neu.length} ${neu.length === 1 ? "Form" : "Formen"} ${text}.`);
+  }
+
+  const zahl = (wert: string, standard: number) => {
+    const n = Number(wert.trim().replace(",", "."));
+    return wert.trim() !== "" && Number.isFinite(n) ? n : standard;
+  };
+  const ganz = (wert: string, standard: number, min: number, max: number) => Math.max(min, Math.min(max, Math.round(zahl(wert, standard))));
+
+  return (
+    <details className="muster" data-testid="muster">
+      <summary>Muster, Kopie und Spiegeln</summary>
+      <div className="knopfzeile">
+        <button type="button" data-testid="form-kopieren" onClick={() => hinzufuegen([kopieren(form, 5, 5)], "kopiert, um 5 / 5 mm versetzt")}>
+          Form kopieren
+        </button>
+      </div>
+
+      <h3>Reihe oder Gitter</h3>
+      <div className="formular">
+        <label>
+          Spalten
+          <input data-testid="muster-spalten" inputMode="numeric" value={spalten} onChange={(e) => setSpalten(e.target.value)} />
+        </label>
+        <label>
+          Zeilen
+          <input data-testid="muster-zeilen" inputMode="numeric" value={zeilen} onChange={(e) => setZeilen(e.target.value)} />
+        </label>
+        <label>
+          Abstand X (mm, von Mitte zu Mitte)
+          <input data-testid="muster-abstand-x" inputMode="decimal" value={abstandX} onChange={(e) => setAbstandX(e.target.value)} />
+        </label>
+        <label>
+          Abstand Y (mm)
+          <input data-testid="muster-abstand-y" inputMode="decimal" value={abstandY} onChange={(e) => setAbstandY(e.target.value)} />
+        </label>
+      </div>
+      <button type="button" data-testid="muster-gitter" onClick={() => hinzufuegen(
+            gitter(form, ganz(spalten, 3, 1, 50), ganz(zeilen, 1, 1, 50), zahl(abstandX, vorschlag.x), zahl(abstandY, vorschlag.y)),
+            "als Gitter erzeugt",
+          )}>
+        Gitter erzeugen
+      </button>
+
+      <h3>Kreismuster</h3>
+      {laesstSichDrehen(form) ? (
+        <>
+          <div className="formular">
+            <label>
+              Anzahl (mit Original)
+              <input data-testid="kreis-anzahl" inputMode="numeric" value={anzahl} onChange={(e) => setAnzahl(e.target.value)} />
+            </label>
+            <label>
+              Gesamtwinkel (360 = Vollkreis)
+              <input data-testid="kreis-winkel" inputMode="decimal" value={winkel} onChange={(e) => setWinkel(e.target.value)} />
+            </label>
+            <label>
+              Mitte x (mm)
+              <input data-testid="kreis-mitte-x" inputMode="decimal" value={mitteX} onChange={(e) => setMitteX(e.target.value)} />
+            </label>
+            <label>
+              Mitte y (mm)
+              <input data-testid="kreis-mitte-y" inputMode="decimal" value={mitteY} onChange={(e) => setMitteY(e.target.value)} />
+            </label>
+          </div>
+          <button type="button" data-testid="muster-kreis" onClick={() => hinzufuegen(
+                kreismuster(form, [zahl(mitteX, mitteStart[0]), zahl(mitteY, mitteStart[1])], ganz(anzahl, 6, 2, 100), zahl(winkel, 360)),
+                "im Kreis angeordnet",
+              )}>
+            Kreismuster erzeugen
+          </button>
+        </>
+      ) : (
+        <p className="leise">Rechtecke bleiben achsparallel und lassen sich nicht drehen. Das Kreismuster gilt für Kreise und Vielecke.</p>
+      )}
+
+      <h3>Spiegeln</h3>
+      <label className="check">
+        <input type="checkbox" data-testid="spiegeln-ersetzen" checked={ersetzen} onChange={(e) => setErsetzen(e.target.checked)} />
+        Original ersetzen (statt Spiegelkopie)
+      </label>
+      <p className="leise">{rahmen ? "Achse: Mitte der übrigen Formen." : "Achse: Mitte dieser Form."}</p>
+      <div className="knopfzeile">
+        {(["x", "y"] as const).map((achse) => {
+          const pos = achse === "x" ? (rahmen ? (rahmen[0] + rahmen[2]) / 2 : formMitte(form)[0]) : rahmen ? (rahmen[1] + rahmen[3]) / 2 : formMitte(form)[1];
+          return (
+            <button
+              key={achse}
+              type="button"
+              data-testid={`spiegeln-${achse}`}
+              onClick={() => {
+                const neu = spiegeln(form, achse, pos, teilHoehe);
+                if (ersetzen) {
+                  onErsetzen(neu);
+                  setMeldung("Form gespiegelt.");
+                } else {
+                  hinzufuegen([neu], "gespiegelt kopiert");
+                }
+              }}
+            >
+              {achse === "x" ? "Links ↔ rechts spiegeln" : "Vorn ↔ hinten spiegeln"}
+            </button>
+          );
+        })}
+      </div>
+      {meldung && <p className="leise" data-testid="muster-meldung">{meldung}</p>}
+    </details>
   );
 }

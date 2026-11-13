@@ -109,3 +109,70 @@ describe("Zeichnen: Vorlagen und Ausrichten", () => {
     expect((screen.getByText("Mitte y").closest("label")!.querySelector("input") as HTMLInputElement).value).toBe("5");
   });
 });
+
+describe("Zeichnen: Muster und Spiegeln", () => {
+  const teilMitLoch = (): Eigenteil => ({
+    ...neuesTeil([]),
+    formen: [
+      { typ: "rechteck", x: 0, y: 0, b: 100, t: 60, loch: false },
+      { typ: "kreis", x: 20, y: 30, r: 3, loch: true },
+    ],
+  });
+  const formAnzahl = () => document.querySelectorAll(".formliste li").length;
+  const waehle = async (benutzer: ReturnType<typeof userEvent.setup>, name: RegExp) =>
+    benutzer.click(screen.getAllByRole("button", { name }).find((b) => b.closest(".formliste"))!);
+
+  it("erzeugt ein Gitter aus einer gewählten Form und macht es rückgängig", async () => {
+    const benutzer = userEvent.setup();
+    render(<Huelle start={[teilMitLoch()]} />);
+    await waehle(benutzer, /Kreis/);
+    expect(formAnzahl()).toBe(2);
+    await benutzer.clear(screen.getByTestId("muster-zeilen"));
+    await benutzer.type(screen.getByTestId("muster-zeilen"), "2");
+    await benutzer.click(screen.getByTestId("muster-gitter")); // 3 Spalten x 2 Zeilen = 5 Kopien
+    expect(formAnzahl()).toBe(7);
+    expect(screen.getByTestId("muster-meldung").textContent).toContain("5 Formen");
+    await benutzer.click(screen.getByTestId("rueckgaengig"));
+    expect(formAnzahl()).toBe(2);
+  });
+
+  it("erzeugt ein Kreismuster um die Mitte der Platte", async () => {
+    const benutzer = userEvent.setup();
+    render(<Huelle start={[teilMitLoch()]} />);
+    await waehle(benutzer, /Kreis/);
+    // Mitte ist die Plattenmitte (50 / 30), Anzahl 6 -> 5 Kopien
+    expect((screen.getByTestId("kreis-mitte-x") as HTMLInputElement).value).toBe("50");
+    expect((screen.getByTestId("kreis-mitte-y") as HTMLInputElement).value).toBe("30");
+    await benutzer.click(screen.getByTestId("muster-kreis"));
+    expect(formAnzahl()).toBe(7);
+  });
+
+  it("spiegelt als Kopie oder ersetzt das Original und meldet das Formenlimit", async () => {
+    const benutzer = userEvent.setup();
+    render(<Huelle start={[teilMitLoch()]} />);
+    await waehle(benutzer, /Kreis/);
+    await benutzer.click(screen.getByTestId("spiegeln-x")); // Kopie an x = 50 -> 80
+    expect(formAnzahl()).toBe(3);
+    expect((screen.getByText("Mitte x").closest("label")!.querySelector("input") as HTMLInputElement).value).toBe("80");
+    await benutzer.click(screen.getByTestId("spiegeln-ersetzen"));
+    await benutzer.click(screen.getByTestId("spiegeln-x")); // ersetzt die Kopie: 80 -> 20
+    expect(formAnzahl()).toBe(3);
+    expect((screen.getByText("Mitte x").closest("label")!.querySelector("input") as HTMLInputElement).value).toBe("20");
+    // Limit: 50 x 50 Gitter wäre 2499 Kopien
+    await benutzer.clear(screen.getByTestId("muster-spalten"));
+    await benutzer.type(screen.getByTestId("muster-spalten"), "50");
+    await benutzer.clear(screen.getByTestId("muster-zeilen"));
+    await benutzer.type(screen.getByTestId("muster-zeilen"), "50");
+    await benutzer.click(screen.getByTestId("muster-gitter"));
+    expect(screen.getByTestId("muster-meldung").textContent).toContain("Zu viele Formen");
+    expect(formAnzahl()).toBe(3);
+  });
+
+  it("weist bei Rechtecken auf die fehlende Drehung hin", async () => {
+    const benutzer = userEvent.setup();
+    render(<Huelle start={[teilMitLoch()]} />);
+    await waehle(benutzer, /Rechteck/);
+    expect(screen.queryByTestId("muster-kreis")).toBeNull();
+    expect(screen.getByText(/Rechtecke bleiben achsparallel/)).toBeTruthy();
+  });
+});

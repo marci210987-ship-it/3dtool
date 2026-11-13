@@ -215,3 +215,7 @@ input, select {
 .meine-vorlagen li { display: flex; justify-content: space-between; align-items: center; gap: 0.3rem; margin-bottom: 0.2rem; }
 .ausrichten { margin: 0.4rem 0; }
 .stil { flex-direction: row; align-items: center; gap: 0.4rem; }
+
+.muster { background: #f7f4ee; border-radius: 12px; padding: 0.5rem 0.7rem; margin: 0.5rem 0; }
+.muster summary { cursor: pointer; font-weight: 600; }
+.muster h3 { font-size: 0.95rem; margin: 0.7rem 0 0.3rem; }
