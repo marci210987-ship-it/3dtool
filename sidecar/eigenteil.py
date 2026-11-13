@@ -28,6 +28,11 @@ class Eigenteil:
     anzahl: int = 1
     formen: list = field(default_factory=list)
     notiz: str = ""
+    # Lage in der Schublade (Ursprung vorne links, Millimeter). Nur wirksam bei platziert=True.
+    platziert: bool = False
+    x_mm: float = 0.0
+    y_mm: float = 0.0
+    drehung: int = 0  # 0 oder 90 Grad
 
     @staticmethod
     def from_dict(data: dict) -> "Eigenteil":
@@ -179,3 +184,16 @@ def eigenteil_sollgroesse(teil: Eigenteil) -> list[float] | None:
     if x0 == math.inf:
         return None
     return [round(x1 - x0, 3), round(y1 - y0, 3), round(float(teil.hoehe_mm), 3)]
+
+
+def eigenteil_rechteck_mm(teil: Eigenteil) -> tuple[float, float, float, float] | None:
+    """Belegte Fläche in der Schublade: x, y, Breite, Tiefe (nach Drehung). None, wenn nicht platziert."""
+    if not teil.platziert:
+        return None
+    soll = eigenteil_sollgroesse(teil)
+    if soll is None:
+        return None
+    breite, tiefe = soll[0], soll[1]
+    if int(teil.drehung) % 180 == 90:
+        breite, tiefe = tiefe, breite
+    return (float(teil.x_mm), float(teil.y_mm), float(breite), float(tiefe))

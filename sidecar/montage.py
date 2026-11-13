@@ -99,7 +99,7 @@ def _svg(projekt_name: str, ansicht: dict, boxen: list[dict], breite: float, tie
         )
     farben = ["#f3d2a4", "#c9dfc4", "#f0c9cf", "#c9d7f0", "#e6d4f2", "#f7e3a1"]
     for index, box in enumerate(boxen):
-        farbe = farben[index % len(farben)]
+        farbe = "#d9d2c3" if box.get("art") == "eigen" else farben[index % len(farben)]
         parts.append(
             f'<rect x="{X(box["links_mm"]):.2f}" y="{Y(box["vorne_mm"]):.2f}" '
             f'width="{box["breite_mm"] * scale:.2f}" height="{box["tiefe_mm"] * scale:.2f}" '
@@ -115,8 +115,8 @@ def _svg(projekt_name: str, ansicht: dict, boxen: list[dict], breite: float, tie
         )
     parts.append(
         f'<text x="{margin}" y="{zeichnung_h + 28}" font-family="Segoe UI, sans-serif" font-size="12" fill="#5c564c">'
-        "Türkise Rahmen: Grundplatten. Farbige Flächen: Boxen. Rote Punkte: Plattenverbinder an den Rippen. "
-        "Randstreifen, falls genannt, haben kein Modell.</text>"
+        "Türkise Rahmen: Grundplatten. Farbige Flächen: Boxen, graue Flächen: eigene Teile. "
+        "Rote Punkte: Plattenverbinder an den Rippen. Randstreifen (S1, ...) werden lose daneben gelegt.</text>"
     )
     parts.append("</svg>")
     return "\n".join(parts)
@@ -176,6 +176,48 @@ def schreibe_uebersicht(
     return {"svg": str(svg_path), "html": str(html_path), "png": str(png_path), "pdf": str(pdf_path)}
 
 
+_FONT = {
+    "0": "01110 10001 10011 10101 11001 10001 01110", "1": "00100 01100 00100 00100 00100 00100 01110",
+    "2": "01110 10001 00001 00010 00100 01000 11111", "3": "11110 00001 00001 01110 00001 00001 11110",
+    "4": "00010 00110 01010 10010 11111 00010 00010", "5": "11111 10000 11110 00001 00001 10001 01110",
+    "6": "00110 01000 10000 11110 10001 10001 01110", "7": "11111 00001 00010 00100 01000 01000 01000",
+    "8": "01110 10001 10001 01110 10001 10001 01110", "9": "01110 10001 10001 01111 00001 00010 01100",
+    "A": "01110 10001 10001 11111 10001 10001 10001", "B": "11110 10001 10001 11110 10001 10001 11110",
+    "C": "01110 10001 10000 10000 10000 10001 01110", "D": "11110 10001 10001 10001 10001 10001 11110",
+    "E": "11111 10000 10000 11110 10000 10000 11111", "F": "11111 10000 10000 11110 10000 10000 10000",
+    "G": "01110 10001 10000 10111 10001 10001 01111", "H": "10001 10001 10001 11111 10001 10001 10001",
+    "I": "01110 00100 00100 00100 00100 00100 01110", "J": "00111 00010 00010 00010 00010 10010 01100",
+    "K": "10001 10010 10100 11000 10100 10010 10001", "L": "10000 10000 10000 10000 10000 10000 11111",
+    "M": "10001 11011 10101 10101 10001 10001 10001", "N": "10001 11001 10101 10011 10001 10001 10001",
+    "O": "01110 10001 10001 10001 10001 10001 01110", "P": "11110 10001 10001 11110 10000 10000 10000",
+    "Q": "01110 10001 10001 10001 10101 10010 01101", "R": "11110 10001 10001 11110 10100 10010 10001",
+    "S": "01111 10000 10000 01110 00001 00001 11110", "T": "11111 00100 00100 00100 00100 00100 00100",
+    "U": "10001 10001 10001 10001 10001 10001 01110", "V": "10001 10001 10001 10001 10001 01010 00100",
+    "W": "10001 10001 10001 10101 10101 10101 01010", "X": "10001 10001 01010 00100 01010 10001 10001",
+    "Y": "10001 10001 01010 00100 00100 00100 00100", "Z": "11111 00001 00010 00100 01000 10000 11111",
+    "-": "00000 00000 00000 11111 00000 00000 00000", "_": "00000 00000 00000 00000 00000 00000 11111",
+    "×": "00000 10001 01010 00100 01010 10001 00000",
+}
+
+
+def _text_pixel(text: str, groesse: int, max_breite: int) -> list[tuple[int, int]]:
+    """Pixelpositionen (x, y) für Text in einer 5×7-Schrift, auf max_breite gekürzt."""
+    pixel = []
+    schritt = 6 * groesse
+    stellen = max(0, max_breite // schritt)
+    for i, zeichen in enumerate(text.upper()[:stellen]):
+        muster = _FONT.get(zeichen)
+        if not muster:
+            continue
+        for zeile, bits in enumerate(muster.split()):
+            for spalte, bit in enumerate(bits):
+                if bit == "1":
+                    for dy in range(groesse):
+                        for dx in range(groesse):
+                            pixel.append((i * schritt + spalte * groesse + dx, zeile * groesse + dy))
+    return pixel
+
+
 def _png_plan(path: Path, breite, tiefe, ansicht, boxen, titel: str) -> None:
     w, h = 1100, 780
     margin = 40
@@ -200,6 +242,13 @@ def _png_plan(path: Path, breite, tiefe, ansicht, boxen, titel: str) -> None:
                 elif x0 < x < x1 and y0 < y < y1:
                     bild[y][x] = farbe
 
+    def beschriften(text, x0, y0, x1, farbe, groesse=2):
+        for dx, dy in _text_pixel(text, groesse, max(0, x1 - x0 - 6)):
+            xx, yy = x0 + 4 + dx, y0 + 4 + dy
+            if 0 <= xx < w and 0 <= yy < h:
+                bild[yy][xx] = farbe
+
+    beschriften(titel + " - MONTAGEUEBERSICHT", 40, 20, w - 40, (28, 25, 21), 2)
     x1, y1 = px(breite, tiefe)
     rect(ox, oy, x1, y1, (255, 255, 255), (28, 25, 21))
     for platte in ansicht.get("platten") or []:
@@ -207,11 +256,14 @@ def _png_plan(path: Path, breite, tiefe, ansicht, boxen, titel: str) -> None:
         a, b = px(lage["links_mm"], lage["vorne_mm"])
         c, d = px(lage["links_mm"] + lage["breite_mm"], lage["vorne_mm"] + lage["tiefe_mm"])
         rect(a, b, c, d, (255, 255, 255), (15, 110, 110))
+        beschriften("%s %d×%d" % (platte["id"], platte["einheiten_x"], platte["einheiten_y"]), a, b, c, (15, 110, 110))
     farben = [(243, 210, 164), (201, 223, 196), (240, 201, 207), (201, 215, 240)]
     for index, box in enumerate(boxen):
         a, b = px(box["links_mm"], box["vorne_mm"])
         c, d = px(box["links_mm"] + box["breite_mm"], box["vorne_mm"] + box["tiefe_mm"])
-        rect(a, b, c, d, farben[index % len(farben)], (28, 25, 21))
+        farbe = (217, 210, 195) if box.get("art") == "eigen" else farben[index % len(farben)]
+        rect(a, b, c, d, farbe, (28, 25, 21))
+        beschriften(str(box["id"]), a, b + (d - b) // 2 - 7, c, (28, 25, 21), 2 if c - a > 90 else 1)
     raw = bytearray()
     for row in bild:
         raw.append(0)

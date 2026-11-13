@@ -36,6 +36,7 @@ interface Plan {
   randstreifen: Array<{ seite: string; breite_mm: number; laenge_mm: number }>;
   randstreifen_hinweis: string;
   freie_zellen: Array<{ x: number; y: number }>;
+  boxen_mm?: Array<{ id: string; links_mm: number; vorne_mm: number; breite_mm: number; tiefe_mm: number }>;
 }
 
 interface Ergebnis {
@@ -392,7 +393,21 @@ export function App() {
             <section>
               <h1>Eigene Teile zeichnen</h1>
               <p className="leise">Formen zeichnen, Höhe festlegen, als STL und FCStd ausgeben. Löcher schneiden Material weg.</p>
-              <Zeichnen teile={eigene} onChange={eigeneAktualisieren} fehler={plan && !plan.ok ? plan.fehler : []} />
+              <Zeichnen
+                teile={eigene}
+                onChange={eigeneAktualisieren}
+                fehler={plan && !plan.ok ? plan.fehler : []}
+                lageplan={
+                  nurEigene || !plan
+                    ? null
+                    : {
+                        breite: schublade.innenbreite_mm,
+                        tiefe: schublade.innentiefe_mm,
+                        platten: plan.platten.map((p) => p.lage),
+                        boxen: plan.boxen_mm || [],
+                      }
+                }
+              />
               <button type="button" className="primaer" onClick={() => setSchritt(5)}>
                 Weiter zur Konstruktion
               </button>

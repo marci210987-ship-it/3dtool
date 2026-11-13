@@ -59,6 +59,7 @@ Jedes Teil besteht aus Formen in der Draufsicht (Ursprung links unten, Millimete
 - Werkzeug wählen, mit gedrückter Maustaste ziehen (Rechteck, Kreis) oder Punkte anklicken (Vieleck; Klick auf den ersten Punkt, Enter oder „Fertig“ schließt).
 - Das Raster rastet den Zeiger ein (0,1 bis 10 mm).
 - „Auswählen“: Form anklicken und ziehen, Entf löscht. Zahlenfelder ändern die genauen Maße.
+- **In die Schublade stellen:** Mit dem Haken „In die Schublade stellen“ erscheint ein Lageplan. Das Teil lässt sich ziehen, per Zahl setzen und um 90° drehen. Es steht auf der Platte und darf keine Box und kein anderes Teil überlappen, nicht aus der Schublade ragen und nicht höher sein als die nutzbare Höhe. Platzierte Teile erscheinen grau mit ihrer Nummer im Montageplan.
 - Auf der Startseite gibt es „Eigene Teile zeichnen“ ohne Schublade. Dann entstehen nur diese Teile und eine Stückliste, kein Montageplan.
 
 Grenzen: keine Rundungen, Schrägen, Gewinde oder mehrere Ebenen. Ein Vieleck darf sich nicht selbst schneiden. Maße über 256 mm werden abgelehnt.

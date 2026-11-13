@@ -395,6 +395,8 @@ def _boxen_zeichnung(projekt: Projekt, ansicht: dict) -> list[dict]:
                 "tiefe_mm": tiefe,
             }
         )
+    for item in ansicht.get("eigene_mm") or []:
+        zeilen.append({**item, "art": "eigen"})
     return zeilen
 
 

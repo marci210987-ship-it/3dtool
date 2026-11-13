@@ -34,7 +34,7 @@ from hausraster_const import (  # noqa: E402
     pruefe_parameter,
 )
 from hausraster_plan import plane_schublade, plan_als_text  # noqa: E402
-from sidecar.eigenteil import Eigenteil, eigenteil_pruefen  # noqa: E402
+from sidecar.eigenteil import Eigenteil, eigenteil_pruefen, eigenteil_rechteck_mm  # noqa: E402
 
 
 FORMAT = "cadstudio.projekt"
@@ -179,6 +179,50 @@ def ausserhalb(box: Box, einheiten_x: int, einheiten_y: int) -> bool:
     if w <= 0 or h <= 0:
         return True
     return x < 0 or y < 0 or x + w > einheiten_x or y + h > einheiten_y
+
+
+def box_rechteck_mm(box: Box, ox: float, oy: float) -> tuple[float, float, float, float]:
+    """Belegte Fläche einer Box in Millimetern: x, y, Breite, Tiefe."""
+    x, y, ex, ey = footprint(box)
+    if box.art == "besteck":
+        return (ox + x * RASTER_MM, oy + y * RASTER_MM, ex * RASTER_MM, ey * RASTER_MM)
+    return (ox + x * RASTER_MM + 0.25, oy + y * RASTER_MM + 0.25, kasten_aussen(ex, 0.0), kasten_aussen(ey, 0.0))
+
+
+def _rechtecke_schneiden(a, b, eps: float = 0.01) -> bool:
+    return a[0] < b[0] + b[2] - eps and b[0] < a[0] + a[2] - eps and a[1] < b[1] + b[3] - eps and b[1] < a[1] + a[3] - eps
+
+
+def platzierte_eigene_pruefen(projekt: "Projekt", plan) -> list[str]:
+    """Prüft platzierte eigene Teile gegen Schublade, Höhe, Boxen und einander."""
+    fehler: list[str] = []
+    sch = projekt.schublade
+    ox, oy = raster_ursprung_mm(sch, plan)
+    boxen = [(box, box_rechteck_mm(box, ox, oy)) for box in projekt.boxen]
+    links = float(sch.rand_links_mm) + float(sch.spiel_mm)
+    vorne = float(sch.rand_vorne_mm) + float(sch.spiel_mm)
+    rechts = float(sch.innenbreite_mm) - float(sch.rand_rechts_mm) - float(sch.spiel_mm)
+    hinten = float(sch.innentiefe_mm) - float(sch.rand_hinten_mm) - float(sch.spiel_mm)
+    belegt = []
+    for eigen in projekt.eigene:
+        rect = eigenteil_rechteck_mm(eigen)
+        if rect is None:
+            continue
+        name = eigen.name or eigen.id
+        x, y, w, d = rect
+        if x < links - 1e-6 or y < vorne - 1e-6 or x + w > rechts + 1e-6 or y + d > hinten + 1e-6:
+            fehler.append("%s liegt nicht vollständig in der Schublade." % name)
+        hoehe = float(eigen.hoehe_mm) + float(sch.boden_platte_mm)
+        if hoehe > float(sch.nutzhoehe_mm) + 1e-6:
+            fehler.append("%s braucht %.1f mm Höhe, die Schublade hat nur %.1f mm nutzbare Höhe." % (name, hoehe, sch.nutzhoehe_mm))
+        for box, brect in boxen:
+            if _rechtecke_schneiden(rect, brect):
+                fehler.append("%s überlappt die Box %s." % (name, box.name or box.id))
+        for andere, arect in belegt:
+            if _rechtecke_schneiden(rect, arect):
+                fehler.append("%s überlappt %s." % (name, andere.name or andere.id))
+        belegt.append((eigen, rect))
+    return fehler
 
 
 def freie_zellen(boxen: list[Box], einheiten_x: int, einheiten_y: int) -> list[tuple[int, int]]:
@@ -362,6 +406,8 @@ def layout_pruefen(projekt: Projekt, plan=None) -> dict:
     fehler.extend(item["text"] for item in kollisionen(projekt.boxen))
     for eigen in projekt.eigene:
         fehler.extend(eigenteil_pruefen(eigen, projekt.schublade.bauraum_mm))
+    if not plan.ungueltig:
+        fehler.extend(platzierte_eigene_pruefen(projekt, plan))
     if plan.randstreifen:
         hinweise.append(
             "Es bleiben Randstreifen übrig. Sie werden als einfache, glatte Füllplatten "
@@ -481,6 +527,17 @@ def plan_ansicht(projekt: Projekt) -> dict:
         "freie_zellen": frei,
         "belegte_zellen": plan.einheiten_x * plan.einheiten_y - len(frei) if not plan.ungueltig else 0,
         "zellen_gesamt": plan.einheiten_x * plan.einheiten_y,
+        "boxen_mm": [
+            {"id": b.id, "name": b.name, "links_mm": r[0], "vorne_mm": r[1], "breite_mm": r[2], "tiefe_mm": r[3]}
+            for b in projekt.boxen
+            for r in [box_rechteck_mm(b, ox, oy)]
+        ],
+        "eigene_mm": [
+            {"id": e.id, "name": e.name, "links_mm": r[0], "vorne_mm": r[1], "breite_mm": r[2], "tiefe_mm": r[3]}
+            for e in projekt.eigene
+            for r in [eigenteil_rechteck_mm(e)]
+            if r is not None
+        ],
     }
 
 
@@ -489,6 +546,20 @@ def bauteil_sollgroesse(part: dict) -> tuple[float, float, float] | None:
     if not soll:
         return None
     return (float(soll[0]), float(soll[1]), float(soll[2]))
+
+
+def _eigen_lage(eigen: Eigenteil, projekt: Projekt) -> dict | None:
+    rect = eigenteil_rechteck_mm(eigen)
+    if rect is None:
+        return None
+    return {
+        "links_mm": round(rect[0], 3),
+        "vorne_mm": round(rect[1], 3),
+        "mitte_x_mm": round(rect[0] + rect[2] / 2.0, 3),
+        "mitte_y_mm": round(rect[1] + rect[3] / 2.0, 3),
+        "z_mm": round(float(projekt.schublade.boden_platte_mm), 3),
+        "drehung": int(eigen.drehung) % 360,
+    }
 
 
 def auftrag_bauen(projekt: Projekt) -> dict:
@@ -671,7 +742,7 @@ def auftrag_bauen(projekt: Projekt) -> dict:
                     "Formen": eigen.formen,
                 },
                 "soll_mm": None,
-                "lage": None,
+                "lage": _eigen_lage(eigen, projekt),
                 "anzahl": int(eigen.anzahl),
                 "passt_in_bauraum": True,
             }

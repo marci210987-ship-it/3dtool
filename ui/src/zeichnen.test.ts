@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { aussenmass, kreisAus, neuesTeil, polygonAus, rechteckAus, runden, verschieben } from "./zeichnen";
+import { aussenmass, kreisAus, neuesTeil, polygonAus, rechteckAus, rechteckMm, runden, verschieben } from "./zeichnen";
 
 describe("Zeichnen", () => {
   it("rastet auf das Raster ein", () => {
@@ -36,5 +36,17 @@ describe("Zeichnen", () => {
     expect(verschieben({ typ: "polygon", punkte: [[0, 0], [2, 0], [0, 2]], loch: false }, 1, 1)).toMatchObject({
       punkte: [[1, 1], [3, 1], [1, 3]],
     });
+  });
+
+  it("berechnet die belegte Fläche in der Schublade mit Drehung", () => {
+    const teil = neuesTeil([]);
+    teil.formen = [{ typ: "rechteck", x: 5, y: 5, b: 40, t: 30, loch: false }];
+    teil.x_mm = 12;
+    teil.y_mm = 7;
+    expect(rechteckMm(teil)).toEqual({ x: 12, y: 7, b: 40, t: 30 });
+    teil.drehung = 90;
+    expect(rechteckMm(teil)).toEqual({ x: 12, y: 7, b: 30, t: 40 });
+    teil.formen = [];
+    expect(rechteckMm(teil)).toBeNull();
   });
 });

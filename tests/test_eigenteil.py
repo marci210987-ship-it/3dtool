@@ -74,6 +74,55 @@ class Auftrag(unittest.TestCase):
             self.assertEqual(len(a["ansicht"]["randstreifen"]), len(streifen))
 
 
+class Platzierung(unittest.TestCase):
+    def _projekt(self, **eigen):
+        teil = Eigenteil(id="E1", name="Halter", hoehe_mm=12, formen=[_rechteck(40, 30)], platziert=True, **eigen)
+        return Projekt(schublade=Schublade(innenbreite_mm=300, innentiefe_mm=200, nutzhoehe_mm=60), eigene=[teil])
+
+    def test_gueltige_lage(self):
+        p = self._projekt(x_mm=100, y_mm=50)
+        self.assertTrue(layout_pruefen(p)["ok"], layout_pruefen(p)["fehler"])
+        a = auftrag_bauen(p)
+        lage = next(t for t in a["teile"] if t["id"] == "E1")["lage"]
+        self.assertEqual((lage["links_mm"], lage["vorne_mm"]), (100.0, 50.0))
+        self.assertEqual([e["id"] for e in a["ansicht"]["eigene_mm"]], ["E1"])
+
+    def test_drehung_tauscht_masse(self):
+        p = self._projekt(x_mm=10, y_mm=10, drehung=90)
+        r = [e for e in auftrag_bauen(p)["ansicht"]["eigene_mm"]][0]
+        self.assertEqual((r["breite_mm"], r["tiefe_mm"]), (30.0, 40.0))
+
+    def test_ausserhalb_und_zu_hoch(self):
+        self.assertFalse(layout_pruefen(self._projekt(x_mm=290, y_mm=50))["ok"])
+        self.assertFalse(layout_pruefen(self._projekt(x_mm=-5, y_mm=50))["ok"])
+        p = self._projekt(x_mm=100, y_mm=50)
+        p.eigene[0].hoehe_mm = 80
+        self.assertFalse(layout_pruefen(p)["ok"])
+
+    def test_kollision_mit_box_und_teil(self):
+        p = self._projekt(x_mm=100, y_mm=50)
+        auto_bestuecken(p)
+        self.assertFalse(layout_pruefen(p)["ok"])
+        q = self._projekt(x_mm=100, y_mm=50)
+        q.eigene.append(Eigenteil(id="E2", name="Zweit", formen=[_rechteck(20, 20)], platziert=True, x_mm=110, y_mm=60))
+        self.assertTrue(any("überlappt" in f for f in layout_pruefen(q)["fehler"]))
+        q.eigene[1].x_mm = 200
+        self.assertTrue(layout_pruefen(q)["ok"], layout_pruefen(q)["fehler"])
+
+    def test_nicht_platziert_wird_ignoriert(self):
+        p = self._projekt(x_mm=9999, y_mm=9999)
+        p.eigene[0].platziert = False
+        self.assertTrue(layout_pruefen(p)["ok"])
+        self.assertEqual(auftrag_bauen(p)["ansicht"]["eigene_mm"], [])
+
+    def test_altdatei_ohne_felder(self):
+        d = Projekt(eigene=[Eigenteil(id="E1", formen=[_rechteck()])]).to_dict()
+        for k in ("platziert", "x_mm", "y_mm", "drehung"):
+            del d["eigene"][0][k]
+        e = Projekt.from_dict(d).eigene[0]
+        self.assertFalse(e.platziert)
+
+
 class NurEigene(unittest.TestCase):
     def test_ohne_schublade(self):
         p = Projekt(nur_eigene=True, eigene=[Eigenteil(id="E1", formen=[_rechteck()])])

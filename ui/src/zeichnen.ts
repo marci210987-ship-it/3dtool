@@ -15,6 +15,10 @@ export interface Eigenteil {
   anzahl: number;
   formen: Form[];
   notiz: string;
+  platziert: boolean;
+  x_mm: number;
+  y_mm: number;
+  drehung: number;
 }
 
 export const MIN_MM = 0.4;
@@ -37,7 +41,7 @@ export function neueTeilId(vorhanden: Eigenteil[]): string {
 
 export function neuesTeil(vorhanden: Eigenteil[]): Eigenteil {
   const id = neueTeilId(vorhanden);
-  return { id, name: `Eigenes Teil ${id.slice(1)}`, hoehe_mm: 10, boden_mm: 0, anzahl: 1, formen: [], notiz: "" };
+  return { id, name: `Eigenes Teil ${id.slice(1)}`, hoehe_mm: 10, boden_mm: 0, anzahl: 1, formen: [], notiz: "", platziert: false, x_mm: 0, y_mm: 0, drehung: 0 };
 }
 
 export function formBox(form: Form): [number, number, number, number] {
@@ -97,5 +101,17 @@ export function teilVonServer(roh: Record<string, unknown>): Eigenteil {
     anzahl: Number(roh.anzahl ?? 1),
     formen: ((roh.formen as Form[]) || []).map((f) => ({ ...f })),
     notiz: String(roh.notiz || ""),
+    platziert: Boolean(roh.platziert),
+    x_mm: Number(roh.x_mm ?? 0),
+    y_mm: Number(roh.y_mm ?? 0),
+    drehung: Number(roh.drehung ?? 0),
   };
+}
+
+/** Belegte Fläche in der Schublade nach Drehung, in Millimetern (x, y, Breite, Tiefe). */
+export function rechteckMm(teil: Eigenteil): { x: number; y: number; b: number; t: number } | null {
+  const mass = aussenmass(teil.formen);
+  if (!mass) return null;
+  const gedreht = teil.drehung % 180 === 90;
+  return { x: teil.x_mm, y: teil.y_mm, b: gedreht ? mass.tiefe : mass.breite, t: gedreht ? mass.breite : mass.tiefe };
 }

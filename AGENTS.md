@@ -37,14 +37,12 @@ Unter Windows `FREECADCMD` auf `.../bin/freecadcmd.exe` setzen. `tests/` hat kei
 - Exportordner (`export_*/`) und Beispielausgaben nicht einchecken.
 
 ## Stand und nächste Schritte (Phase C)
-Fertig: Randstreifen als Füllplatten, automatische Bestückung, Zeichnen (Rechteck/Kreis/Vieleck, Löcher, Sacklöcher), Modus „nur eigene Teile“.
+Fertig: Randstreifen als Füllplatten, automatische Bestückung, Zeichnen (Rechteck/Kreis/Vieleck, Löcher, Sacklöcher), Modus „nur eigene Teile“, Platzieren eigener Teile in der Schublade (Lageplan, Kollisionsprüfung, Montageplan), beschriftetes PNG (5×7-Bitmap-Schrift in `montage.py`).
 Offen, nach Nutzen sortiert:
 1. Playwright-E2E für den Zeichen- und Auto-Fülle-Ablauf ergänzen und laufen lassen.
 2. Zeichnen: Rundungen/Fasen, Bemaßung im Blatt, Rückgängig/Wiederholen, Vieleck-Punkte bearbeiten, Import von SVG/DXF-Umrissen.
-3. Eigene Teile in der Schublade platzieren (Position, Kollision, Montageplan).
-4. Auto-Bestückung mit Wunschliste (z. B. Anzahl Besteckfächer) statt nur größter Box.
-5. PNG-Montageübersicht zeigt keine Beschriftung (SVG hat sie).
-6. Windows-Installer auf einem echten PC starten und FreeCAD-Anbindung prüfen.
+3. Auto-Bestückung mit Wunschliste (z. B. Anzahl Besteckfächer) statt nur größter Box; sie berücksichtigt platzierte eigene Teile noch nicht.
+4. Windows-Installer auf einem echten PC starten und FreeCAD-Anbindung prüfen.
 
 ## Zusammenarbeit
 Im selben Checkout schreibt nur ein Agent. Vor Arbeitsbeginn `git status` und `git pull --ff-only`. Branch: `cursor/cad-studio-phase-b-5939` (PR #1), `main` enthält nur ein leeres README. Kein Merge, Force-Push oder Löschen ohne ausdrückliche Zustimmung des Nutzers.

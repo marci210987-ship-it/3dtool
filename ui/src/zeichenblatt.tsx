@@ -8,6 +8,7 @@ import {
   polygonAus,
   Punkt,
   rechteckAus,
+  rechteckMm,
   runden,
   verschieben,
 } from "./zeichnen";
@@ -35,14 +36,23 @@ const WERKZEUGE: Array<{ id: Werkzeug; titel: string; hilfe: string }> = [
 
 const RASTER_AUSWAHL = [0.1, 0.5, 1, 5, 10];
 
+export interface Lageplan {
+  breite: number;
+  tiefe: number;
+  platten: Array<{ links_mm: number; vorne_mm: number; breite_mm: number; tiefe_mm: number }>;
+  boxen: Array<{ id: string; links_mm: number; vorne_mm: number; breite_mm: number; tiefe_mm: number }>;
+}
+
 export function Zeichnen({
   teile,
   onChange,
   fehler,
+  lageplan = null,
 }: {
   teile: Eigenteil[];
   onChange: (teile: Eigenteil[]) => void;
   fehler: string[];
+  lageplan?: Lageplan | null;
 }) {
   const maskenId = useId().replace(/[^a-zA-Z0-9]/g, "");
   const svgRef = useRef<SVGSVGElement>(null);
@@ -346,6 +356,32 @@ export function Zeichnen({
               {maß && (maß.breite > 256 || maß.tiefe > 256 || teil.hoehe_mm > 256) && " · passt nicht aufs Druckbett (256 mm)"}
             </p>
 
+            {lageplan && maß && (
+              <div data-testid="lageplan-bereich">
+                <h2>In der Schublade</h2>
+                <label className="check">
+                  <input
+                    type="checkbox"
+                    data-testid="platziert"
+                    checked={teil.platziert}
+                    onChange={(e) => aendereTeil((t) => ({ ...t, platziert: e.target.checked }))}
+                  />
+                  In die Schublade stellen
+                </label>
+                {teil.platziert && (
+                  <>
+                    <Zahlfeld label="Position von links (mm)" wert={teil.x_mm} testid="teil-x" onChange={(v) => aendereTeil((t) => ({ ...t, x_mm: v }))} />
+                    <Zahlfeld label="Position von vorn (mm)" wert={teil.y_mm} testid="teil-y" onChange={(v) => aendereTeil((t) => ({ ...t, y_mm: v }))} />
+                    <button type="button" data-testid="teil-drehen" onClick={() => aendereTeil((t) => ({ ...t, drehung: (t.drehung + 90) % 180 }))}>
+                      Um 90° drehen
+                    </button>
+                    <LageplanAnsicht plan={lageplan} teile={teile} aktivId={teil.id} onMove={(x, y) => aendereTeil((t) => ({ ...t, x_mm: x, y_mm: y }))} />
+                  </>
+                )}
+                <p className="hinweis">Das Teil steht auf der Platte. Es darf keine Box und kein anderes Teil überlappen.</p>
+              </div>
+            )}
+
             <h2>Formen</h2>
             {teil.formen.length === 0 && <p className="leise">Noch keine Formen.</p>}
             <ol className="formliste">
@@ -417,5 +453,82 @@ function Zahlfeld({ label, wert, onChange, testid }: { label: string; wert: numb
         }}
       />
     </label>
+  );
+}
+
+function LageplanAnsicht({
+  plan,
+  teile,
+  aktivId,
+  onMove,
+}: {
+  plan: Lageplan;
+  teile: Eigenteil[];
+  aktivId: string;
+  onMove: (x: number, y: number) => void;
+}) {
+  const ref = useRef<SVGSVGElement>(null);
+  const [zug, setZug] = useState<{ dx: number; dy: number } | null>(null);
+  const aktiv = teile.find((t) => t.id === aktivId);
+
+  function punkt(e: React.PointerEvent): [number, number] {
+    const svg = ref.current;
+    const m = svg?.getScreenCTM();
+    if (!svg || !m) return [0, 0];
+    const pt = svg.createSVGPoint();
+    pt.x = e.clientX;
+    pt.y = e.clientY;
+    const p = pt.matrixTransform(m.inverse());
+    return [p.x, p.y];
+  }
+
+  return (
+    <svg
+      ref={ref}
+      data-testid="lageplan"
+      viewBox={`0 0 ${plan.breite} ${plan.tiefe}`}
+      style={{ touchAction: "none", width: "100%", background: "#fff", border: "1px solid #e4ddd0", borderRadius: 12 }}
+      onPointerMove={(e) => {
+        if (!zug) return;
+        const [px, py] = punkt(e);
+        onMove(Math.max(0, Math.round(px - zug.dx)), Math.max(0, Math.round(py - zug.dy)));
+      }}
+      onPointerUp={() => setZug(null)}
+    >
+      <rect x={0} y={0} width={plan.breite} height={plan.tiefe} fill="#fff" stroke="#1c1915" strokeWidth={1.2} />
+      {plan.platten.map((p, i) => (
+        <rect key={i} x={p.links_mm} y={p.vorne_mm} width={p.breite_mm} height={p.tiefe_mm} fill="none" stroke="#0f6e6e" strokeWidth={0.8} />
+      ))}
+      {plan.boxen.map((b) => (
+        <rect key={b.id} x={b.links_mm} y={b.vorne_mm} width={b.breite_mm} height={b.tiefe_mm} fill="#f3d2a4" fillOpacity={0.85} stroke="#1c1915" strokeWidth={0.5} />
+      ))}
+      {teile.map((t) => {
+        const r = t.platziert ? rechteckMm(t) : null;
+        if (!r) return null;
+        const istAktiv = t.id === aktivId;
+        return (
+          <g key={t.id}>
+            <rect
+              x={r.x}
+              y={r.y}
+              width={r.b}
+              height={r.t}
+              fill={istAktiv ? "#9fd0cb" : "#d9d2c3"}
+              stroke="#1c1915"
+              strokeWidth={istAktiv ? 1.2 : 0.5}
+              style={{ cursor: istAktiv ? "move" : "default" }}
+              data-testid={istAktiv ? "lageplan-teil" : undefined}
+              onPointerDown={(e) => {
+                if (!istAktiv || !aktiv) return;
+                e.currentTarget.ownerSVGElement?.setPointerCapture(e.pointerId);
+                const [px, py] = punkt(e);
+                setZug({ dx: px - aktiv.x_mm, dy: py - aktiv.y_mm });
+              }}
+            />
+            <text x={r.x + 2} y={r.y + 8} fontSize={7} fill="#1c1915" pointerEvents="none">{t.id}</text>
+          </g>
+        );
+      })}
+    </svg>
   );
 }
