@@ -29,3 +29,19 @@ jobs:
         with:
           projectPath: src-tauri
           args: --bundles msi nsis
+      - name: MSI hochladen
+        uses: actions/upload-artifact@v4
+        with:
+          name: cad-studio-windows-msi
+          path: src-tauri/target/release/bundle/msi/*.msi
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0
+      - name: Setup hochladen
+        uses: actions/upload-artifact@v4
+        with:
+          name: cad-studio-windows-setup
+          path: src-tauri/target/release/bundle/nsis/*-setup.exe
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0

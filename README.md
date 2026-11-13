@@ -49,7 +49,7 @@ npm run dev
 
 Die Oberfläche liegt dann auf `http://localhost:1420`. Unter Windows startet die installierte Anwendung den Dienst selbst.
 
-Installationspaket (MSI und NSIS) baut die Workflow-Datei `.github/workflows/windows.yml` auf `windows-latest` mit dem aktuellen stabilen Rust. Dieser Lauf ist von der Linux-Umgebung aus nicht ausgeführt worden. Das Rust auf dieser Maschine ist 1.83 und kann die Tauri-Abhängigkeiten nicht übersetzen, weil die Edition 2024 vorausgesetzt wird.
+Der Workflow `.github/workflows/windows.yml` baut auf `windows-latest` MSI und NSIS und lädt beide Pakete als GitHub-Actions-Artifacts hoch. Sie bleiben 14 Tage zum Herunterladen. Ein Start dieser Pakete auf einem Windows-Rechner ist damit nicht geprüft.
 
 ## Bedienung
 
@@ -70,6 +70,18 @@ npx playwright test
 
 Der Prüfbericht steht in [TESTBERICHT.md](TESTBERICHT.md).
 
+## Installer auf dem eigenen Windows-PC prüfen
+
+Diese Schritte sind die Anleitung für den ersten Start. Sie sind kein bereits durchgeführter Test auf Windows-Hardware.
+
+1. Den Pull Request öffnen und unter **Checks** den Workflow **Windows** wählen. Unten auf der Laufseite steht **Artifacts**. Zwei Pakete liegen dort 14 Tage: `cad-studio-windows-msi` und `cad-studio-windows-setup`. Jedes ist ein Zip.
+2. Beide herunterladen und entpacken. Im MSI-Zip liegt `CAD Studio_0.2.0_x64_en-US.msi`, im Setup-Zip `CAD Studio_0.2.0_x64-setup.exe`. Eines von beiden installieren. Das Setup ist der einfachere Weg. Windows SmartScreen kann warnen, weil das Paket nicht signiert ist.
+3. [Python 3.11 oder neuer](https://www.python.org/downloads/windows/) installieren und dabei **Add python.exe to PATH** ankreuzen. Ohne `python` oder `py` im PATH startet der lokale Dienst nicht. Prüfung in der Eingabeaufforderung: `py --version`.
+4. [FreeCAD 1.1.x](https://github.com/FreeCAD/FreeCAD/releases/tag/1.1.4) für Windows installieren, zum Beispiel 1.1.4. CAD Studio enthält FreeCAD nicht. Versionen außerhalb von 1.1.x werden abgelehnt.
+5. CAD Studio starten. Unter **Einstellungen** auf **FreeCAD suchen** tippen. Gesucht wird in dieser Reihenfolge: gespeicherter Pfad, `FREECADCMD`, `FREECAD_ROOT`, `FreeCADCmd.exe` im PATH, `%ProgramFiles%\FreeCAD*\bin\FreeCADCmd.exe`, `%ProgramFiles(x86)%\…`, `%LocalAppData%\Programs\FreeCAD*\bin\FreeCADCmd.exe`, danach die Deinstallations-Schlüssel der Registry, wenn der Anzeigename FreeCAD enthält. Wenn nichts gefunden wird, den Pfad von Hand eintragen, typisch `C:\Program Files\FreeCAD 1.1\bin\FreeCADCmd.exe`, und erneut suchen. Der Hinweis muss Version 1.1.x nennen.
+6. Die Beispieldatei [examples/schublade_480x420.cadstudio.json](examples/schublade_480x420.cadstudio.json) als Rohdatei speichern (auf GitHub **Raw**, nicht die Webseite). In CAD Studio **Öffnen** wählen. Erwartet: Innenmaß 480 × 420 mm, Raster **11 × 9** Felder, vier Grundplatten, vier Boxen. **Alle Teile berechnen** startet FreeCAD und darf erst grün werden, wenn STL und FCStd geschrieben und geprüft sind. Das dauert.
+7. Wenn etwas scheitert, diese Angaben schicken: Windows-Version, MSI oder Setup, Ausgabe von `py --version`, der angezeigte FreeCAD-Pfad oder der deutsche Fehlertext wortgetreu, ein Bildschirmfoto, und ob das Beispielprojekt die 11 × 9 Felder gezeigt hat. Den roten Text unter **Nicht exportiert** vollständig übernehmen. Nicht raten, ob ein Druck passen würde.
+
 ## Was noch nicht da ist
 
-Ersatzteile, Kabelmanagement und Elektronikgehäuse sind auf der Startseite sichtbar und als „in Vorbereitung“ markiert. Separate Randstreifen haben kein Modell. Ein Windows-Installer wurde hier nicht gebaut und nicht gestartet.
+Ersatzteile, Kabelmanagement und Elektronikgehäuse sind auf der Startseite sichtbar und als „in Vorbereitung“ markiert. Separate Randstreifen haben kein Modell. Der Windows-Installer wird in GitHub Actions gebaut; auf einem Windows-PC wurde er nicht installiert und nicht gestartet.
