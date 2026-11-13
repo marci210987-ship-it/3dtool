@@ -20,15 +20,16 @@ Nichts in dieser Liste ist geschätzt. „Bestanden“ heißt, der genannte Lauf
 | Kabelbox ohne Stapellippe, FreeCAD 1.1.4 | bestanden | 13. November 2026. 2×2×3 mit Kabelkerben und ausgeschalteter Lippe, Sollhöhe 21,0 mm. Export `ok`, Bounding-Box 83,5 × 83,5 × 21,0 mm. |
 | `npm test` (Vitest) | bestanden | 4 Tests. Layout und der Editor: vier Boxen, Verschieben, Drehen, Überlappungstext, Höhenänderung. |
 | `npx playwright test` | bestanden | 13. November 2026, erneut 22,9 Sekunden nach der Absicherung des lokalen Dienstes. Chromium, kopflos. Startseite mit den vier Bereichen, drei davon „in Vorbereitung“. Neue Schublade 480×420, Raster 11×9 und Platten im Bauraum. Vier Boxen, Verschieben, Drehen, Überlappung, Export-Knopf gesperrt. Konflikt aufgelöst, Höhe geändert, Projekt gespeichert, Seite neu geladen, Projekt aus „Zuletzt geöffnet“ wieder da (Breite 480, Box B4 Höhe 4). „Alle Teile berechnen“ endet mit der Erfolgsmeldung und der Kennzeichnung „3D-Ansicht aus den erzeugten STL-Dateien“. |
+| GitHub Actions `windows.yml` auf `windows-latest`, Commit `8913cde` | bestanden | 13. November 2026, 10:16–10:24 UTC. Lauf [43407884824](https://github.com/marci210987-ship-it/3dtool/actions/runs/43407884824). Vitest und die Python-Tests ohne FreeCAD sind auf Windows grün. Der Schritt „Windows-Installer“ hat `CAD Studio_0.2.0_x64_en-US.msi` (3,11 MiB) und `CAD Studio_0.2.0_x64-setup.exe` (2,10 MiB) erzeugt. Die Dateien hängen nicht als herunterladbares Artifact am Lauf. |
 
 ## Nicht ausgeführt
 
 | Prüfung | Ergebnis |
 |---|---|
-| GitHub Actions `windows.yml` (Installer MSI/NSIS und die Tests ohne FreeCAD auf `windows-latest`) | nicht ausgeführt. Die Workflow-Datei liegt im Repository. Von dieser Linux-Umgebung wurde der Lauf nicht gestartet und nicht beobachtet. |
-| Start der Tauri-Fensteranwendung und `cargo check` | nicht ausgeführt bzw. nicht abgeschlossen. `cargo check` auf dieser Maschine bricht ab: Rust 1.83, die Tauri-Abhängigkeiten verlangen die Edition 2024. WebKit-Entwicklungsbibliotheken für ein Linux-Fenster sind nicht installiert. Die Oberfläche wurde im Browser gegen denselben lokalen Dienst geprüft. |
+| Start der installierten Windows-Anwendung | nicht ausgeführt. Der Installer ist auf `windows-latest` gebaut, aber nicht auf einem Windows-Rechner gestartet. FreeCAD unter Windows ist dabei nicht angebunden worden. |
+| `cargo check` auf der Linux-VM | nicht abgeschlossen. Rust 1.83 kann die Tauri-Abhängigkeiten nicht bauen (Edition 2024). Der Windows-Lauf oben hat mit dem stabilen Rust übersetzt. Die Oberfläche wurde auf Linux im Browser gegen denselben lokalen Dienst geprüft. |
 | FreeCAD-Suche in der Windows-Registry auf einem Windows-Rechner | nicht ausgeführt. Der Code ist vorhanden. Auf dieser Maschine gibt es keine Windows-Registry. |
-| Nativer Start unter Windows, FreeCADCmd.exe, MSI/NSIS | nicht ausgeführt. |
+| Doppelklick auf MSI oder NSIS und Anbindung von FreeCADCmd.exe auf einem Windows-PC | nicht ausgeführt. Der Build auf `windows-latest` ist oben als bestanden geführt. |
 | Druck auf dem Bambu Lab P2S, Slicer, Passung der Vorgaben 1,0 mm und 0,20 mm | nicht ausgeführt. |
 | Lebensmittelkontakt, Spülmaschine, Wärme, gemessene Rastkraft | nicht ausgeführt. |
 
