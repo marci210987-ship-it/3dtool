@@ -1,4 +1,5 @@
 import { useId, useMemo, useRef, useState } from "react";
+import { dateiText, type ImportErgebnis, leseDxf, leseSvg, zuFormen } from "./import";
 import {
   aussenmass,
   ausrichten,
@@ -12,6 +13,9 @@ import {
   gitter,
   kopieren,
   kreismuster,
+  type MassFeld,
+  masseSetzen,
+  masswertText,
   laesstSichDrehen,
   MAX_FORMEN,
   reihe,
@@ -104,6 +108,7 @@ export function Zeichnen({
   const [musterMeldung, setMusterMeldung] = useState("");
   const [vorlagenName, setVorlagenName] = useState("");
   const [vorlagenMeldung, setVorlagenMeldung] = useState("");
+  const [masseEdit, setMasseEdit] = useState<{ index: number; feld: MassFeld; text: string; x: number; y: number } | null>(null);
   const [fangAn, setFangAn] = useState(true);
   const [fangLinien, setFangLinien] = useState<{ x?: number; y?: number }>({});
 
@@ -186,7 +191,7 @@ export function Zeichnen({
   function welt(e: { clientX: number; clientY: number }, mitFang = true): Punkt {
     const svg = svgRef.current;
     if (!svg) return [0, 0];
-    const m = svg.getScreenCTM();
+    const m = svg.getScreenCTM?.();
     if (!m) return [0, 0];
     const pt = svg.createSVGPoint();
     pt.x = e.clientX;
@@ -362,6 +367,16 @@ export function Zeichnen({
             )}
           </select>
         </label>
+        <ImportPanel
+          onEinfuegen={(neu) => {
+            const id = neueTeilId(teile);
+            const eintrag = { ...neuesTeil(teile), ...neu, id } as Eigenteil;
+            onChange([...teile, eintrag]);
+            setAktivId(id);
+            setAuswahl(null);
+            abbrechen();
+          }}
+        />
         {onVorlageSpeichern && teil && (
           <div className="vorlage-speichern" data-testid="vorlage-speichern">
             <label>
@@ -488,6 +503,32 @@ export function Zeichnen({
               )}
             </div>
             <p className="leise">{WERKZEUGE.find((w) => w.id === werkzeug)?.hilfe}</p>
+            <div style={{ position: "relative" }}>
+            {masseEdit && (
+              <input
+                data-testid="masse-eingabe"
+                className="masse-eingabe"
+                autoFocus
+                inputMode="decimal"
+                value={masseEdit.text}
+                aria-label="Neues Maß in Millimetern"
+                style={masseEingabePosition(svgRef.current, masseEdit.x, H - masseEdit.y)}
+                onFocus={(e) => e.currentTarget.select()}
+                onChange={(e) => setMasseEdit({ ...masseEdit, text: e.target.value })}
+                onKeyDown={(e) => {
+                  if (e.key === "Escape") setMasseEdit(null);
+                  if (e.key === "Enter") {
+                    const form = teil.formen[masseEdit.index];
+                    const neu = form ? masseSetzen(form, masseEdit.feld, masseEdit.text) : null;
+                    if (neu) {
+                      formen(teil.formen.map((f, i) => (i === masseEdit.index ? neu : f)));
+                      setMasseEdit(null);
+                    }
+                  }
+                }}
+                onBlur={() => setMasseEdit(null)}
+              />
+            )}
             <svg
               ref={svgRef}
               data-testid="zeichenblatt"
@@ -554,11 +595,11 @@ export function Zeichnen({
               {masseAn && (
                 <g fontFamily="Segoe UI, sans-serif" fontSize={W / 38} pointerEvents="none" textAnchor="middle">
                   {[
-                    ...teil.formen.map((f, i) => ({ f, aktiv: i === auswahl })),
+                    ...teil.formen.map((f, i) => ({ f, aktiv: i === auswahl, index: i })),
                     ...(entwurf
-                      ? [{ f: entwurf.typ === "rechteck" ? rechteckAus(entwurf.a, entwurf.b, loch) : kreisAus(entwurf.a, entwurf.b, loch), aktiv: true }]
+                      ? [{ f: entwurf.typ === "rechteck" ? rechteckAus(entwurf.a, entwurf.b, loch) : kreisAus(entwurf.a, entwurf.b, loch), aktiv: true, index: -1 }]
                       : []),
-                  ].flatMap(({ f, aktiv }, k) =>
+                  ].flatMap(({ f, aktiv, index }, k) =>
                     f
                       ? massangaben(f, W / 40, aktiv).map((m, j) => (
                           <g key={`${k}-${j}`} data-testid="masse">
@@ -570,6 +611,19 @@ export function Zeichnen({
                               stroke="#fff"
                               strokeWidth={W / 150}
                               paintOrder="stroke"
+                              data-testid={m.feld && index >= 0 ? `masse-${m.feld}` : undefined}
+                              {...(m.feld && index >= 0 && !ziehen && !entwurf
+                                ? {
+                                    pointerEvents: "all" as const,
+                                    style: { cursor: "text" },
+                                    onPointerDown: (e: React.PointerEvent) => e.stopPropagation(),
+                                    onClick: () => {
+                                      if (!m.feld) return;
+                                      setAuswahl(index);
+                                      setMasseEdit({ index, feld: m.feld, text: masswertText(f, m.feld), x: m.x, y: m.y });
+                                    },
+                                  }
+                                : {})}
                             >
                               {m.text}
                             </text>
@@ -580,6 +634,7 @@ export function Zeichnen({
                 </g>
               )}
             </svg>
+            </div>
             <p className="leise" data-testid="zeigerinfo">
               {zeiger ? `Zeiger: ${zeiger[0]} / ${zeiger[1]} mm` : "Ursprung links unten, Maße in Millimeter."}
               {entwurf?.typ === "rechteck" && ` · ${Math.abs(entwurf.b[0] - entwurf.a[0]).toFixed(1)} × ${Math.abs(entwurf.b[1] - entwurf.a[1]).toFixed(1)} mm`}
@@ -847,7 +902,7 @@ function LageplanAnsicht({
 
   function punkt(e: React.PointerEvent): [number, number] {
     const svg = ref.current;
-    const m = svg?.getScreenCTM();
+    const m = svg?.getScreenCTM?.();
     if (!svg || !m) return [0, 0];
     const pt = svg.createSVGPoint();
     pt.x = e.clientX;
@@ -1085,5 +1140,104 @@ function MusterPanel({
       </div>
       {meldung && <p className="leise" data-testid="muster-meldung">{meldung}</p>}
     </details>
+  );
+}
+
+/** Position des Eingabefelds über dem Maß: Weltpunkt (x, y nach unten) in Pixel relativ zum Blatt. */
+function masseEingabePosition(svg: SVGSVGElement | null, x: number, ySvg: number): React.CSSProperties {
+  const basis: React.CSSProperties = { position: "absolute", width: 76, transform: "translate(-50%, -50%)", zIndex: 2, textAlign: "center" };
+  const m = svg?.getScreenCTM?.();
+  if (!svg || !m || !svg.parentElement) return { ...basis, left: "50%", top: 8 };
+  const pt = svg.createSVGPoint();
+  pt.x = x;
+  pt.y = ySvg;
+  const p = pt.matrixTransform(m);
+  const rahmen = svg.parentElement.getBoundingClientRect();
+  return { ...basis, left: p.x - rahmen.left, top: p.y - rahmen.top };
+}
+
+const MAX_IMPORT_BYTES = 5 * 1024 * 1024;
+
+function ImportPanel({ onEinfuegen }: { onEinfuegen: (neu: Partial<Eigenteil>) => void }) {
+  const [datei, setDatei] = useState<{ name: string; ergebnis: ImportErgebnis } | null>(null);
+  const [massstab, setMassstab] = useState("1");
+  const [hoehe, setHoehe] = useState("10");
+  const [fehler, setFehler] = useState("");
+
+  async function einlesen(file: File | undefined) {
+    setFehler("");
+    setDatei(null);
+    if (!file) return;
+    if (file.size > MAX_IMPORT_BYTES) {
+      setFehler("Die Datei ist größer als 5 MB.");
+      return;
+    }
+    try {
+      const text = await dateiText(file);
+      const dxf = /\.dxf$/i.test(file.name) || (!/\.svg$/i.test(file.name) && /^\s*0\s*\r?\n\s*SECTION/.test(text));
+      const ergebnis = dxf ? leseDxf(text) : leseSvg(text);
+      setDatei({ name: file.name, ergebnis });
+      setMassstab(String(Math.round(ergebnis.einheitMm * 1e6) / 1e6).replace(".", ","));
+    } catch {
+      setFehler("Die Datei ließ sich nicht lesen.");
+    }
+  }
+
+  const faktor = Number(massstab.trim().replace(",", "."));
+  const hoeheMm = Number(hoehe.trim().replace(",", "."));
+  const vorschau = datei ? zuFormen(datei.ergebnis, faktor) : null;
+  const gueltig = Boolean(vorschau && vorschau.formen.some((f) => !f.loch) && Number.isFinite(hoeheMm) && hoeheMm >= 0.4 && hoeheMm <= 256);
+
+  return (
+    <div className="import-panel" data-testid="import-panel">
+      <label>
+        Umriss importieren (SVG oder DXF)
+        <input type="file" data-testid="import-datei" accept=".svg,.dxf,image/svg+xml" onChange={(e) => einlesen(e.target.files?.[0])} />
+      </label>
+      {fehler && <p className="alarm" role="alert">{fehler}</p>}
+      {datei && vorschau && (
+        <div data-testid="import-vorschau">
+          <p>
+            <strong>{datei.name}</strong>
+            <br />
+            {vorschau.formen.length === 0
+              ? "Keine Formen."
+              : `${vorschau.formen.length} Formen, davon ${vorschau.anzahlLoecher} Löcher, ${vorschau.breite} × ${vorschau.tiefe} mm.`}
+          </p>
+          <label>
+            Maßstab (mm je Einheit der Datei)
+            <input data-testid="import-massstab" inputMode="decimal" value={massstab} onChange={(e) => setMassstab(e.target.value)} />
+          </label>
+          <label>
+            Höhe des Teils (mm)
+            <input data-testid="import-hoehe" inputMode="decimal" value={hoehe} onChange={(e) => setHoehe(e.target.value)} />
+          </label>
+          {vorschau.hinweise.length > 0 && (
+            <ul className="leise" data-testid="import-hinweise">
+              {vorschau.hinweise.map((h) => (
+                <li key={h}>{h}</li>
+              ))}
+            </ul>
+          )}
+          <div className="knopfzeile">
+            <button
+              type="button"
+              className="primaer"
+              data-testid="import-einfuegen"
+              disabled={!gueltig}
+              onClick={() => {
+                onEinfuegen({ name: datei.name.replace(/\.[^.]+$/, "") || "Import", hoehe_mm: hoeheMm, formen: vorschau.formen });
+                setDatei(null);
+              }}
+            >
+              Als neues Teil einfügen
+            </button>
+            <button type="button" onClick={() => setDatei(null)}>
+              Abbrechen
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }

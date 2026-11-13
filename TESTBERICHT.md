@@ -103,4 +103,14 @@ Fund: Die erste Fassung des Stils „einheitlich“ (meiste Zellen mit gleichen 
 
 Fund: Zahlenfelder, die bei jedem Tastendruck auf einen Mindestwert klammerten, ließen aus „2“ nach dem Leeren „12“ werden. Die Muster-Eingaben halten jetzt den Text und werten ihn erst beim Erzeugen aus. Die Erfolgsmeldung liegt im übergeordneten Zustand, weil das Panel nach dem Erzeugen neu aufgebaut wird (neue Auswahl). `bereinigen` lieferte vereinzelt `-0`.
 
+### Nachtrag: Rechtecke drehen, Maße per Eingabe, SVG/DXF-Import
+
+| Prüfung | Ergebnis |
+|---|---|
+| 9 Python-Module mit FreeCAD | bestanden. Neu: Bounding-Box gedrehter Rechtecke, Prüfung (Keil nicht drehbar, Bauraum nach Drehung), FreeCAD-Export gedrehter Rechtecke mit Radius, Fase und als Loch (Volumina und Maße nachgerechnet) |
+| `npm test`, `npm run build` | bestanden, 47 Tests (neu: Drehung in Box/Fang/Kreismuster/Spiegeln; Maße per Eingabe inkl. Rückgängig; 13 Parser-Tests für SVG und DXF: Grundformen, Pfade mit Kurven und Bögen, Transformationen, Maßstab, Verschachtelung, Vereinfachung, Formenlimit, Verkettung von Linien, Bulge; Import-Panel mit Maßstab, Höhe und ungültigen Dateien) |
+| Live im Browser | SVG mit Rechteck (Eckenradius), Kreis und Langloch aus Bögen importiert: 3 Formen, 90 × 50 mm; Breite per Klick auf das Maß auf 100 mm geändert; exportiert: 27 315,8 mm³ gemessen gegenüber 27 312,4 mm³ gerechnet |
+
+Fund: jsdom kennt `getScreenCTM` nicht; der Zugriff ist jetzt optional abgesichert.
+
 Nicht ausgeführt: `npx playwright test` (Spezifikation auf die neue Schrittnummer „5. Drucken“ angepasst, aber nicht gelaufen), Start des Windows-Installers, Druck auf dem P2S, Passung der Füllplatten und Spiele.

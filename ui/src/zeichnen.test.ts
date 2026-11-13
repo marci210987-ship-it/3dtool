@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { abstandsvorschlag, aussenmass, fangpunkteVon, ausrichten, formMitte, gitter, kopieren, kreismuster, laesstSichDrehen, reihe, spiegeln, bezugsrahmen, einrasten, fangpunkte, formBox, formHoehen, formOberkante, gesamthoehe, hoehenanteil, massangaben, VORLAGEN, zahlText, kreisAus, neuesTeil, polygonAus, rechteckAus, rechteckMm, runden, teilVonServer, verschieben, verschiebenMitFang, type Form } from "./zeichnen";
+import { abstandsvorschlag, masseSetzen, masswertText, aussenmass, fangpunkteVon, ausrichten, formMitte, gitter, kopieren, kreismuster, laesstSichDrehen, reihe, spiegeln, bezugsrahmen, einrasten, fangpunkte, formBox, formHoehen, formOberkante, gesamthoehe, hoehenanteil, massangaben, VORLAGEN, zahlText, kreisAus, neuesTeil, polygonAus, rechteckAus, rechteckMm, runden, teilVonServer, verschieben, verschiebenMitFang, type Form } from "./zeichnen";
 
 describe("Zeichnen", () => {
   it("rastet auf das Raster ein", () => {
@@ -239,5 +239,26 @@ describe("Zeichnen", () => {
     expect(g.winkel).toBe(-30);
     expect((spiegeln(g as unknown as Form, "x", 20, 5) as { winkel: number }).winkel).toBe(30);
     expect(massangaben(schraeg, 3)[0].text).toBe("10 × 4 ∠ 30°");
+  });
+
+  it("ändert Maße per Eingabe und lehnt ungültige Werte ab", () => {
+    const rechteck: Form = { typ: "rechteck", x: 5, y: 5, b: 40, t: 20, loch: false, radius: 9 };
+    expect(masseSetzen(rechteck, "b", "55,5")).toMatchObject({ x: 5, y: 5, b: 55.5, t: 20, radius: 9 });
+    // Radius schrumpft mit der kürzeren Seite mit
+    expect(masseSetzen(rechteck, "t", "10")).toMatchObject({ t: 10, radius: 5 });
+    expect(masseSetzen({ ...rechteck, radius: undefined }, "t", "10")).not.toHaveProperty("radius", 5);
+    const kreis: Form = { typ: "kreis", x: 10, y: 10, r: 3, loch: true };
+    expect(masseSetzen(kreis, "d", "8")).toMatchObject({ x: 10, y: 10, r: 4 });
+    expect(masseSetzen(kreis, "d", "")).toBeNull();
+    expect(masseSetzen(kreis, "d", "abc")).toBeNull();
+    expect(masseSetzen(kreis, "d", "0,2")).toBeNull();
+    expect(masseSetzen(kreis, "b", "5")).toBeNull();
+    expect(masswertText(rechteck, "b")).toBe("40");
+    expect(masswertText(kreis, "d")).toBe("6");
+    expect(masswertText({ ...rechteck, b: 12.5 }, "b")).toBe("12,5");
+    // nur Rechteck und Kreis haben änderbare Maße
+    expect(massangaben(rechteck, 4).map((m) => m.feld)).toEqual(["b", "t"]);
+    expect(massangaben(kreis, 4).map((m) => m.feld)).toEqual(["d"]);
+    expect(massangaben({ typ: "polygon", punkte: [[0, 0], [5, 0], [0, 5]], loch: false }, 4)[0].feld).toBeUndefined();
   });
 });

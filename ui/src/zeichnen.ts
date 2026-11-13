@@ -182,7 +182,11 @@ export interface Massangabe {
   y: number;
   /** Maßlinie in Weltkoordinaten (x1, y1, x2, y2), falls vorhanden */
   linie?: [number, number, number, number];
+  /** Welches Maß der Form diese Angabe ist; nur dann lässt sie sich per Eingabe ändern */
+  feld?: MassFeld;
 }
+
+export type MassFeld = "b" | "t" | "d";
 
 /** Zahl für die Anzeige: deutsch, höchstens eine Nachkommastelle, ohne ",0". */
 export function zahlText(wert: number): string {
@@ -220,12 +224,12 @@ function formMasse(form: Form, abstand: number, mitKanten: boolean): Massangabe[
     const oben = form.y + form.t + abstand;
     const rechts = form.x + form.b + abstand;
     return [
-      { text: zahlText(form.b), x: form.x + form.b / 2, y: oben, linie: [form.x, oben - abstand / 2, form.x + form.b, oben - abstand / 2] },
-      { text: zahlText(form.t), x: rechts, y: form.y + form.t / 2, linie: [rechts - abstand / 2, form.y, rechts - abstand / 2, form.y + form.t] },
+      { text: zahlText(form.b), x: form.x + form.b / 2, y: oben, feld: "b", linie: [form.x, oben - abstand / 2, form.x + form.b, oben - abstand / 2] },
+      { text: zahlText(form.t), x: rechts, y: form.y + form.t / 2, feld: "t", linie: [rechts - abstand / 2, form.y, rechts - abstand / 2, form.y + form.t] },
     ];
   }
   if (form.typ === "kreis") {
-    return [{ text: `Ø ${zahlText(form.r * 2)}`, x: form.x, y: form.y }];
+    return [{ text: `Ø ${zahlText(form.r * 2)}`, x: form.x, y: form.y, feld: "d" }];
   }
   if (!mitKanten) {
     const [x0, y0, x1, y1] = formBox(form);
@@ -541,4 +545,27 @@ export function abstandsvorschlag(form: Form): { x: number; y: number } {
 export function formMitte(form: Form): Punkt {
   const [x0, y0, x1, y1] = formBox(form);
   return [bereinigen((x0 + x1) / 2), bereinigen((y0 + y1) / 2)];
+}
+
+/** Wert in der Anzeige-Schreibweise (deutsch, mit Komma) für das Eingabefeld eines Maßes. */
+export function masswertText(form: Form, feld: MassFeld): string {
+  if (form.typ === "rechteck") return String(feld === "b" ? form.b : form.t).replace(".", ",");
+  if (form.typ === "kreis") return String(bereinigen(form.r * 2)).replace(".", ",");
+  return "";
+}
+
+/** Setzt ein Maß (Breite, Tiefe oder Durchmesser). Liefert null, wenn der Wert ungültig oder zu klein ist. */
+export function masseSetzen(form: Form, feld: MassFeld, text: string): Form | null {
+  const wert = Number(text.trim().replace(",", "."));
+  if (text.trim() === "" || !Number.isFinite(wert) || wert < MIN_MM) return null;
+  if (form.typ === "rechteck" && (feld === "b" || feld === "t")) {
+    const neu = bereinigen(wert);
+    // Eckenradius darf nicht größer werden als die halbe kürzere Seite
+    const b = feld === "b" ? neu : form.b;
+    const t = feld === "t" ? neu : form.t;
+    const radius = form.radius ? Math.min(form.radius, bereinigen(Math.min(b, t) / 2)) : form.radius;
+    return { ...form, b, t, ...(form.radius !== undefined ? { radius } : {}) };
+  }
+  if (form.typ === "kreis" && feld === "d") return { ...form, r: bereinigen(wert / 2) };
+  return null;
 }

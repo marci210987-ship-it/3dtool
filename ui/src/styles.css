@@ -219,3 +219,8 @@ input, select {
 .muster { background: #f7f4ee; border-radius: 12px; padding: 0.5rem 0.7rem; margin: 0.5rem 0; }
 .muster summary { cursor: pointer; font-weight: 600; }
 .muster h3 { font-size: 0.95rem; margin: 0.7rem 0 0.3rem; }
+
+.masse-eingabe { border: 2px solid #0f6e6e; border-radius: 8px; padding: 0.15rem 0.3rem; font-size: 0.95rem; background: #fff; }
+
+.import-panel { margin: 0.6rem 0; }
+.import-panel ul { padding-left: 1.1rem; margin: 0.3rem 0; font-size: 0.85rem; }

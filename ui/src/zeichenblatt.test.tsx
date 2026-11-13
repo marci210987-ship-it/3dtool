@@ -200,3 +200,102 @@ describe("Zeichnen: Muster und Spiegeln", () => {
     expect(screen.getByTestId("teil-mass").textContent).toContain("Außenmaß");
   });
 });
+
+describe("Zeichnen: Maße per Eingabe ändern", () => {
+  it("ändert Breite, Tiefe und Durchmesser durch Klick auf das Maß", async () => {
+    const benutzer = userEvent.setup();
+    const teil: Eigenteil = {
+      ...neuesTeil([]),
+      formen: [
+        { typ: "rechteck", x: 0, y: 0, b: 100, t: 60, loch: false },
+        { typ: "kreis", x: 20, y: 30, r: 3, loch: true },
+      ],
+    };
+    render(<Huelle start={[teil]} />);
+    // Maß der Platte ändern
+    await benutzer.click(screen.getByTestId("masse-b"));
+    const eingabe = screen.getByTestId("masse-eingabe") as HTMLInputElement;
+    expect(eingabe.value).toBe("100");
+    await benutzer.clear(eingabe);
+    await benutzer.type(eingabe, "120,5{Enter}");
+    expect(screen.queryByTestId("masse-eingabe")).toBeNull();
+    expect((screen.getByText("Breite").closest("label")!.querySelector("input") as HTMLInputElement).value).toBe("120.5");
+    // ungültige Eingabe: Feld bleibt offen, Wert ändert sich nicht
+    await benutzer.click(screen.getByTestId("masse-t"));
+    await benutzer.clear(screen.getByTestId("masse-eingabe"));
+    await benutzer.type(screen.getByTestId("masse-eingabe"), "abc{Enter}");
+    expect(screen.queryByTestId("masse-eingabe")).not.toBeNull();
+    await benutzer.keyboard("{Escape}");
+    expect(screen.queryByTestId("masse-eingabe")).toBeNull();
+    expect((screen.getByText("Tiefe").closest("label")!.querySelector("input") as HTMLInputElement).value).toBe("60");
+    // Durchmesser des Lochs
+    await benutzer.click(screen.getAllByRole("button", { name: /Kreis/ }).find((b) => b.closest(".formliste"))!);
+    await benutzer.click(screen.getByTestId("masse-d"));
+    const d = screen.getByTestId("masse-eingabe") as HTMLInputElement;
+    expect(d.value).toBe("6");
+    await benutzer.clear(d);
+    await benutzer.type(d, "10{Enter}");
+    expect((screen.getByText("Radius").closest("label")!.querySelector("input") as HTMLInputElement).value).toBe("5");
+    // Rückgängig nimmt die Änderung zurück
+    await benutzer.click(screen.getByTestId("rueckgaengig"));
+    await benutzer.click(screen.getAllByRole("button", { name: /Kreis/ }).find((b) => b.closest(".formliste"))!);
+    expect((screen.getByText("Radius").closest("label")!.querySelector("input") as HTMLInputElement).value).toBe("3");
+  });
+});
+
+describe("Zeichnen: Umriss importieren", () => {
+  const svgText =
+    '<svg xmlns="http://www.w3.org/2000/svg" width="80mm" height="50mm" viewBox="0 0 80 50"><rect x="0" y="0" width="80" height="50" rx="4"/><circle cx="40" cy="25" r="6"/></svg>';
+
+  it("liest eine SVG-Datei, zeigt Größe und Hinweise und fügt sie als neues Teil ein", async () => {
+    const benutzer = userEvent.setup();
+    render(<Huelle start={[neuesTeil([])]} />);
+    const datei = new File([svgText], "Gehaeuse Deckel.svg", { type: "image/svg+xml" });
+    await benutzer.upload(screen.getByTestId("import-datei"), datei);
+    const vorschau = await screen.findByTestId("import-vorschau");
+    expect(vorschau.textContent).toContain("2 Formen, davon 1 Löcher, 80 × 50 mm");
+    expect((screen.getByTestId("import-massstab") as HTMLInputElement).value).toBe("1");
+    // Maßstab ändern: doppelte Größe
+    await benutzer.clear(screen.getByTestId("import-massstab"));
+    await benutzer.type(screen.getByTestId("import-massstab"), "2");
+    expect(screen.getByTestId("import-vorschau").textContent).toContain("160 × 100 mm");
+    await benutzer.clear(screen.getByTestId("import-hoehe"));
+    await benutzer.type(screen.getByTestId("import-hoehe"), "8");
+    await benutzer.click(screen.getByTestId("import-einfuegen"));
+    expect(screen.getByTestId("anzahl").textContent).toBe("2");
+    expect((screen.getByTestId("teil-name") as HTMLInputElement).value).toBe("Gehaeuse Deckel");
+    expect((screen.getByTestId("teil-hoehe") as HTMLInputElement).value).toBe("8");
+    expect(document.querySelectorAll(".formliste li")).toHaveLength(2);
+    expect(screen.queryByTestId("import-vorschau")).toBeNull();
+  });
+
+  it("sperrt das Einfügen bei ungültigem Maßstab oder fehlender Außenform und meldet ungültige Dateien", async () => {
+    const benutzer = userEvent.setup();
+    render(<Huelle start={[neuesTeil([])]} />);
+    await benutzer.upload(screen.getByTestId("import-datei"), new File([svgText], "a.svg", { type: "image/svg+xml" }));
+    await screen.findByTestId("import-vorschau");
+    await benutzer.clear(screen.getByTestId("import-massstab"));
+    await benutzer.type(screen.getByTestId("import-massstab"), "0");
+    expect((screen.getByTestId("import-einfuegen") as HTMLButtonElement).disabled).toBe(true);
+    await benutzer.clear(screen.getByTestId("import-massstab"));
+    await benutzer.type(screen.getByTestId("import-massstab"), "1");
+    expect((screen.getByTestId("import-einfuegen") as HTMLButtonElement).disabled).toBe(false);
+    await benutzer.clear(screen.getByTestId("import-hoehe"));
+    await benutzer.type(screen.getByTestId("import-hoehe"), "300");
+    expect((screen.getByTestId("import-einfuegen") as HTMLButtonElement).disabled).toBe(true);
+    // keine SVG
+    await benutzer.upload(screen.getByTestId("import-datei"), new File(["Hallo"], "kaputt.svg", { type: "image/svg+xml" }));
+    const hinweise = await screen.findByTestId("import-hinweise");
+    expect(hinweise.textContent).toContain("keine gültige SVG");
+    expect((screen.getByTestId("import-einfuegen") as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it("erkennt DXF an der Endung und liest einen Umriss", async () => {
+    const benutzer = userEvent.setup();
+    render(<Huelle start={[neuesTeil([])]} />);
+    const dxf = "0\nSECTION\n2\nENTITIES\n0\nLWPOLYLINE\n90\n4\n70\n1\n10\n0\n20\n0\n10\n30\n20\n0\n10\n30\n20\n20\n10\n0\n20\n20\n0\nENDSEC\n0\nEOF\n";
+    await benutzer.upload(screen.getByTestId("import-datei"), new File([dxf], "platte.dxf"));
+    const vorschau = await screen.findByTestId("import-vorschau");
+    expect(vorschau.textContent).toContain("1 Formen, davon 0 Löcher, 30 × 20 mm");
+  });
+});
