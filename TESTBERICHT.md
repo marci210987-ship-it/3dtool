@@ -127,3 +127,53 @@ Fund: jsdom kennt `getScreenCTM` nicht; der Zugriff ist jetzt optional abgesiche
 Fund: Eine Vorlage oder ein Import neben einem leeren Startteil ließ das leere Teil stehen und blockierte den Export. Ein leeres aktives Teil wird jetzt ersetzt. Der E2E-Test lief vorher nur mit Linux-Pfaden und startete keine Server; er ist portabel und startet Dienst und Oberfläche selbst.
 
 Nicht ausgeführt: `npx playwright test` (Spezifikation auf die neue Schrittnummer „5. Drucken“ angepasst, aber nicht gelaufen), Start des Windows-Installers, Druck auf dem P2S, Passung der Füllplatten und Spiele.
+
+## Ersatzteil-Generator (14. November 2026)
+
+FreeCAD 1.1.4 auf Linux (`AppRun freecadcmd`). Acht Teile: Kabelclip, Distanzhülse, Unterlegscheibe, Wandhaken, Möbelfuß, Drehknopf, Stopfen, Winkel. Nichts hier ist geschätzt. Ein Start auf Windows-Hardware hat nicht stattgefunden.
+
+| Prüfung | Ergebnis |
+|---|---|
+| `python3 -m unittest tests.test_ersatzteil` mit `FREECADCMD` | bestanden, 14. November 2026. Standard und Extremwerte jeder Art exportiert (STL wasserdicht, Bounding-Box zum Soll, FCStd erneut als gültiger Körper). Kabelclip Durchmesser 4 mm gegen 12 mm: Tiefe und Höhe der Bounding-Box wachsen. Ungültige Werte (zu dünn, außerhalb der Grenzen, zu großes Loch) werden auf Deutsch abgelehnt, der Auftrag bleibt `ok` falsch. |
+| `python3 -m unittest tests.test_layout tests.test_stlcheck tests.test_detect tests.test_projekt tests.test_server tests.test_vorlagen tests.test_einbetten tests.test_ersatzteil` | bestanden, 36 Tests |
+| `python3 -m unittest tests.test_abnahme tests.test_sonder tests.test_eigenteil` | bestanden, 49 Tests. Die Schublade und die gezeichneten Teile bleiben grün. |
+| `npm test`, `npm run build` | bestanden, 51 Vitest-Tests, Produktionsbau ohne Typfehler |
+| `npx playwright test tests/e2e/ersatzteil.spec.ts tests/e2e/schublade.spec.ts` mit FreeCAD | bestanden, 14. November 2026, 23,4 Sekunden. Ersatzteile ist aktiv, zwei Kacheln bleiben „in Vorbereitung“. Kabelclip: Durchmesser 0 wird abgelehnt und der Knopf gesperrt, Durchmesser 10 zeigt das Außenmaß. Der Schubladenablauf mit Export bleibt grün. |
+| Windows-Hardware, Druck, Passung der Bohrungen und des Stopfen-Spiels 0,3 mm | nicht ausgeführt |
+| GitHub Actions `windows.yml`, Commit `ce0f2f7`, beide Jobs | bestanden, 14. November 2026. Lauf [43570280793](https://github.com/marci210987-ship-it/3dtool/actions/runs/43570280793). Jobs `tests` und `installer` grün. Artifacts: `cad-studio-windows-msi` 14 336 174 Byte, `cad-studio-windows-setup` 11 402 054 Byte. [Artifacts](https://github.com/marci210987-ship-it/3dtool/actions/runs/43570280793#artifacts). Der Installer wurde dabei nicht auf einem privaten Windows-PC gestartet. |
+
+## Kabelmanagement (14. November 2026)
+
+FreeCAD 1.1.4 auf Linux (`AppRun freecadcmd`). Fünf Teile eines Systems: Kabelkanal (Buchse und Stecker, optionaler Deckel, Teilung auf höchstens 250 mm), 90°-Ecke, Endkappe, Wandhalter, Kabelauslass. Dasselbe Profil (Innenmaß, Wand, Spiel, Einstecktiefe). Nichts hier ist geschätzt. Ein Start auf Windows-Hardware hat nicht stattgefunden. Das Spiel ist die Lücke im Modell, kein gedruckter Sitz.
+
+| Prüfung | Ergebnis |
+|---|---|
+| `python3 -m unittest tests.test_kabel` mit `FREECADCMD` | bestanden, 14. November 2026, 9 Tests. Standard und Extremwerte jeder Art exportiert (STL wasserdicht und mannigfaltig, ein gültiger Körper, Bounding-Box zum Soll, FCStd erneut geladen). Ein Kanal von 400 mm wird in zwei Stücke plus Deckel geteilt, jedes Stück höchstens 250 mm. Zwei Kanäle mit Spiel 0,20 mm: Schnittvolumen 0, gemessene Lücken links, rechts und unten je 0,20 mm. Mit Spiel 0,35 mm liegen die Lücken bei 0,35 mm. Ein zu breiter Stecker schneidet die schmalere Buchse (Schnittvolumen über 1 mm³), die deutsche Meldung nennt die abweichende Innenbreite. Eine zu schmale Seite lässt eine größere Lücke als das Spiel. Ecke in beide Richtungen und der Wandhalter um den Kanal: Schnittvolumen 0, Lücke 0,20 mm. Ungültige Werte (Wand 0,4 mm, zu kurzer Schenkel, Spiel 2 mm, zu großes Loch, Auslass ohne Rand) werden auf Deutsch abgelehnt. |
+| `python3 -m unittest tests.test_layout tests.test_projekt tests.test_server tests.test_kabel.KabelPruefung` | bestanden, 20 Tests. Alte Projektdateien ohne das Feld `kabel` laden weiter. |
+| `npm test`, `npm run build` | bestanden, 14. November 2026, 56 Vitest-Tests, Produktionsbau ohne Typfehler |
+| `npx playwright test tests/e2e/kabel.spec.ts tests/e2e/ersatzteil.spec.ts tests/e2e/schublade.spec.ts` | bestanden, 14. November 2026. Kabelmanagement ist aktiv, eine Kachel bleibt „in Vorbereitung“. Wand 0,4 mm wird abgelehnt und der Knopf gesperrt. Eine Ecke mit anderer Innenbreite meldet „passen nicht“. Profil angleichen hebt die Meldung auf. „Neue Schublade“ verlässt den Kabel-Modus. Der Schubladenablauf mit Export bleibt grün (23,4 Sekunden). |
+| Windows-Hardware, Druck, ob das Spiel von 0,20 mm auf dem P2S sitzt | nicht ausgeführt |
+| GitHub Actions `windows.yml`, Commit `631255c`, beide Jobs | bestanden, 14. November 2026. Lauf [43575410119](https://github.com/marci210987-ship-it/3dtool/actions/runs/43575410119). Jobs `tests` und `installer` grün. Artifacts: `cad-studio-windows-msi` 14 340 270 Byte, `cad-studio-windows-setup` 11 409 354 Byte. [Artifacts](https://github.com/marci210987-ship-it/3dtool/actions/runs/43575410119#artifacts). Der Installer wurde dabei nicht auf einem privaten Windows-PC gestartet. |
+
+## Elektronikgehäuse (14. November 2026)
+
+FreeCAD 1.1.4 auf Linux (`AppRun freecadcmd`). Innenmaß, Schraubdeckel mit Säulen und optionaler Senkung, Schiebedeckel, Platinenstützen für Raspberry Pi 4, Raspberry Pi 5 und Arduino Uno R3 sowie eigene Rechtecke, rechteckige und runde Öffnungen, Lüftungsschlitze, Wandlaschen. Nichts hier ist geschätzt. Ein Start auf Windows-Hardware hat nicht stattgefunden. Lochbilder sind Nennwerte der genannten Zeichnungen. Das Spiel und die Einpresslöcher sind nicht gedruckt geprüft.
+
+| Prüfung | Ergebnis |
+|---|---|
+| `python3 -m unittest tests.test_gehaeuse` mit `FREECADCMD` | bestanden, 14. November 2026, 6 Tests. Standard, Extrem (Arduino Uno, Senkung, Lüftung, Laschen) und Schiebedeckel exportiert: Korpus und Deckel je STL wasserdicht und mannigfaltig, ein gültiger Körper, Bounding-Box zum Soll, FCStd erneut geladen. Innenbreite 100 gegen 130 mm: die Bounding-Box in X wächst um 30 mm. Deckel auf dem Korpus: Schnittvolumen 0, gemessene Lücken 0,20 mm, bei Spiel 0,35 mm entsprechend 0,35 mm. Schraubenlöcher fluchten mit den Säulen, Platinenlöcher mit den Stützen, auch beim Uno und beim Schiebedeckel. Ungültige Wand, zu große Platine und eine Öffnung an der Säule werden auf Deutsch abgelehnt, der Auftrag bleibt erfolglos. |
+| `npm test`, `npm run build` | bestanden, 14. November 2026, 59 Vitest-Tests. `tsc --noEmit` ohne Typfehler |
+| `npx playwright test tests/e2e/gehaeuse.spec.ts tests/e2e/kabel.spec.ts tests/e2e/ersatzteil.spec.ts tests/e2e/schublade.spec.ts` | bestanden, 14. November 2026. Elektronikgehäuse ist aktiv, keine Kachel mehr „in Vorbereitung“. Wand 0,4 mm wird abgelehnt und der Knopf gesperrt, 1,6 mm hebt die Meldung auf. „Neue Schublade“ verlässt den Gehäuse-Modus. Kabel, Ersatzteile und der Schubladenablauf mit Export (23 Sekunden) bleiben grün. |
+| Windows-Hardware, Druck, Sitz des Deckels und der Platine, Einpressgewinde | nicht ausgeführt |
+| GitHub Actions `windows.yml`, Commit `24e9380`, beide Jobs | bestanden, 14. November 2026. Lauf [43576665607](https://github.com/marci210987-ship-it/3dtool/actions/runs/43576665607). Jobs `tests` und `installer` grün. Artifacts: `cad-studio-windows-msi` 14 356 654 Byte, `cad-studio-windows-setup` 11 417 404 Byte. [Artifacts](https://github.com/marci210987-ship-it/3dtool/actions/runs/43576665607#artifacts). Der Installer wurde dabei nicht auf einem privaten Windows-PC gestartet. |
+
+## Oberfläche (14. November 2026)
+
+FrohnLabs-Wortmarke auf dunkelblauer Kopfleiste, Bambu-Grün für Aktionen, heller Arbeitsbereich. Im Schubladenplan steht der Box-Typ und die Feldgröße. Eine Box von einem Feld zeigt nur „1×1“. Die Schrift ist mindestens 13 Bildschirmpixel, solange sie in die Box passt. Die gewählte Box ist dunkelgrün mit weißer Schrift.
+
+| Prüfung | Ergebnis |
+|---|---|
+| `npm test` | bestanden, 14. November 2026. Neu: zweizeilige Beschriftung, Kurzform 1×1, Schriftgröße mindestens 13 px bei normaler Box |
+| Playwright `tests/e2e/design.spec.ts` und `tests/e2e/schublade.spec.ts` | lokal bestanden. Sechs Ansichten bei 1440×900, die große Box zeigt „Große Box“ und „2×3“ |
+| Windows-Hardware | nicht ausgeführt |
+| GitHub Actions `windows.yml`, Commit `35c8798`, beide Jobs | bestanden, 14. November 2026. Lauf [43586530496](https://github.com/marci210987-ship-it/3dtool/actions/runs/43586530496). Jobs `tests` und `installer` grün. Artifacts: `cad-studio-windows-msi` 14 373 038 Byte, `cad-studio-windows-setup` 11 421 436 Byte. [Artifacts](https://github.com/marci210987-ship-it/3dtool/actions/runs/43586530496#artifacts). Der Installer wurde dabei nicht auf einem privaten Windows-PC gestartet. |

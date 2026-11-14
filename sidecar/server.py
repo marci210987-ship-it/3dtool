@@ -82,12 +82,16 @@ def _cors(handler: BaseHTTPRequestHandler) -> None:
 
 def _json(handler: BaseHTTPRequestHandler, code: int, payload: dict):
     data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
-    handler.send_response(code)
-    handler.send_header("Content-Type", "application/json; charset=utf-8")
-    handler.send_header("Content-Length", str(len(data)))
-    _cors(handler)
-    handler.end_headers()
-    handler.wfile.write(data)
+    try:
+        handler.send_response(code)
+        handler.send_header("Content-Type", "application/json; charset=utf-8")
+        handler.send_header("Content-Length", str(len(data)))
+        _cors(handler)
+        handler.end_headers()
+        handler.wfile.write(data)
+    except (BrokenPipeError, ConnectionAbortedError, ConnectionResetError):
+        # Der Browser hat die Seite neu geladen und die Verbindung geschlossen.
+        return
 
 
 def _verboten(handler: BaseHTTPRequestHandler):
@@ -253,6 +257,57 @@ class Handler(BaseHTTPRequestHandler):
                 from sidecar.vorlagen import vorlage_loeschen
 
                 _json(self, 200, {"ok": True, "result": vorlage_loeschen(str(anfrage.get("id") or ""))})
+                return
+            if cmd == "ersatz_katalog":
+                from sidecar.ersatzteil import KATALOG
+
+                _json(self, 200, {"ok": True, "result": KATALOG})
+                return
+            if cmd == "gehaeuse_vorlagen":
+                from sidecar.gehaeuse import VORLAGEN, standard
+
+                _json(self, 200, {"ok": True, "result": {"vorlagen": VORLAGEN, "standard": standard()}})
+                return
+            if cmd == "gehaeuse_pruefen":
+                from sidecar.gehaeuse import masse_deckel, masse_korpus, pruefe as gehaeuse_pruefen
+
+                parameter = anfrage.get("parameter") or {}
+                meldungen = gehaeuse_pruefen(parameter)
+                soll = None
+                if not meldungen:
+                    soll = {"korpus": masse_korpus(parameter), "deckel": masse_deckel(parameter)}
+                _json(self, 200, {"ok": not meldungen, "fehler": meldungen, "soll_mm": soll})
+                return
+            if cmd == "kabel_katalog":
+                from sidecar.kabel import KATALOG
+
+                _json(self, 200, {"ok": True, "result": KATALOG})
+                return
+            if cmd == "kabel_system":
+                from sidecar.kabel import masse as kabel_masse, nutzlaengen, pruefe as kabel_pruefen, system_meldungen
+
+                teile = anfrage.get("teile") or []
+                meldungen = system_meldungen(teile)
+                aktiv_id = anfrage.get("aktiv")
+                aktiv = next((t for t in teile if t.get("id") == aktiv_id), teile[0] if teile else None)
+                soll = None
+                anzahl = 0
+                if aktiv and not kabel_pruefen(aktiv.get("art"), aktiv.get("parameter") or {}):
+                    soll = kabel_masse(aktiv.get("art"), aktiv.get("parameter") or {})
+                    if aktiv.get("art") == "kanal":
+                        anzahl = len(nutzlaengen(dict(aktiv.get("parameter") or {}, art="kanal")))
+                    else:
+                        anzahl = 1
+                _json(self, 200, {"ok": not meldungen, "fehler": meldungen, "soll_mm": soll, "stuecke": anzahl})
+                return
+            if cmd == "ersatz_pruefen":
+                from sidecar.ersatzteil import masse as ersatz_masse, pruefe as ersatz_pruefen
+
+                art = str(anfrage.get("art") or "")
+                parameter = anfrage.get("parameter") or {}
+                meldungen = ersatz_pruefen(art, parameter)
+                soll = ersatz_masse(art, {**parameter, "art": art}) if not meldungen else None
+                _json(self, 200, {"ok": not meldungen, "fehler": meldungen, "soll_mm": soll})
                 return
             if cmd == "autofill":
                 from sidecar.autofill import auto_bestuecken

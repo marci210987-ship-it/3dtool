@@ -1,12 +1,12 @@
 # Bedienungsanleitung – Schubladen-Konfigurator
 
-CAD Studio ist für den eigenen Hausgebrauch gedacht. Die Oberfläche ist auf Deutsch, alle Maße sind Millimeter. Es ist kein allgemeines CAD-Programm: es gibt keine Skizzen, keine Arbeits­ebenen und keine Befehlszeile.
+CAD Studio ist für den eigenen Hausgebrauch gedacht. Die Oberfläche ist auf Deutsch, alle Maße sind Millimeter. Es ist kein allgemeines CAD-Programm: es gibt keine Skizzen, keine Arbeits­ebenen und keine Befehlszeile. Die Kopfleiste ist dunkelblau mit der FrohnLabs-Wortmarke, Aktionen sind grün, der Arbeitsbereich hell.
 
 Der Druckerbezug ist ein Bambu Lab P2S mit 256 × 256 × 256 mm Bauraum. Das Raster ist das Hausraster 0.2-qs1, 42 mm je Feld, 7 mm je Höhenstufe, anschlussfähig an Gridfinity.
 
 ## Start
 
-Auf der Startseite liegen vier Bereiche. **Schubladen-Konfigurator** und **Eigene Teile zeichnen** sind benutzbar. Ersatzteile, Kabelmanagement und Elektronikgehäuse stehen auf „in Vorbereitung“.
+Auf der Startseite liegen fünf Bereiche. **Schubladen-Konfigurator**, **Eigene Teile zeichnen**, **Ersatzteile**, **Kabelmanagement** und **Elektronikgehäuse** sind benutzbar.
 
 Darunter stehen die zuletzt geöffneten Projekte. Ein Klick lädt die Datei wieder, auch nach einem Neustart des Programms.
 
@@ -50,7 +50,7 @@ Eine Box antippen setzt sie auf das nächste freie Feld. Danach:
 - Höhe in 7-mm-Stufen ändern
 - Fächer teilen, Deckel oder herausnehmbare Trennwände einschalten
 
-Freie Felder sind hellgrün. Überlappende Boxen werden rot und mit einem Hinweis gezeigt. Solange eine Überlappung, ein Überstand oder eine zu große Höhe besteht, lässt sich nichts exportieren.
+Auf jeder Box steht der Typ und die Feldgröße, zum Beispiel „Große Box“ und „2×3“. Eine Box von einem Feld zeigt nur „1×1“, damit der Text in der Fläche bleibt. Die gewählte Box ist grün mit weißer Schrift. Freie Felder sind hellgrün. Überlappende Boxen werden rot und mit einem Hinweis gezeigt. Solange eine Überlappung, ein Überstand oder eine zu große Höhe besteht, lässt sich nichts exportieren.
 
 Die 3D-Ansicht in diesem Schritt ist eine **vereinfachte Vorschau**. Sie ist ausdrücklich nicht die Druckgeometrie.
 
@@ -115,6 +115,61 @@ Grenzen: keine Gewinde, keine frei geformten Flächen, keine Texte. Ein Vieleck 
 Grün wird der Abschluss nur, wenn jede Datei vorhanden ist, das Dreiecksnetz geschlossen ist und die FCStd-Datei einen gültigen Körper mit Tabellenblatt enthält. Andernfalls steht dort **Nicht exportiert** und der Grund.
 
 Die Projektdatei (`.cadstudio.json`) speichert Maße, Spiel und die Lage der Boxen. Die STL-Dateien liegen daneben im Exportordner.
+
+## Ersatzteile
+
+Über die Kachel **Ersatzteile** entstehen einzelne Gebrauchsstücke, ohne Schublade. Acht Formen:
+
+| Teil | Wofür |
+|---|---|
+| Kabelclip | ein oder mehrere Kabel, mit Schraubenlasche oder nur zum Kleben |
+| Distanzhülse | Abstand um eine Schraube |
+| Unterlegscheibe | flache Scheibe unter einem Schraubenkopf |
+| Wandhaken | kleiner Haken mit Schraubenloch |
+| Möbelfuß | runder Gleiter mit Sackloch |
+| Drehknopf | für eine runde oder abgeflachte Welle |
+| Stopfen | verschließt ein rundes Loch, Kragen liegt auf |
+| Winkel | L-Verbindung mit einem Loch je Schenkel |
+
+Ein Teil antippen legt es an. Die Maße stehen daneben, mit sinnvollen Grenzen. Zu dünne Wände (unter 1,2 mm bei einer 0,4-mm-Düse) und Teile über 256 mm werden auf Deutsch abgelehnt, der Knopf **Teil berechnen** bleibt dann aus. Unter den Feldern steht, wie das Teil auf das Druckbett gehört.
+
+Solange noch nicht gerechnet wurde, ist die 3D-Ansicht eine **vereinfachte Vorschau**. Nach dem Berechnen kommt die Ansicht aus der STL-Datei, und grün wird es nur, wenn Datei, geschlossenes Netz und gültiger Körper stimmen. **Speichern** schreibt dasselbe Projektformat `.cadstudio.json`. Mehrere Ersatzteile können in einer Datei liegen.
+
+Das Spiel am Stopfen (Vorgabe 0,3 mm) und die Passung der Bohrungen sind nicht an einem gedruckten Teil geprüft.
+
+## Kabelmanagement
+
+Über die Kachel **Kabelmanagement** entsteht ein Satz zusammengehöriger Teile, ohne Schublade. Alle Teile eines Satzes teilen sich dasselbe Profil: Innenbreite, Innenhöhe, Wandstärke, Spiel und Einstecktiefe. Die Vorgabe für das Spiel ist 0,20 mm. Das ist die Lücke im Modell. Ob sie gedruckt passt, ist nicht geprüft.
+
+| Teil | Wofür |
+|---|---|
+| Kabelkanal | gerades Stück, Buchse am Anfang, Stecker am Ende. Länger als das Bett wird er in Stücke geteilt. Optional mit aufsteckbarem Deckel. |
+| 90°-Ecke | Winkel mit derselben Buchse und demselben Stecker |
+| Endkappe | schließt wahlweise das Stecker- oder das Buchsen-Ende |
+| Wandhalter | Schelle um den Kanal, Lasche mit Schraubenloch |
+| Kabelauslass | kurzes Stück mit einem Loch im Boden |
+
+Ein Teil antippen fügt es mit dem Profil des gerade gewählten Teils hinzu. **Dieses Profil auf alle Teile übertragen** gleicht die anderen an. Weicht ein Teil ab, steht auf Deutsch, welches Maß nicht zusammenpasst, und **Teile berechnen** bleibt aus. Zu dünne Wände (unter 1,2 mm, und nur in 0,4-mm-Schritten) und Stücke über 256 mm werden ebenfalls abgelehnt.
+
+Unter den Feldern steht, wie das Teil auf das Druckbett gehört: Kanäle und Ecken mit der Öffnung nach oben, Deckel und Lasche flach. Die Skizze und die 3D-Ansicht vor dem Berechnen sind vereinfacht und so beschriftet. Nach dem Berechnen kommt die Ansicht aus der STL-Datei. Grün wird es nur, wenn Datei, geschlossenes Netz und gültiger Körper stimmen. STL und FCStd lassen sich danach öffnen. **Speichern** schreibt dasselbe Projektformat `.cadstudio.json`.
+
+## Elektronikgehäuse
+
+Über die Kachel **Elektronikgehäuse** entsteht ein zweiteiliges Gehäuse. Du gibst den **Innenraum** ein, nicht das Außenmaß. Wand, Boden und Deckel sind mindestens 1,2 mm dick und ein Vielfaches von 0,4 mm. Die Ecken können gerundet sein. Das Spiel zum Deckel ist standardmäßig 0,20 mm. Das ist die Lücke im Modell. Ob sie gedruckt passt, ist nicht geprüft.
+
+**Schraubdeckel:** vier Säulen in den Ecken, Kernloch 2,5 mm für eine M3-Blechschraube oder 2,0 mm für M2,5. Der Deckel hat die passenden Durchgangslöcher, auf Wunsch mit Senkung. **Schiebedeckel:** zwei Schienen innen, der Deckel wird von vorn eingeschoben.
+
+**Platine:** eine Vorlage setzt Größe und Lochbild. Die Zahlen sind Nennwerte aus den Zeichnungen, kein vermessenes Brett.
+
+- Raspberry Pi 4 und Raspberry Pi 5: 85 × 56 mm, vier Bohrungen Ø 2,7 mm im Raster 58 × 49 mm, 3,5 mm vom linken Rand und von beiden Längskanten. Quelle: Raspberry Pi Ltd, Mechanical Drawing der Pi 4 (RP-008343-DS) und die Mechanical Drawing der Pi 5.
+- Arduino Uno R3 (A000066): 68,58 × 53,34 mm, vier Bohrungen Ø 3,2 mm, kein Rechteck. Ursprung an der USB-Kante unten links: (13,97 / 2,54), (15,24 / 50,80), (66,04 / 7,62), (66,04 / 35,56) mm. Quelle: Arduino-Datenblatt A000066, Abschnitt „Board Outline & Mounting Holes“, und die UNO-R3-Referenz.
+- Eigenes Rechteck: vier Löcher, in der Platine zentriert, Abstand frei wählbar.
+
+Die Stützen stehen unter diesen Löchern. Ein M2,5- oder M3-Kernloch oder ein Nennloch für ein Einpressgewinde (3,2 mm bzw. 4,0 mm, typische Herstellerangabe, nicht geprüft). Passt die Platine nicht in den Innenraum oder trifft eine Stütze eine Schraubensäule, bleibt der Export aus.
+
+**Öffnungen:** Rechteck oder Rund auf vorne, hinten, links, rechts oder im Boden. Position ist die Mitte entlang der Wand, die zweite Zahl die Höhe von außen unten (beim Boden die Tiefe). Lüftungsschlitze und zwei Wandlaschen hinten lassen sich dazuschalten. Eine Öffnung an einer Schraubensäule oder durch den Rand wird abgelehnt.
+
+Drucken: Gehäuse mit der Öffnung nach oben, Deckel flach. Die Vorschau vor dem Berechnen ist vereinfacht und so beschriftet. Danach kommt die Ansicht aus der STL. Grün wird es nur, wenn Datei, geschlossenes Netz und gültiger Körper für Gehäuse und Deckel stimmen. **Speichern** nutzt dasselbe Projektformat.
 
 ## Was die Dateien nicht versprechen
 

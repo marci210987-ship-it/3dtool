@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { Box, dupliziere, footprint, kollisionen, neueBox, ueberlappt, KATALOG } from "./layout";
+import { Box, boxBeschriftung, dupliziere, footprint, kollisionen, lageplanSchriftPx, lageplanZeilen, neueBox, ueberlappt, KATALOG } from "./layout";
 
 function box(teil: Partial<Box> & Pick<Box, "id" | "x" | "y" | "ex" | "ey">): Box {
   return {
@@ -38,6 +38,13 @@ describe("Editor-Layout", () => {
     }
     expect(kollisionen(boxen)).toEqual([]);
     expect(new Set(boxen.map((b) => `${b.ex}x${b.ey}`)).size).toBe(4);
+    const gross = boxen.find((b) => b.ex === 2 && b.ey === 3)!;
+    expect(boxBeschriftung(gross)).toBe("Große Box 2×3");
+    expect(lageplanZeilen(gross)).toEqual(["Große Box", "2×3"]);
+    expect(lageplanZeilen({ ...gross, ex: 1, ey: 1 })).toEqual(["1×1"]);
+    expect(boxBeschriftung({ ...gross, name: "Große Box B-b74abcd", rotation: 90 })).toBe("Große Box 3×2");
+    expect(lageplanSchriftPx(140, 200, ["Große Box", "2×3"])).toBeGreaterThanOrEqual(13);
+    expect(lageplanSchriftPx(70, 70, ["1×1"])).toBeGreaterThanOrEqual(13);
   });
 
   it("dupliziert auf ein freies Nachbarfeld", () => {
