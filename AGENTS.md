@@ -46,7 +46,7 @@ Ersatzteil-Generator (eigener Bereich, nicht der gezeichnete Modus): Kabelclip, 
 
 Offen, nach Nutzen sortiert:
 1. Playwright-E2E für den Zeichen- und Auto-Fülle-Ablauf ergänzen und laufen lassen.
-2. Zeichnen: Gruppen von Formen, Vieleck-Punkte bearbeiten, Import von SVG/DXF-Umrissen.
+2. Zeichnen: Gruppen von Formen. (Vieleck-Punkte bearbeiten ist fertig: Griffe an Ecken und Kanten, Punktfelder, Entf; Hilfsfunktionen `punktVerschieben`, `punktEinfuegen`, `punktLoeschen`, `polygonSelbstschnitt` in `zeichnen.ts`.)
 3. Auto-Bestückung: Wunschliste mit Gruppen („Besteck links, Kabel rechts“), Optimierer statt Greedy.
 4. Windows-Installer auf einem echten PC starten und FreeCAD-Anbindung prüfen.
 

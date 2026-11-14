@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { abstandsvorschlag, masseSetzen, masswertText, aussenmass, fangpunkteVon, ausrichten, formMitte, gitter, kopieren, kreismuster, laesstSichDrehen, reihe, spiegeln, bezugsrahmen, einrasten, fangpunkte, formBox, formHoehen, formOberkante, gesamthoehe, hoehenanteil, massangaben, VORLAGEN, zahlText, kreisAus, neuesTeil, polygonAus, rechteckAus, rechteckMm, runden, teilVonServer, verschieben, verschiebenMitFang, type Form } from "./zeichnen";
+import { abstandsvorschlag, masseSetzen, masswertText, aussenmass, fangpunkteVon, ausrichten, formMitte, gitter, kopieren, kreismuster, laesstSichDrehen, reihe, spiegeln, bezugsrahmen, einrasten, fangpunkte, formBox, formHoehen, formOberkante, gesamthoehe, hoehenanteil, massangaben, VORLAGEN, zahlText, kreisAus, neuesTeil, polygonAus, polygonSelbstschnitt, punktEinfuegen, punktLoeschen, punktVerschieben, rechteckAus, rechteckMm, runden, teilVonServer, verschieben, verschiebenMitFang, type Form } from "./zeichnen";
 
 describe("Zeichnen", () => {
   it("rastet auf das Raster ein", () => {
@@ -260,5 +260,27 @@ describe("Zeichnen", () => {
     expect(massangaben(rechteck, 4).map((m) => m.feld)).toEqual(["b", "t"]);
     expect(massangaben(kreis, 4).map((m) => m.feld)).toEqual(["d"]);
     expect(massangaben({ typ: "polygon", punkte: [[0, 0], [5, 0], [0, 5]], loch: false }, 4)[0].feld).toBeUndefined();
+  });
+});
+
+describe("Vieleck-Punkte bearbeiten", () => {
+  const dreieck = polygonAus([[0, 0], [10, 0], [0, 10]], false) as Extract<Form, { typ: "polygon" }>;
+  it("verschiebt einen Punkt", () => {
+    const f = punktVerschieben(dreieck, 1, [20, 5]) as typeof dreieck;
+    expect(f.punkte).toEqual([[0, 0], [20, 5], [0, 10]]);
+    expect(dreieck.punkte[1]).toEqual([10, 0]);
+  });
+  it("fügt in der Kantenmitte ein, auch an der Schlusskante", () => {
+    expect((punktEinfuegen(dreieck, 0) as typeof dreieck).punkte).toEqual([[0, 0], [5, 0], [10, 0], [0, 10]]);
+    expect((punktEinfuegen(dreieck, 2) as typeof dreieck).punkte).toEqual([[0, 0], [10, 0], [0, 10], [0, 5]]);
+  });
+  it("löscht, behält aber drei Punkte", () => {
+    const vier = punktEinfuegen(dreieck, 0);
+    expect((punktLoeschen(vier, 1) as typeof dreieck).punkte).toHaveLength(3);
+    expect(punktLoeschen(dreieck, 0)).toBe(dreieck);
+  });
+  it("erkennt Selbstschnitt", () => {
+    expect(polygonSelbstschnitt([[0, 0], [10, 10], [10, 0], [0, 10]])).toBe(true);
+    expect(polygonSelbstschnitt([[0, 0], [10, 0], [10, 10], [0, 10]])).toBe(false);
   });
 });

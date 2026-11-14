@@ -28,6 +28,10 @@ import {
   massangaben,
   neuesTeil,
   polygonAus,
+  polygonSelbstschnitt,
+  punktEinfuegen,
+  punktLoeschen,
+  punktVerschieben,
   Punkt,
   rechteckAus,
   rechteckMm,
@@ -110,6 +114,9 @@ export function Zeichnen({
   const [vorlagenMeldung, setVorlagenMeldung] = useState("");
   const [masseEdit, setMasseEdit] = useState<{ index: number; feld: MassFeld; text: string; x: number; y: number } | null>(null);
   const [fangAn, setFangAn] = useState(true);
+  // Eckpunkt eines gewählten Vielecks: gewählter Punkt und laufender Zug
+  const [punktAuswahl, setPunktAuswahl] = useState<number | null>(null);
+  const [punktZug, setPunktZug] = useState<number | null>(null);
   const [fangLinien, setFangLinien] = useState<{ x?: number; y?: number }>({});
 
   const teil = teile.find((t) => t.id === aktivId) ?? teile[0] ?? null;
@@ -245,6 +252,7 @@ export function Zeichnen({
       }
     } else {
       setAuswahl(null);
+      setPunktAuswahl(null);
     }
   }
 
@@ -259,6 +267,12 @@ export function Zeichnen({
     if (polyPunkte.length > 0 && fangAn) {
       const f = einrasten(p, fangpunkte(teil?.formen ?? []), fangSchwelle);
       setFangLinien({ x: f.fangX, y: f.fangY });
+    }
+    if (punktZug !== null && teil && auswahl !== null) {
+      const q = welt(e, false);
+      const ziel = fangAn ? einrasten(q, fangpunkte(teil.formen, auswahl), fangSchwelle) : { punkt: q, fangX: undefined, fangY: undefined };
+      setFangLinien({ x: ziel.fangX, y: ziel.fangY });
+      formen(teil.formen.map((f, i) => (i === auswahl ? punktVerschieben(f, punktZug, ziel.punkt) : f)), "zug");
     }
     if (ziehen && teil) {
       let dx = p[0] - ziehen.start[0];
@@ -277,6 +291,7 @@ export function Zeichnen({
   function hoch(e: React.PointerEvent<SVGSVGElement>) {
     setFangLinien({});
     if (ziehen) setZiehen(null);
+    if (punktZug !== null) setPunktZug(null);
     if (!entwurf || !teil) return;
     const form = entwurf.typ === "rechteck" ? rechteckAus(entwurf.a, welt(e), loch) : kreisAus(entwurf.a, welt(e), loch);
     setEntwurf(null);
@@ -286,9 +301,29 @@ export function Zeichnen({
     }
   }
 
+  function punktGedrueckt(e: React.PointerEvent, punkt: number) {
+    if (!teil) return;
+    e.stopPropagation();
+    merke();
+    svgRef.current?.setPointerCapture(e.pointerId);
+    setPunktAuswahl(punkt);
+    setPunktZug(punkt);
+  }
+
+  function kanteGedrueckt(e: React.PointerEvent, punkt: number) {
+    if (!teil || auswahl === null) return;
+    e.stopPropagation();
+    merke();
+    svgRef.current?.setPointerCapture(e.pointerId);
+    formen(teil.formen.map((f, i) => (i === auswahl ? punktEinfuegen(f, punkt) : f)), "zug");
+    setPunktAuswahl(punkt + 1);
+    setPunktZug(punkt + 1);
+  }
+
   function formGedrueckt(e: React.PointerEvent, index: number) {
     if (werkzeug !== "wahl" || !teil) return;
     e.stopPropagation();
+    if (index !== auswahl) setPunktAuswahl(null);
     merke();
     svgRef.current?.setPointerCapture(e.pointerId);
     setAuswahl(index);
@@ -309,7 +344,13 @@ export function Zeichnen({
     }
     if (e.key === "Escape") abbrechen();
     else if (e.key === "Enter" && werkzeug === "polygon") polygonFertig();
-    else if ((e.key === "Delete" || e.key === "Backspace") && auswahl !== null && teil) {
+    else if ((e.key === "Delete" || e.key === "Backspace") && auswahl !== null && teil && punktAuswahl !== null && teil.formen[auswahl]?.typ === "polygon") {
+      const f = teil.formen[auswahl];
+      if (f.typ === "polygon" && f.punkte.length > 3) {
+        formen(teil.formen.map((g, i) => (i === auswahl ? punktLoeschen(g, punktAuswahl) : g)));
+        setPunktAuswahl(null);
+      }
+    } else if ((e.key === "Delete" || e.key === "Backspace") && auswahl !== null && teil) {
       formen(teil.formen.filter((_, i) => i !== auswahl));
       setAuswahl(null);
     }
@@ -571,6 +612,20 @@ export function Zeichnen({
                     {formElement(gewaehlt)}
                   </g>
                 )}
+                {gewaehlt && gewaehlt.typ === "polygon" && werkzeug === "wahl" && (
+                  <g data-testid="punkt-griffe">
+                    {gewaehlt.punkte.map((p, i) => {
+                      const q = gewaehlt.punkte[(i + 1) % gewaehlt.punkte.length];
+                      const r = W / 130;
+                      return (
+                        <rect key={`k${i}`} x={(p[0] + q[0]) / 2 - r * 0.7} y={(p[1] + q[1]) / 2 - r * 0.7} width={r * 1.4} height={r * 1.4} fill="#fff" stroke="#00AE42" strokeWidth={0.4} style={{ cursor: "copy" }} onPointerDown={(e) => kanteGedrueckt(e, i)} data-testid={`kante-griff-${i}`} />
+                      );
+                    })}
+                    {gewaehlt.punkte.map((p, i) => (
+                      <circle key={`p${i}`} cx={p[0]} cy={p[1]} r={W / 110} fill={i === punktAuswahl ? "#d4572b" : "#0F1F3A"} stroke="#fff" strokeWidth={0.3} style={{ cursor: "grab" }} onPointerDown={(e) => punktGedrueckt(e, i)} data-testid={`punkt-griff-${i}`} />
+                    ))}
+                  </g>
+                )}
                 {(fangLinien.x !== undefined || fangLinien.y !== undefined) && (
                   <g stroke="#d4572b" strokeWidth={0.35} strokeDasharray="1.5 1" pointerEvents="none" data-testid="fanglinien">
                     {fangLinien.x !== undefined && <line x1={fangLinien.x} y1={0} x2={fangLinien.x} y2={H} />}
@@ -733,7 +788,21 @@ export function Zeichnen({
                     <Zahlfeld label="Radius" wert={gewaehlt.r} onChange={(v) => setzeFeld(auswahl, { r: v })} />
                   </>
                 )}
-                {gewaehlt.typ === "polygon" && <p className="leise">{gewaehlt.punkte.length} Punkte. Zum Verschieben ziehen.</p>}
+                {gewaehlt.typ === "polygon" && auswahl !== null && (
+                  <>
+                    <p className="leise">
+                      {gewaehlt.punkte.length} Punkte. Form ziehen verschiebt, Punkt ziehen ändert die Ecke, Quadrat auf einer Kante fügt einen Punkt ein, Entf löscht den gewählten Punkt (mindestens 3).
+                    </p>
+                    {polygonSelbstschnitt(gewaehlt.punkte) && <p style={{ color: "#b3434b" }} data-testid="polygon-selbstschnitt">Das Vieleck überschneidet sich selbst. Der Export lehnt es ab.</p>}
+                    {punktAuswahl !== null && punktAuswahl < gewaehlt.punkte.length && (
+                      <>
+                        <Zahlfeld label={`Punkt ${punktAuswahl + 1} x`} wert={gewaehlt.punkte[punktAuswahl][0]} testid="punkt-x" onChange={(v) => formen(teil!.formen.map((g, i) => (i === auswahl ? punktVerschieben(g, punktAuswahl, [v, gewaehlt.punkte[punktAuswahl][1]]) : g)), "tippen")} />
+                        <Zahlfeld label={`Punkt ${punktAuswahl + 1} y`} wert={gewaehlt.punkte[punktAuswahl][1]} testid="punkt-y" onChange={(v) => formen(teil!.formen.map((g, i) => (i === auswahl ? punktVerschieben(g, punktAuswahl, [gewaehlt.punkte[punktAuswahl][0], v]) : g)), "tippen")} />
+                        <button type="button" disabled={gewaehlt.punkte.length <= 3} onClick={() => { formen(teil!.formen.map((g, i) => (i === auswahl ? punktLoeschen(g, punktAuswahl) : g))); setPunktAuswahl(null); }} data-testid="punkt-loeschen">Punkt löschen</button>
+                      </>
+                    )}
+                  </>
+                )}
                 <OptZahlfeld
                   label={gewaehlt.loch ? "Loch ab Höhe (mm, leer = ab Boden)" : "Starthöhe (mm, leer = 0)"}
                   wert={gewaehlt.z_mm}

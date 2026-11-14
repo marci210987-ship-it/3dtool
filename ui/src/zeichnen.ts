@@ -143,6 +143,44 @@ export function kreisAus(mitte: Punkt, rand: Punkt, loch: boolean): Form | null 
   return { typ: "kreis", x: bereinigen(mitte[0]), y: bereinigen(mitte[1]), r: bereinigen(r), loch };
 }
 
+/** Verschiebt einen Eckpunkt eines Vielecks auf die Position p. */
+export function punktVerschieben(form: Form, index: number, p: Punkt): Form {
+  if (form.typ !== "polygon" || index < 0 || index >= form.punkte.length) return form;
+  return { ...form, punkte: form.punkte.map((q, i) => (i === index ? ([bereinigen(p[0]), bereinigen(p[1])] as Punkt) : q)) };
+}
+
+/** Fügt in der Mitte der Kante nach dem Punkt `index` einen neuen Eckpunkt ein. */
+export function punktEinfuegen(form: Form, index: number): Form {
+  if (form.typ !== "polygon" || index < 0 || index >= form.punkte.length) return form;
+  const a = form.punkte[index];
+  const b = form.punkte[(index + 1) % form.punkte.length];
+  const neu: Punkt = [bereinigen((a[0] + b[0]) / 2), bereinigen((a[1] + b[1]) / 2)];
+  return { ...form, punkte: [...form.punkte.slice(0, index + 1), neu, ...form.punkte.slice(index + 1)] };
+}
+
+/** Entfernt einen Eckpunkt; ein Vieleck behält mindestens drei Punkte. */
+export function punktLoeschen(form: Form, index: number): Form {
+  if (form.typ !== "polygon" || form.punkte.length <= 3 || index < 0 || index >= form.punkte.length) return form;
+  return { ...form, punkte: form.punkte.filter((_, i) => i !== index) };
+}
+
+function _kreuz(a: Punkt, b: Punkt, c: Punkt): number {
+  return (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]);
+}
+
+/** Wahr, wenn sich zwei nicht benachbarte Kanten des Vielecks schneiden (wie die Prüfung im Dienst). */
+export function polygonSelbstschnitt(punkte: Punkt[]): boolean {
+  const n = punkte.length;
+  for (let i = 0; i < n; i++) {
+    for (let j = i + 1; j < n; j++) {
+      if (j === i + 1 || (i === 0 && j === n - 1)) continue;
+      const a = punkte[i], b = punkte[(i + 1) % n], c = punkte[j], d = punkte[(j + 1) % n];
+      if (_kreuz(a, b, c) * _kreuz(a, b, d) < 0 && _kreuz(c, d, a) * _kreuz(c, d, b) < 0) return true;
+    }
+  }
+  return false;
+}
+
 export function polygonAus(punkte: Punkt[], loch: boolean): Form | null {
   if (punkte.length < 3) return null;
   return { typ: "polygon", punkte: punkte.map(([x, y]) => [bereinigen(x), bereinigen(y)] as Punkt), loch };
