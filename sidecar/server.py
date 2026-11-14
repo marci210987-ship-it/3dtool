@@ -345,12 +345,19 @@ class Handler(BaseHTTPRequestHandler):
             _json(self, 200, {"ok": False, "fehler": str(exc)})
 
 
+class _Dienst(ThreadingHTTPServer):
+    # Mehr wartende Verbindungen: der Browser öffnet bis zu sechs gleichzeitig, und unter Windows werden
+    # Verbindungen bei vollem Rückstau sofort abgewiesen (Standard ist 5)
+    request_queue_size = 64
+    daemon_threads = True
+
+
 def baue_server(host: str | None = None, port: int | None = None) -> ThreadingHTTPServer:
     sitzungstoken()
     host = host or os.environ.get("CADSTUDIO_HOST", "127.0.0.1")
     if port is None:
         port = int(os.environ.get("CADSTUDIO_PORT", "47321"))
-    return ThreadingHTTPServer((host, port), Handler)
+    return _Dienst((host, port), Handler)
 
 
 def main():

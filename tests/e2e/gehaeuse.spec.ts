@@ -28,9 +28,9 @@ test("Elektronikgehäuse: eine verspätete Vorlagenantwort setzt Eingaben nicht 
     if (anfrage?.cmd === "gehaeuse_vorlagen") {
       zaehler += 1;
       if (zaehler === 2) {
-        const antwort = await route.fetch();
+        // Verzögert abgeschickt: die Antwort trifft nach der Eingabe ein
         await new Promise((warten) => setTimeout(warten, 3000));
-        await route.fulfill({ response: antwort });
+        await route.continue();
         return;
       }
     }

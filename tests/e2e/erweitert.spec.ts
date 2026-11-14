@@ -179,9 +179,9 @@ test("Eine verspätete Planantwort überschreibt den neuen Stand nicht", async (
     const anfrage = route.request().postDataJSON() as { cmd?: string };
     if (anfrage?.cmd === "plane" && erste) {
       erste = false;
-      const antwort = await route.fetch();
+      // Die Anfrage wird verzögert abgeschickt, ihre Antwort trifft also nach der zweiten ein
       await new Promise((warten) => setTimeout(warten, 2500));
-      await route.fulfill({ response: antwort });
+      await route.continue();
       return;
     }
     await route.continue();
