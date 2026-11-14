@@ -176,4 +176,4 @@ FrohnLabs-Wortmarke auf dunkelblauer Kopfleiste, Bambu-Grün für Aktionen, hell
 | `npm test` | bestanden, 14. November 2026. Neu: zweizeilige Beschriftung, Kurzform 1×1, Schriftgröße mindestens 13 px bei normaler Box |
 | Playwright `tests/e2e/design.spec.ts` und `tests/e2e/schublade.spec.ts` | lokal bestanden. Sechs Ansichten bei 1440×900, die große Box zeigt „Große Box“ und „2×3“ |
 | Windows-Hardware | nicht ausgeführt |
-| GitHub Actions `windows.yml` für diesen Stand | wird mit dem Push gestartet |
+| GitHub Actions `windows.yml`, Commit `35c8798`, beide Jobs | bestanden, 14. November 2026. Lauf [43586530496](https://github.com/marci210987-ship-it/3dtool/actions/runs/43586530496). Jobs `tests` und `installer` grün. Artifacts: `cad-studio-windows-msi` 14 373 038 Byte, `cad-studio-windows-setup` 11 421 436 Byte. [Artifacts](https://github.com/marci210987-ship-it/3dtool/actions/runs/43586530496#artifacts). Der Installer wurde dabei nicht auf einem privaten Windows-PC gestartet. |
