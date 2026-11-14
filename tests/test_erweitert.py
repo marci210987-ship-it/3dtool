@@ -178,6 +178,14 @@ class MitFreeCAD(unittest.TestCase):
                    seitenloecher=[{"seite": "vorne", "art": "rund", "pos_mm": 15, "z_mm": 2.5, "d_mm": 2, "tiefe_mm": 0}])
         self.assertLess(self._volumen(t2), solid["volume_mm3"])
 
+    def test_senkung_an_niedrigem_drehteil_sitzt_an_der_echten_oberkante(self):
+        # Profil nur 5 mm hoch, Standardhöhe 10 mm: die Gegenbohrung muss an der Oberkante bei 5 mm liegen
+        profil = [[0, 0], [10, 0], [10, 5], [0, 5]]
+        plain = _teil([_kreis(10, 10, 2)], hoehe_mm=10, profil=profil, dreh_x_mm=10, dreh_y_mm=10)
+        mit = _teil([_kreis(10, 10, 2, senk_art="gegenbohrung", senk_d_mm=6, senk_t_mm=2, senk_seite="oben")], hoehe_mm=10, profil=profil, dreh_x_mm=10, dreh_y_mm=10)
+        unterschied = self._volumen(plain) - self._volumen(mit)
+        self.assertAlmostEqual(unterschied, math.pi * (9 - 4) * 2, delta=1.0)
+
     def test_gerundetes_vieleck(self):
         quadrat = {"typ": "polygon", "punkte": [[0, 0], [30, 0], [30, 30], [0, 30]], "loch": False}
         v = self._volumen(_teil([dict(quadrat, radius=5)], hoehe_mm=10))

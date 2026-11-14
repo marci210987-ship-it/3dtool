@@ -443,7 +443,8 @@ def _eigen_shape(params: dict):
 
     hoehe = float(params["Hoehe"])
     boden = float(params.get("Boden") or 0.0)
-    hoehe_gesamt = hoehe
+    # Oberkante des Materials wie eigenteil_hoehe: die Standardhöhe zählt nur, wenn nichts anderes Material hinzufügt
+    hoehe_gesamt = 0.0
     for f in params["Formen"]:
         if not f.get("loch"):
             z_f = float(f.get("z_mm") or 0.0)
@@ -452,6 +453,8 @@ def _eigen_shape(params: dict):
             hoehe_gesamt = max(hoehe_gesamt, z_f + h_f + max(0.0, k_f))
     for _r, z_p in params.get("Profil") or []:
         hoehe_gesamt = max(hoehe_gesamt, float(z_p))
+    if hoehe_gesamt <= 0:
+        hoehe_gesamt = hoehe
     plus = _profil_koerper(params) if params.get("Profil") else None
     minus = []
     for form in params["Formen"]:
