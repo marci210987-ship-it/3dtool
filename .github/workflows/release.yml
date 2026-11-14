@@ -1,0 +1,134 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release-Tag, muss zur Version in tauri.conf.json passen, zum Beispiel v0.3.0"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  installer:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Version und Release-Notes
+        shell: pwsh
+        run: |
+          $conf = Get-Content "src-tauri/tauri.conf.json" -Raw | ConvertFrom-Json
+          $version = [string]$conf.version
+          if ($version -notmatch '^\d+\.\d+\.\d+$') { throw "Version in tauri.conf.json ist nicht x.y.z: $version" }
+          $tag = "v$version"
+          if ($env:GITHUB_EVENT_NAME -eq "workflow_dispatch") {
+            $ist = "${{ github.event.inputs.tag }}".Trim()
+          } else {
+            $ist = $env:GITHUB_REF_NAME
+          }
+          if ($ist -ne $tag) { throw "Tag '$ist' passt nicht zur Version $version. Erwartet wird $tag." }
+          $paket = (Get-Content "package.json" -Raw | ConvertFrom-Json).version
+          $cargo = (Select-String -Path "src-tauri/Cargo.toml" -Pattern '^version = "([^"]+)"' | Select-Object -First 1).Matches.Groups[1].Value
+          if ($paket -ne $version -or $cargo -ne $version) { throw "package.json ($paket) oder Cargo.toml ($cargo) weicht von $version ab." }
+          $zeilen = Get-Content "CHANGELOG.md"
+          $muster = "^## " + [regex]::Escape($version) + "\s*$"
+          $treffer = $zeilen | Select-String -Pattern $muster | Select-Object -First 1
+          if (-not $treffer) { throw "CHANGELOG.md hat keinen Abschnitt $version" }
+          $start = $treffer.LineNumber
+          $rest = @($zeilen[($start)..($zeilen.Length - 1)])
+          $ende = $rest.Length
+          for ($i = 1; $i -lt $rest.Length; $i++) {
+            if ($rest[$i] -match '^## ') { $ende = $i; break }
+          }
+          $text = (($rest[0..($ende - 1)] -join "`n").Trim() + "`n")
+          foreach ($pflicht in @("FreeCAD 1.1.x", "nicht code-signiert", "SmartScreen", "Marcels PC")) {
+            if ($text -notlike "*$pflicht*") { throw "Die Release-Notes enthalten nicht: $pflicht" }
+          }
+          [System.IO.File]::WriteAllText((Join-Path (Get-Location) "release-notes.md"), $text)
+          [System.IO.File]::AppendAllText($env:GITHUB_ENV, "VERSION=$version`nRELEASE_TAG=$tag`n")
+
+      - name: Python für den Installer einrichten
+        run: python scripts/python_einbetten.py
+      - name: Abhängigkeiten
+        run: npm ci
+      - name: Windows-Installer
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          projectPath: src-tauri
+          args: --bundles msi nsis
+
+      - name: Installierte App starten und Dienst prüfen
+        shell: pwsh
+        run: |
+          $setup = Get-ChildItem "src-tauri/target/release/bundle/nsis/*-setup.exe" | Select-Object -First 1
+          Write-Host "Installiere $($setup.Name) (still)"
+          Start-Process -FilePath $setup.FullName -ArgumentList "/S" -Wait
+          $kandidaten = @("$env:LOCALAPPDATA\CAD Studio", "$env:ProgramFiles\CAD Studio")
+          $exe = $null
+          foreach ($ordner in $kandidaten) {
+            if (Test-Path $ordner) { $exe = Get-ChildItem $ordner -Filter "cad-studio.exe" -Recurse | Select-Object -First 1 }
+            if ($exe) { break }
+          }
+          if (-not $exe) { Get-ChildItem $kandidaten -ErrorAction SilentlyContinue | Out-Host; throw "cad-studio.exe wurde nicht installiert" }
+          $installordner = $exe.DirectoryName
+          Write-Host "Installiert in $installordner"
+          Get-ChildItem $installordner | Select-Object Name | Out-Host
+          foreach ($pflicht in @("python\python.exe", "sidecar\server.py", "geometry\hausraster\src\hausraster_const.py")) {
+            if (-not (Test-Path (Join-Path $installordner $pflicht))) { throw "Im Installationsordner fehlt $pflicht" }
+          }
+          $prozess = Start-Process -FilePath $exe.FullName -PassThru
+          $antwort = $null
+          for ($i = 0; $i -lt 60; $i++) {
+            try { $antwort = Invoke-RestMethod "http://127.0.0.1:47321/health" -TimeoutSec 2; if ($antwort.ok) { break } } catch { }
+            Start-Sleep -Seconds 1
+          }
+          $log = Join-Path $env:APPDATA "CADStudio\dienst.log"
+          if (Test-Path $log) { Write-Host "dienst.log:"; Get-Content $log | Select-Object -First 40 | Out-Host }
+          if (-not $antwort -or -not $antwort.ok) { throw "Der Dienst antwortet nicht auf /health" }
+          Write-Host "Dienst antwortet: $($antwort | ConvertTo-Json -Compress)"
+          $dienst = Get-CimInstance Win32_Process -Filter "Name='python.exe'" | Where-Object { $_.ExecutablePath -like "$installordner\python\*" }
+          if (-not $dienst) { throw "Der Dienst läuft nicht mit dem mitgelieferten Python" }
+          Write-Host "Dienst läuft mit $($dienst.ExecutablePath)"
+          Stop-Process -Id $prozess.Id -Force -ErrorAction SilentlyContinue
+
+      - name: Installer umbenennen
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path release-assets | Out-Null
+          $setup = @(Get-ChildItem "src-tauri/target/release/bundle/nsis/*-setup.exe")
+          $msi = @(Get-ChildItem "src-tauri/target/release/bundle/msi/*.msi")
+          if ($setup.Count -ne 1) { throw "Erwartet genau eine Setup-EXE, gefunden $($setup.Count)" }
+          if ($msi.Count -ne 1) { throw "Erwartet genau eine MSI, gefunden $($msi.Count)" }
+          Copy-Item $setup[0].FullName "release-assets/CAD-Studio-$env:VERSION-Setup.exe"
+          Copy-Item $msi[0].FullName "release-assets/CAD-Studio-$env:VERSION.msi"
+          Get-ChildItem release-assets | Select-Object Name, Length | Out-Host
+
+      - name: GitHub Release veröffentlichen
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.RELEASE_TAG }}
+          target_commitish: ${{ github.sha }}
+          name: "CAD Studio ${{ env.RELEASE_TAG }} – FrohnLabs-Design"
+          body_path: release-notes.md
+          draft: false
+          prerelease: false
+          fail_on_unmatched_files: true
+          files: |
+            release-assets/CAD-Studio-${{ env.VERSION }}-Setup.exe
+            release-assets/CAD-Studio-${{ env.VERSION }}.msi

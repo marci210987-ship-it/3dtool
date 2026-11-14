@@ -1,5 +1,12 @@
 # Änderungsprotokoll
 
+## 0.3.0
+
+- Der Windows-Installer bleibt als GitHub Release liegen: `CAD-Studio-0.3.0-Setup.exe` und `CAD-Studio-0.3.0.msi`.
+- FreeCAD 1.1.x muss separat installiert sein. Der Installer enthält FreeCAD nicht.
+- Der Installer ist nicht code-signiert. Windows SmartScreen kann warnen.
+- Ein Hardware-Test auf Marcels PC ist noch nicht ausgeführt.
+
 ## 0.2.0
 
 - Schubladen-Konfigurator mit Hausraster 0.2-qs1, STL, FCStd, Stückliste und Montageplan.
