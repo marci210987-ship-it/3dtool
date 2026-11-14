@@ -552,7 +552,7 @@ export function Zeichnen({
                 <line key={`h${i}`} x1={0} y1={H - i * 10} x2={W} y2={H - i * 10} stroke={i % 5 === 0 ? "#cfc7b6" : "#eee8dc"} strokeWidth={i % 5 === 0 ? 0.4 : 0.25} />
               ))}
               <g transform={`translate(0 ${H}) scale(1 -1)`}>
-                <g mask={`url(#m${maskenId})`} stroke="#0f6e6e" strokeWidth={0.5}>
+                <g mask={`url(#m${maskenId})`} stroke="#00AE42" strokeWidth={0.5}>
                   {material.map(({ f, i }) => (
                     <g key={i} fill={hoehenFarbe(hoehenanteil(f, teil))} onPointerDown={(e) => formGedrueckt(e, i)} style={{ cursor: werkzeug === "wahl" ? "move" : "crosshair" }} data-testid={`form-${i}`}>
                       {formElement(f)}
@@ -567,7 +567,7 @@ export function Zeichnen({
                   ))}
                 </g>
                 {gewaehlt && (
-                  <g fill="none" stroke="#1c1915" strokeWidth={0.9} pointerEvents="none">
+                  <g fill="none" stroke="#0F1F3A" strokeWidth={0.9} pointerEvents="none">
                     {formElement(gewaehlt)}
                   </g>
                 )}
@@ -578,16 +578,16 @@ export function Zeichnen({
                   </g>
                 )}
                 {entwurf && (
-                  <g fill="none" stroke="#1c1915" strokeDasharray="2 1" strokeWidth={0.6} pointerEvents="none">
+                  <g fill="none" stroke="#0F1F3A" strokeDasharray="2 1" strokeWidth={0.6} pointerEvents="none">
                     {entwurf.typ === "rechteck"
                       ? (() => { const f = rechteckAus(entwurf.a, entwurf.b, loch); return f ? formElement(f) : null; })()
                       : (() => { const f = kreisAus(entwurf.a, entwurf.b, loch); return f ? formElement(f) : null; })()}
                   </g>
                 )}
                 {polyPunkte.length > 0 && (
-                  <g fill="none" stroke="#1c1915" strokeWidth={0.6} pointerEvents="none">
+                  <g fill="none" stroke="#0F1F3A" strokeWidth={0.6} pointerEvents="none">
                     <polyline points={[...polyPunkte, ...(zeiger ? [zeiger] : [])].map((p) => p.join(",")).join(" ")} />
-                    {polyPunkte.map((p, i) => (<circle key={i} cx={p[0]} cy={p[1]} r={1.2} fill="#1c1915" />))}
+                    {polyPunkte.map((p, i) => (<circle key={i} cx={p[0]} cy={p[1]} r={1.2} fill="#0F1F3A" />))}
                   </g>
                 )}
               </g>
@@ -915,7 +915,7 @@ function LageplanAnsicht({
       ref={ref}
       data-testid="lageplan"
       viewBox={`0 0 ${plan.breite} ${plan.tiefe}`}
-      style={{ touchAction: "none", width: "100%", background: "#fff", border: "1px solid #e4ddd0", borderRadius: 12 }}
+      style={{ touchAction: "none", width: "100%", background: "#fff", border: "1px solid #d5d9de", borderRadius: 12 }}
       onPointerMove={(e) => {
         if (!zug) return;
         const [px, py] = punkt(e);
@@ -923,12 +923,12 @@ function LageplanAnsicht({
       }}
       onPointerUp={() => setZug(null)}
     >
-      <rect x={0} y={0} width={plan.breite} height={plan.tiefe} fill="#fff" stroke="#1c1915" strokeWidth={1.2} />
+      <rect x={0} y={0} width={plan.breite} height={plan.tiefe} fill="#fff" stroke="#0F1F3A" strokeWidth={1.2} />
       {plan.platten.map((p, i) => (
-        <rect key={i} x={p.links_mm} y={p.vorne_mm} width={p.breite_mm} height={p.tiefe_mm} fill="none" stroke="#0f6e6e" strokeWidth={0.8} />
+        <rect key={i} x={p.links_mm} y={p.vorne_mm} width={p.breite_mm} height={p.tiefe_mm} fill="none" stroke="#00AE42" strokeWidth={0.8} />
       ))}
       {plan.boxen.map((b) => (
-        <rect key={b.id} x={b.links_mm} y={b.vorne_mm} width={b.breite_mm} height={b.tiefe_mm} fill="#f3d2a4" fillOpacity={0.85} stroke="#1c1915" strokeWidth={0.5} />
+        <rect key={b.id} x={b.links_mm} y={b.vorne_mm} width={b.breite_mm} height={b.tiefe_mm} fill="#D9F5E5" fillOpacity={0.85} stroke="#0F1F3A" strokeWidth={0.5} />
       ))}
       {teile.map((t) => {
         const r = t.platziert ? rechteckMm(t) : null;
@@ -941,8 +941,8 @@ function LageplanAnsicht({
               y={r.y}
               width={r.b}
               height={r.t}
-              fill={istAktiv ? "#9fd0cb" : "#d9d2c3"}
-              stroke="#1c1915"
+              fill={istAktiv ? "#00AE42" : "#E4E7EB"}
+              stroke="#0F1F3A"
               strokeWidth={istAktiv ? 1.2 : 0.5}
               style={{ cursor: istAktiv ? "move" : "default" }}
               data-testid={istAktiv ? "lageplan-teil" : undefined}
@@ -954,7 +954,7 @@ function LageplanAnsicht({
                 setZug({ dx: px - aktiv.x_mm, dy: py - aktiv.y_mm });
               }}
             />
-            <text x={r.x + 2} y={r.y + 8} fontSize={7} fill="#1c1915" pointerEvents="none">{t.id}</text>
+            <text x={r.x + 2} y={r.y + 8} fontSize={7} fill="#0F1F3A" pointerEvents="none">{t.id}</text>
           </g>
         );
       })}
@@ -964,8 +964,8 @@ function LageplanAnsicht({
 
 /** Hell bis dunkel je nach Oberkante der Form: höhere Formen erscheinen dunkler. */
 function hoehenFarbe(anteil: number): string {
-  const von = [207, 232, 228];
-  const bis = [95, 168, 160];
+  const von = [232, 248, 238];
+  const bis = [0, 140, 53];
   const mix = von.map((v, i) => Math.round(v + (bis[i] - v) * anteil));
   return `rgb(${mix[0]}, ${mix[1]}, ${mix[2]})`;
 }

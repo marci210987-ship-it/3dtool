@@ -47,7 +47,7 @@ export function Vorschau({
     el.innerHTML = "";
     el.appendChild(renderer.domElement);
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color("#f4f1ea");
+    scene.background = new THREE.Color("#e4e7eb");
     const camera = new THREE.PerspectiveCamera(35, el.clientWidth / 360, 1, 5000);
     camera.position.set(breite * 0.15, Math.max(breite, tiefe) * 0.85, tiefe * 1.15);
     camera.lookAt(breite / 2, 0, tiefe / 2);
@@ -57,7 +57,7 @@ export function Vorschau({
     scene.add(licht);
     const boden = new THREE.Mesh(
       new THREE.BoxGeometry(breite, 2, tiefe),
-      new THREE.MeshStandardMaterial({ color: "#d9d3c7" }),
+      new THREE.MeshStandardMaterial({ color: "#d5d8de" }),
     );
     boden.position.set(breite / 2, -1, tiefe / 2);
     scene.add(boden);
@@ -69,7 +69,7 @@ export function Vorschau({
         const hoehe = box.ez * 7 + (box.stapellippe && box.art !== "besteck" ? 4 : 0);
         const mesh = new THREE.Mesh(
           new THREE.BoxGeometry(w * 42 - 0.5, hoehe, h * 42 - 0.5),
-          new THREE.MeshStandardMaterial({ color: box.art === "besteck" ? "#c9844a" : "#0f6e6e", roughness: 0.55 }),
+          new THREE.MeshStandardMaterial({ color: box.art === "besteck" ? "#067a32" : "#00ae42", roughness: 0.55 }),
         );
         mesh.position.set(ursprungX + (x + w / 2) * 42, plattenhoehe + hoehe / 2, ursprungY + (y + h / 2) * 42);
         scene.add(mesh);
@@ -83,7 +83,7 @@ export function Vorschau({
               loader.load(dateiUrl(d.stl!), (geo) => {
                 if (abbruch) return resolve();
                 geo.computeVertexNormals();
-                const mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: "#0f6e6e", metalness: 0.05, roughness: 0.62 }));
+                const mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: "#00ae42", metalness: 0.05, roughness: 0.62 }));
                 const platz = d.platz || {};
                 const z = platz.z_mm || 0;
                 if (platz.zentriert) {

@@ -297,7 +297,7 @@ function Vorschau({ soll, stl }: { soll: number[] | null; stl: string | null }) 
     el.innerHTML = "";
     el.appendChild(renderer.domElement);
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color("#f4f1ea");
+    scene.background = new THREE.Color("#e4e7eb");
     const camera = new THREE.PerspectiveCamera(35, (el.clientWidth || 640) / 280, 0.1, 4000);
     scene.add(new THREE.AmbientLight(0xffffff, 0.9));
     const licht = new THREE.DirectionalLight(0xffffff, 0.8);
@@ -318,7 +318,7 @@ function Vorschau({ soll, stl }: { soll: number[] | null; stl: string | null }) 
         bb.getCenter(mitte);
         const groesse = new THREE.Vector3();
         bb.getSize(groesse);
-        scene.add(new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: "#0f6e6e", roughness: 0.6 })).translateX(-mitte.x).translateY(-mitte.y).translateZ(-mitte.z));
+        scene.add(new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: "#00ae42", roughness: 0.6 })).translateX(-mitte.x).translateY(-mitte.y).translateZ(-mitte.z));
         const weit = Math.max(groesse.x, groesse.y, groesse.z) * 2.2;
         camera.position.set(weit, weit * 0.7, weit);
         camera.lookAt(0, 0, 0);
@@ -326,7 +326,7 @@ function Vorschau({ soll, stl }: { soll: number[] | null; stl: string | null }) 
       });
     } else if (soll) {
       const [x, y, z] = soll;
-      scene.add(new THREE.Mesh(new THREE.BoxGeometry(x, z, y), new THREE.MeshStandardMaterial({ color: "#c9844a", roughness: 0.7 })));
+      scene.add(new THREE.Mesh(new THREE.BoxGeometry(x, z, y), new THREE.MeshStandardMaterial({ color: "#00ae42", roughness: 0.7 })));
       const weit = Math.max(x, y, z) * 2.4;
       camera.position.set(weit, weit * 0.8, weit);
       camera.lookAt(0, 0, 0);

@@ -57,6 +57,12 @@ export const KATALOG: KatalogEintrag[] = [
   },
 ];
 
+export function boxBeschriftung(box: Pick<Box, "name" | "x" | "y" | "ex" | "ey" | "rotation">): string {
+  const [, , breite, tiefe] = footprint(box);
+  const typ = box.name.replace(/\s+Kopie$/, "").replace(/\s+B(?:\d+|-[0-9a-f]{4,})$/i, "").trim() || "Box";
+  return `${typ} ${breite}×${tiefe}`;
+}
+
 export function footprint(box: Pick<Box, "x" | "y" | "ex" | "ey" | "rotation">): [number, number, number, number] {
   const rot = ((box.rotation % 360) + 360) % 360;
   let ex = box.ex;

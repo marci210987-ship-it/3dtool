@@ -31,7 +31,8 @@ describe("Schubladenbild", () => {
     await user.click(screen.getByTestId("katalog-besteckfach"));
     await user.click(screen.getByTestId("katalog-gross"));
     expect(screen.getByTestId("box-B1")).toBeTruthy();
-    expect(screen.getByTestId("box-B4")).toBeTruthy();
+    expect(screen.getByTestId("box-B4").textContent).toMatch(/Große Box/);
+    expect(screen.getByTestId("box-B4").textContent).toMatch(/2×3/);
     expect(screen.queryByTestId("ueberlappung")).toBeNull();
 
     await user.click(screen.getByTestId("box-B4"));

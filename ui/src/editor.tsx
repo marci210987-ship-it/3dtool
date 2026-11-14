@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { KATALOG, KatalogEintrag, Box, footprint, freieZellen, kollisionen, ausserhalb, neueBox, dupliziere } from "./layout";
+import { KATALOG, KatalogEintrag, Box, boxBeschriftung, footprint, freieZellen, kollisionen, ausserhalb, neueBox, dupliziere } from "./layout";
 
 interface Plan {
   einheiten_x: number;
@@ -297,6 +297,11 @@ function Schubladenbild({
       {boxen.map((box) => {
         const [x, y, w, h] = footprint(box);
         const konflikt = kollisionen(boxen).some((k) => k.boxen.includes(box.id));
+        const beschriftung = boxBeschriftung(box);
+        const typ = beschriftung.replace(/ \d+×\d+$/, "");
+        const mass = beschriftung.slice(typ.length + 1);
+        const mitteX = plan.ursprung_x_mm + (x + w / 2) * raster;
+        const mitteY = plan.ursprung_y_mm + (y + h / 2) * raster;
         return (
           <g
             key={box.id}
@@ -313,8 +318,9 @@ function Schubladenbild({
             }}
           >
             <rect x={plan.ursprung_x_mm + x * raster + 0.6} y={plan.ursprung_y_mm + y * raster + 0.6} width={w * raster - 1.2} height={h * raster - 1.2} rx={1.5} />
-            <text x={plan.ursprung_x_mm + x * raster + 2} y={plan.ursprung_y_mm + y * raster + h * raster / 2}>
-              {box.id}
+            <text x={mitteX} y={mitteY} textAnchor="middle">
+              <tspan x={mitteX} dy="-0.35em">{typ}</tspan>
+              <tspan x={mitteX} dy="1.15em">{mass}</tspan>
             </text>
           </g>
         );

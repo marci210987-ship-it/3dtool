@@ -377,10 +377,11 @@ export function App() {
     <div className="app" data-modus={nurGehaeuse ? "gehaeuse" : nurKabel ? "kabel" : nurErsatz ? "ersatz" : nurEigene ? "zeichnen" : "schublade"}>
       <header>
         <button type="button" className="marke" onClick={() => setAnsicht("start")}>
-          CAD Studio
+          <img src="/brand/frohnlabs-auf-dunkel.svg" alt="" className="wortmarke" />
+          <span className="produkt">CAD Studio</span>
         </button>
         <p>Eigene Ordnung für den 3D-Druck. Maße in Millimeter.</p>
-        <button type="button" onClick={() => setAnsicht("einstellungen")}>
+        <button type="button" className="ghost" onClick={() => setAnsicht("einstellungen")}>
           Einstellungen
         </button>
       </header>

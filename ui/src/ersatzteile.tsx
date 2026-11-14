@@ -220,7 +220,7 @@ function TeilVorschau({ soll, stl }: { soll: number[] | null; stl: string | null
     el.innerHTML = "";
     el.appendChild(renderer.domElement);
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color("#f4f1ea");
+    scene.background = new THREE.Color("#e4e7eb");
     const camera = new THREE.PerspectiveCamera(35, (el.clientWidth || 640) / 280, 0.1, 2000);
     scene.add(new THREE.AmbientLight(0xffffff, 0.9));
     const licht = new THREE.DirectionalLight(0xffffff, 0.8);
@@ -241,7 +241,7 @@ function TeilVorschau({ soll, stl }: { soll: number[] | null; stl: string | null
         bb.getCenter(mitte);
         const groesse = new THREE.Vector3();
         bb.getSize(groesse);
-        const mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: "#0f6e6e", roughness: 0.6 }));
+        const mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: "#00ae42", roughness: 0.6 }));
         mesh.position.sub(mitte);
         scene.add(mesh);
         const weit = Math.max(groesse.x, groesse.y, groesse.z) * 2.2;
@@ -253,7 +253,7 @@ function TeilVorschau({ soll, stl }: { soll: number[] | null; stl: string | null
       const [x, y, z] = soll;
       const mesh = new THREE.Mesh(
         new THREE.BoxGeometry(x, z, y),
-        new THREE.MeshStandardMaterial({ color: "#c9844a", roughness: 0.7 }),
+        new THREE.MeshStandardMaterial({ color: "#00ae42", roughness: 0.7 }),
       );
       scene.add(mesh);
       const weit = Math.max(x, y, z) * 2.4;
