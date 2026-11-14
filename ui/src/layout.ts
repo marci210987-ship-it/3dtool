@@ -58,9 +58,26 @@ export const KATALOG: KatalogEintrag[] = [
 ];
 
 export function boxBeschriftung(box: Pick<Box, "name" | "x" | "y" | "ex" | "ey" | "rotation">): string {
+  return lageplanZeilen(box).join(" ");
+}
+
+export function lageplanZeilen(box: Pick<Box, "name" | "x" | "y" | "ex" | "ey" | "rotation">): string[] {
   const [, , breite, tiefe] = footprint(box);
+  const mass = `${breite}×${tiefe}`;
+  if (breite <= 1 && tiefe <= 1) return [mass];
   const typ = box.name.replace(/\s+Kopie$/, "").replace(/\s+B(?:\d+|-[0-9a-f]{4,})$/i, "").trim() || "Box";
-  return `${typ} ${breite}×${tiefe}`;
+  return [typ, mass];
+}
+
+/** Schriftgröße in Bildschirmpixeln: mindestens 13, größer bei größeren Boxen, aber innerhalb der Fläche. */
+export function lageplanSchriftPx(boxBreitePx: number, boxHoehePx: number, zeilen: string[]): number {
+  const zeichen = Math.max(1, ...zeilen.map((zeile) => zeile.length));
+  const nachBreite = (Math.max(0, boxBreitePx) * 0.9) / (zeichen * 0.58);
+  const nachHoehe = (Math.max(0, boxHoehePx) * 0.8) / (zeilen.length * 1.25);
+  const passend = Math.min(nachBreite, nachHoehe);
+  if (!Number.isFinite(passend) || passend <= 0) return 13;
+  if (passend < 12) return Math.max(9, passend);
+  return Math.min(22, Math.max(13, passend));
 }
 
 export function footprint(box: Pick<Box, "x" | "y" | "ex" | "ey" | "rotation">): [number, number, number, number] {

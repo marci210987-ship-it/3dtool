@@ -165,4 +165,15 @@ FreeCAD 1.1.4 auf Linux (`AppRun freecadcmd`). Innenmaß, Schraubdeckel mit Säu
 | `npm test`, `npm run build` | bestanden, 14. November 2026, 59 Vitest-Tests. `tsc --noEmit` ohne Typfehler |
 | `npx playwright test tests/e2e/gehaeuse.spec.ts tests/e2e/kabel.spec.ts tests/e2e/ersatzteil.spec.ts tests/e2e/schublade.spec.ts` | bestanden, 14. November 2026. Elektronikgehäuse ist aktiv, keine Kachel mehr „in Vorbereitung“. Wand 0,4 mm wird abgelehnt und der Knopf gesperrt, 1,6 mm hebt die Meldung auf. „Neue Schublade“ verlässt den Gehäuse-Modus. Kabel, Ersatzteile und der Schubladenablauf mit Export (23 Sekunden) bleiben grün. |
 | Windows-Hardware, Druck, Sitz des Deckels und der Platine, Einpressgewinde | nicht ausgeführt |
-| GitHub Actions `windows.yml`, Commit `24e9380`, beide Jobs | bestanden, 14. November 2026. Lauf [43576665607](https://github.com/marci210987-ship-it/3dtool/actions/runs/43576665607). Jobs `tests` und `installer` grün. Artifacts: `cad-studio-windows-msi` 14 356 654 Byte, `cad-studio-windows-setup` 11 417 404 Byte. [Artifacts](https://github.com/marci210987-ship-it/3dtool/actions/runs/43576665607#artifacts). Der Installer wurde dabei nicht auf einem privaten Windows-PC gestartet. | |
+| GitHub Actions `windows.yml`, Commit `24e9380`, beide Jobs | bestanden, 14. November 2026. Lauf [43576665607](https://github.com/marci210987-ship-it/3dtool/actions/runs/43576665607). Jobs `tests` und `installer` grün. Artifacts: `cad-studio-windows-msi` 14 356 654 Byte, `cad-studio-windows-setup` 11 417 404 Byte. [Artifacts](https://github.com/marci210987-ship-it/3dtool/actions/runs/43576665607#artifacts). Der Installer wurde dabei nicht auf einem privaten Windows-PC gestartet. |
+
+## Oberfläche (14. November 2026)
+
+FrohnLabs-Wortmarke auf dunkelblauer Kopfleiste, Bambu-Grün für Aktionen, heller Arbeitsbereich. Im Schubladenplan steht der Box-Typ und die Feldgröße. Eine Box von einem Feld zeigt nur „1×1“. Die Schrift ist mindestens 13 Bildschirmpixel, solange sie in die Box passt. Die gewählte Box ist dunkelgrün mit weißer Schrift.
+
+| Prüfung | Ergebnis |
+|---|---|
+| `npm test` | bestanden, 14. November 2026. Neu: zweizeilige Beschriftung, Kurzform 1×1, Schriftgröße mindestens 13 px bei normaler Box |
+| Playwright `tests/e2e/design.spec.ts` und `tests/e2e/schublade.spec.ts` | lokal bestanden. Sechs Ansichten bei 1440×900, die große Box zeigt „Große Box“ und „2×3“ |
+| Windows-Hardware | nicht ausgeführt |
+| GitHub Actions `windows.yml` für diesen Stand | wird mit dem Push gestartet |

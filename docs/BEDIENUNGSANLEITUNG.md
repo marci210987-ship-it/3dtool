@@ -1,6 +1,6 @@
 # Bedienungsanleitung – Schubladen-Konfigurator
 
-CAD Studio ist für den eigenen Hausgebrauch gedacht. Die Oberfläche ist auf Deutsch, alle Maße sind Millimeter. Es ist kein allgemeines CAD-Programm: es gibt keine Skizzen, keine Arbeits­ebenen und keine Befehlszeile.
+CAD Studio ist für den eigenen Hausgebrauch gedacht. Die Oberfläche ist auf Deutsch, alle Maße sind Millimeter. Es ist kein allgemeines CAD-Programm: es gibt keine Skizzen, keine Arbeits­ebenen und keine Befehlszeile. Die Kopfleiste ist dunkelblau mit der FrohnLabs-Wortmarke, Aktionen sind grün, der Arbeitsbereich hell.
 
 Der Druckerbezug ist ein Bambu Lab P2S mit 256 × 256 × 256 mm Bauraum. Das Raster ist das Hausraster 0.2-qs1, 42 mm je Feld, 7 mm je Höhenstufe, anschlussfähig an Gridfinity.
 
@@ -50,7 +50,7 @@ Eine Box antippen setzt sie auf das nächste freie Feld. Danach:
 - Höhe in 7-mm-Stufen ändern
 - Fächer teilen, Deckel oder herausnehmbare Trennwände einschalten
 
-Freie Felder sind hellgrün. Überlappende Boxen werden rot und mit einem Hinweis gezeigt. Solange eine Überlappung, ein Überstand oder eine zu große Höhe besteht, lässt sich nichts exportieren.
+Auf jeder Box steht der Typ und die Feldgröße, zum Beispiel „Große Box“ und „2×3“. Eine Box von einem Feld zeigt nur „1×1“, damit der Text in der Fläche bleibt. Die gewählte Box ist grün mit weißer Schrift. Freie Felder sind hellgrün. Überlappende Boxen werden rot und mit einem Hinweis gezeigt. Solange eine Überlappung, ein Überstand oder eine zu große Höhe besteht, lässt sich nichts exportieren.
 
 Die 3D-Ansicht in diesem Schritt ist eine **vereinfachte Vorschau**. Sie ist ausdrücklich nicht die Druckgeometrie.
 

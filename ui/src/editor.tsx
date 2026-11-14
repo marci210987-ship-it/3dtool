@@ -1,5 +1,5 @@
-import { useRef, useState } from "react";
-import { KATALOG, KatalogEintrag, Box, boxBeschriftung, footprint, freieZellen, kollisionen, ausserhalb, neueBox, dupliziere } from "./layout";
+import { useEffect, useRef, useState } from "react";
+import { KATALOG, KatalogEintrag, Box, footprint, freieZellen, kollisionen, ausserhalb, neueBox, dupliziere, lageplanSchriftPx, lageplanZeilen } from "./layout";
 
 interface Plan {
   einheiten_x: number;
@@ -239,8 +239,25 @@ function Schubladenbild({
   onZiehen: (id: string, x: number, y: number) => void;
 }) {
   const freiSet = new Set(frei.map((z) => `${z.x},${z.y}`));
+  const svgRef = useRef<SVGSVGElement>(null);
+  const [pxJeMm, setPxJeMm] = useState(1.6);
+  useEffect(() => {
+    const el = svgRef.current;
+    if (!el) return;
+    const messen = () => {
+      const rect = el.getBoundingClientRect();
+      const vb = el.viewBox?.baseVal?.width || breite;
+      if (rect.width > 0 && vb > 0) setPxJeMm(rect.width / vb);
+    };
+    messen();
+    if (typeof ResizeObserver === "undefined") return;
+    const beobachter = new ResizeObserver(messen);
+    beobachter.observe(el);
+    return () => beobachter.disconnect();
+  }, [breite]);
   return (
     <svg
+      ref={svgRef}
       data-testid="schublade"
       viewBox={`0 0 ${breite} ${tiefe}`}
       role="img"
@@ -297,9 +314,11 @@ function Schubladenbild({
       {boxen.map((box) => {
         const [x, y, w, h] = footprint(box);
         const konflikt = kollisionen(boxen).some((k) => k.boxen.includes(box.id));
-        const beschriftung = boxBeschriftung(box);
-        const typ = beschriftung.replace(/ \d+×\d+$/, "");
-        const mass = beschriftung.slice(typ.length + 1);
+        const zeilen = lageplanZeilen(box);
+        const boxBreitePx = Math.max(0, w * raster - 2) * pxJeMm;
+        const boxHoehePx = Math.max(0, h * raster - 2) * pxJeMm;
+        const schriftPx = lageplanSchriftPx(boxBreitePx, boxHoehePx, zeilen);
+        const schrift = schriftPx / pxJeMm;
         const mitteX = plan.ursprung_x_mm + (x + w / 2) * raster;
         const mitteY = plan.ursprung_y_mm + (y + h / 2) * raster;
         return (
@@ -318,9 +337,18 @@ function Schubladenbild({
             }}
           >
             <rect x={plan.ursprung_x_mm + x * raster + 0.6} y={plan.ursprung_y_mm + y * raster + 0.6} width={w * raster - 1.2} height={h * raster - 1.2} rx={1.5} />
-            <text x={mitteX} y={mitteY} textAnchor="middle">
-              <tspan x={mitteX} dy="-0.35em">{typ}</tspan>
-              <tspan x={mitteX} dy="1.15em">{mass}</tspan>
+            <clipPath id={`boxschrift-${box.id}`}>
+              <rect x={plan.ursprung_x_mm + x * raster + 1.2} y={plan.ursprung_y_mm + y * raster + 1.2} width={w * raster - 2.4} height={h * raster - 2.4} />
+            </clipPath>
+            <text x={mitteX} y={mitteY} textAnchor="middle" fontSize={schrift} clipPath={`url(#boxschrift-${box.id})`}>
+              {zeilen.length === 1 ? (
+                <tspan x={mitteX} dy="0.35em">{zeilen[0]}</tspan>
+              ) : (
+                <>
+                  <tspan x={mitteX} dy="-0.45em">{zeilen[0]}</tspan>
+                  <tspan x={mitteX} dy="1.2em">{zeilen[1]}</tspan>
+                </>
+              )}
             </text>
           </g>
         );

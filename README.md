@@ -1,8 +1,32 @@
 # CAD Studio
 
-Windows-Programm für die eigenen 3D-Druck-Entwürfe. Phase B enthält den Schubladen-Konfigurator, Phase C ergänzt automatisches Füllen, druckbare Randstreifen und selbst gezeichnete Teile. Die Oberfläche ist Deutsch, die Maße sind Millimeter.
+Windows-Programm für eigene 3D-Druck-Entwürfe. Die Oberfläche ist Deutsch, die Maße sind Millimeter. Oben steht die FrohnLabs-Wortmarke auf dunkelblauem Grund, Aktionen sind in Bambu-Grün, der Arbeitsbereich ist hell.
 
-Der Druckerbezug ist ein Bambu Lab P2S, Bauraum 256 × 256 × 256 mm. Das Raster kommt aus Hausraster 0.2-qs1: 42 mm je Feld, 7 mm je Höhenstufe, anschlussfähig an Gridfinity. Es wird nur diese korrigierte Generatorversion verwendet. Die älteren Grundplatten ohne QS1 sind fehlerhaft und werden nicht geladen.
+Der Druckerbezug ist ein Bambu Lab P2S, Bauraum 256 × 256 × 256 mm. Das Raster kommt aus Hausraster 0.2-qs1: 42 mm je Feld, 7 mm je Höhenstufe, anschlussfähig an Gridfinity. Es wird nur diese korrigierte Generatorversion verwendet. Die älteren Grundplatten ohne QS1 sind fehlerhaft und werden nicht geladen. Die Körper baut FreeCADCmd 1.1.x. CAD Studio enthält keine eigene CAD-Engine und liefert FreeCAD nicht mit.
+
+## Module
+
+| Bereich | Was er tut |
+|---|---|
+| Schubladen-Konfigurator | Schublade ausmessen, Raster und Grundplatten, Boxen setzen, STL, FCStd, Stückliste und Montageplan |
+| Eigene Teile zeichnen | Rechtecke, Kreise, Vielecke, Löcher, Stufen, Fasen, SVG/DXF-Umrisse, auch ohne Schublade |
+| Ersatzteile | Kabelclip, Distanzhülse, Unterlegscheibe, Wandhaken, Möbelfuß, Drehknopf, Stopfen, Winkel |
+| Kabelmanagement | Kanal mit Stecker und Buchse, 90°-Ecke, Endkappe, Wandhalter, Auslass; gemeinsames Profil, Spiel 0,20 mm im Modell |
+| Elektronikgehäuse | Innenmaß, Schraub- oder Schiebedeckel, Platinenstützen (Pi 4, Pi 5, Arduino Uno R3), Öffnungen |
+
+Ein Export gilt nur, wenn die Datei existiert, das Netz geschlossen ist und die FCStd-Datei einen gültigen Körper enthält.
+
+![Startseite](docs/screenshots/startseite.png)
+
+![Schublade mit Boxen](docs/screenshots/schublade-boxen.png)
+
+![Eigene Teile](docs/screenshots/eigene-teile.png)
+
+![Ersatzteile](docs/screenshots/ersatzteile.png)
+
+![Kabelmanagement](docs/screenshots/kabelmanagement.png)
+
+![Elektronikgehäuse](docs/screenshots/elektronikgehaeuse.png)
 
 ## Architektur
 
@@ -13,7 +37,7 @@ Projektdateien sind JSON (`.cadstudio.json`) auf dem eigenen Rechner. Es gibt ke
 ```
 geometry/hausraster/   Generator 0.2-qs1 (const, plan, geom, fcstd, Phase 3 und 4, Makros, Workbenches)
 sidecar/               Planung, FreeCAD-Sitzung, Exportprüfung, Stückliste, Montageplan,
-                       eigenteil.py (gezeichnete Teile), autofill.py (automatische Bestückung)
+                       eigenteil.py, autofill.py, ersatzteil.py, kabel.py, gehaeuse.py
 ui/                    Deutsche Oberfläche
 src-tauri/             Fenster, Start des Dienstes, Dateidialog
 examples/              Beispielprojekt der Abnahmeschublade 480 × 420 mm
@@ -21,7 +45,7 @@ examples/              Beispielprojekt der Abnahmeschublade 480 × 420 mm
 
 Eine Änderung an einer Box erzeugt die Geometrie neu. Das Tabellenblatt `HIER_MASSE_AENDERN` in den FCStd-Dateien ist nicht live mit dem Körper verbunden; ohne erneuten Generatorlauf bliebe der alte Körper stehen.
 
-Randstreifen, die nicht mehr in eine Außenplatte passen, werden nur genannt. Einen druckbaren Streifenkörper gibt es im Generator nicht, und CAD Studio erfindet keinen.
+Randstreifen, die nicht in eine Außenplatte passen, werden als glatte Füllplatten ohne Verbinder erzeugt.
 
 Schubladenspiel 1,0 mm und Verbinder-Spiel 0,20 mm sind Vorgaben in den Einstellungen und je Projekt änderbar. Sie sind nicht an einem gedruckten Teil geprüft.
 
@@ -54,7 +78,12 @@ Der Workflow `.github/workflows/windows.yml` baut auf `windows-latest` MSI und N
 
 ## Bedienung
 
-Siehe [docs/BEDIENUNGSANLEITUNG.md](docs/BEDIENUNGSANLEITUNG.md). Ersatzteile (Kabelclip, Hülse, Scheibe, Haken, Fuß, Knopf, Stopfen, Winkel) liegen auf der Startseite und werden mit FreeCAD erzeugt.
+Ausführlich: [docs/BEDIENUNGSANLEITUNG.md](docs/BEDIENUNGSANLEITUNG.md). Kurz:
+
+1. Bereich auf der Startseite wählen.
+2. Bei der Schublade Innenmaß eintragen, Raster erzeugen, Boxen antippen. Auf der Box steht Typ und Feldgröße, eine 1×1-Box nur „1×1“.
+3. **Alle Teile berechnen** startet FreeCAD. Grün wird es erst nach der Datei- und Netzprüfung.
+4. **Speichern** schreibt eine lokale Datei `.cadstudio.json`.
 
 Beispiel: [examples/schublade_480x420.cadstudio.json](examples/schublade_480x420.cadstudio.json) (480 × 420 mm, vier Boxen, eine davon gedreht, eine in der Höhe geändert).
 
@@ -92,4 +121,4 @@ Diese Schritte sind die Anleitung für den ersten Start. Sie sind kein bereits d
 
 ## Was noch nicht da ist
 
-Ersatzteile, Kabelmanagement und Elektronikgehäuse sind benutzbar. Das Kabelmanagement ist ein Satz aus Kanal, 90°-Ecke, Endkappe, Wandhalter und Auslass mit gemeinsamem Stecker-Buchse-Profil. Das Elektronikgehäuse nimmt Innenmaße, einen Schraub- oder Schiebedeckel, Platinenstützen und Wandöffnungen. Das Spiel (Vorgabe 0,20 mm) ist die Lücke im Modell und nicht am Druck geprüft. Gezeichnete Teile bestehen aus Rechtecken (auch gedreht), Kreisen und Vielecken, die zu Körpern gezogen werden, mit Löchern, Stufen, Schrägen, Keil sowie Fasen und Rundungen. Freiformflächen, Gewinde, Text und 3D-Skizzen gibt es nicht. Randstreifen sind einfache, glatte Füllplatten ohne Verbinder. Der Windows-Installer wird in GitHub Actions gebaut und dort auf dem Runner gestartet; auf einem echten Windows-PC eines Benutzers wurde er noch nicht geprüft.
+Freiformflächen, Gewinde, Text und 3D-Skizzen gibt es nicht. Randstreifen sind einfache, glatte Füllplatten ohne Verbinder. Das Spiel an Deckel, Kabeln und Stopfen ist die Lücke im Modell und nicht an einem gedruckten Teil geprüft. Der Windows-Installer wird in GitHub Actions gebaut und dort auf dem Runner gestartet; auf einem echten Windows-PC eines Benutzers wurde er noch nicht geprüft.

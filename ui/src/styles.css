@@ -226,9 +226,10 @@ input, select {
 .platte { fill: none; stroke: var(--gruen); stroke-width: 0.8; }
 .plattenname { font-size: 6px; fill: #067a32; }
 .box rect { fill: #d9f5e5; stroke: var(--navy); stroke-width: 0.5; }
-.box.aktiv rect { fill: var(--gruen); }
+.box.aktiv rect { fill: #067a32; }
 .box.konflikt rect { fill: #f8d0d0; }
-.box text { font-size: 5.5px; fill: var(--navy); font-weight: 650; }
+.box text { fill: var(--navy); font-weight: 650; }
+.box.aktiv text { fill: #ffffff; }
 
 .eigenschaften, .katalog, .teileliste, .wunschliste, .plattenliste {
   background: var(--karte);
