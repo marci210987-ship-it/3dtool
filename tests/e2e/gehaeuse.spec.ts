@@ -19,3 +19,29 @@ test("Elektronikgehäuse: Wand ablehnen und zurück zur Schublade", async ({ pag
   await page.getByRole("button", { name: /Neue Schublade/ }).click();
   await expect(page.locator(".app")).toHaveAttribute("data-modus", "schublade");
 });
+
+test("Elektronikgehäuse: eine verspätete Vorlagenantwort setzt Eingaben nicht zurück", async ({ page }) => {
+  // Die zweite „gehaeuse_vorlagen“-Antwort (der Entwicklungsmodus ruft doppelt ab) kommt erst nach der Eingabe an
+  let zaehler = 0;
+  await page.route("**/api", async (route) => {
+    const anfrage = route.request().postDataJSON() as { cmd?: string };
+    if (anfrage?.cmd === "gehaeuse_vorlagen") {
+      zaehler += 1;
+      if (zaehler === 2) {
+        // Verzögert abgeschickt: die Antwort trifft nach der Eingabe ein
+        await new Promise((warten) => setTimeout(warten, 3000));
+        await route.continue();
+        return;
+      }
+    }
+    await route.continue();
+  });
+  await page.goto("/");
+  await page.getByRole("button", { name: /Elektronikgehäuse/ }).click();
+  await expect(page.getByTestId("feld-wand_mm")).toBeVisible();
+  await page.getByTestId("feld-wand_mm").fill("0.4");
+  await expect(page.getByTestId("gehaeuse-fehler")).toContainText("außerhalb");
+  await page.waitForTimeout(3500);
+  await expect(page.getByTestId("feld-wand_mm")).toHaveValue("0.4");
+  await expect(page.getByTestId("gehaeuse-fehler")).toContainText("außerhalb");
+});

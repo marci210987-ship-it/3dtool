@@ -323,6 +323,12 @@ class Handler(BaseHTTPRequestHandler):
                 )
                 _json(self, 200, {"ok": antwort["ok"], "fehler": "; ".join(antwort["fehler"]), "result": antwort, "projekt": projekt.to_dict()})
                 return
+            if cmd == "vorschau":
+                from sidecar.engine import vorschau_bauen
+
+                antwort = vorschau_bauen(anfrage.get("projekt") or {}, anfrage.get("teil_ids") or None, anfrage.get("freecad_pfad") or None, anfrage.get("modus") or None)
+                _json(self, 200, {"ok": antwort["ok"], "fehler": "; ".join(antwort.get("fehler") or []), "result": antwort})
+                return
             if cmd == "save":
                 _json(self, 200, speichere_und_merke(anfrage.get("projekt") or {}, anfrage.get("path") or ""))
                 return
@@ -339,12 +345,19 @@ class Handler(BaseHTTPRequestHandler):
             _json(self, 200, {"ok": False, "fehler": str(exc)})
 
 
+class _Dienst(ThreadingHTTPServer):
+    # Mehr wartende Verbindungen: der Browser öffnet bis zu sechs gleichzeitig, und unter Windows werden
+    # Verbindungen bei vollem Rückstau sofort abgewiesen (Standard ist 5)
+    request_queue_size = 64
+    daemon_threads = True
+
+
 def baue_server(host: str | None = None, port: int | None = None) -> ThreadingHTTPServer:
     sitzungstoken()
     host = host or os.environ.get("CADSTUDIO_HOST", "127.0.0.1")
     if port is None:
         port = int(os.environ.get("CADSTUDIO_PORT", "47321"))
-    return ThreadingHTTPServer((host, port), Handler)
+    return _Dienst((host, port), Handler)
 
 
 def main():

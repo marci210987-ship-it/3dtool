@@ -149,3 +149,51 @@ test("Export eigener Teile mit FreeCAD", async ({ page }) => {
   await page.getByTestId("erzeugen").click();
   await expect(page.getByTestId("export-erfolg")).toBeVisible({ timeout: 120000 });
 });
+
+async function aussenmass(page: Page): Promise<number[]> {
+  const text = (await page.getByTestId("teil-mass").textContent()) ?? "";
+  const m = text.match(/Außenmaß ([\d.]+) × ([\d.]+)/);
+  return m ? [Number(m[1]), Number(m[2])] : [0, 0];
+}
+
+test("Zeichnen: Vieleck-Punkte ziehen, einfügen und löschen", async ({ page }) => {
+  await eigeneTeileOeffnen(page);
+  const blatt = page.getByTestId("zeichenblatt");
+  let mm = await blattKoordinaten(blatt);
+
+  // Dreieck (10/10, 70/10, 10/50) per Klick, Enter schließt
+  await page.getByTestId("werkzeug-polygon").click();
+  mm = await blattKoordinaten(blatt); // die Hilfezeile ändert mit dem Werkzeug ihre Höhe
+  for (const [x, y] of [[10, 10], [70, 10], [10, 50]]) await page.mouse.click(mm(x, y).x, mm(x, y).y);
+  await page.keyboard.press("Enter");
+  await expect(page.locator(".formliste li")).toHaveCount(1);
+  await expect.poll(() => aussenmass(page)).toEqual([expect.closeTo(60, -1), expect.closeTo(40, -1)]);
+
+  // Wählen und Punkt 2 nach (90/10) ziehen: Breite 80
+  await page.getByTestId("werkzeug-wahl").click();
+  mm = await blattKoordinaten(blatt);
+  await page.mouse.click(mm(20, 20).x, mm(20, 20).y);
+  await expect(page.getByTestId("punkt-griffe")).toBeVisible();
+  mm = await blattKoordinaten(blatt);
+  const mitte = async (id: string) => {
+    const b = (await page.getByTestId(id).boundingBox())!;
+    return { x: b.x + b.width / 2, y: b.y + b.height / 2 };
+  };
+  const px = mm(20, 0).x - mm(0, 0).x; // Pixel für 20 mm
+  const p1 = await mitte("punkt-griff-1");
+  await ziehen(page, p1, { x: p1.x + px, y: p1.y });
+  await expect.poll(async () => (await aussenmass(page))[0]).toBeGreaterThan(78);
+  await expect.poll(async () => (await aussenmass(page))[0]).toBeLessThan(82);
+
+  // Punkt auf der Kante einfügen (Kante 0, Mitte 50/10) und nach unten ziehen: Tiefe wächst
+  const k0 = await mitte("kante-griff-0");
+  await ziehen(page, k0, { x: k0.x, y: k0.y + px / 2 });
+  await expect(page.getByText("4 Punkte")).toBeVisible();
+  await expect.poll(async () => (await aussenmass(page))[1]).toBeGreaterThan(48);
+
+  // Punkt über die Eingabe verschieben, dann löschen
+  await expect(page.getByTestId("punkt-x")).toBeVisible();
+  await page.getByTestId("punkt-loeschen").click();
+  await expect(page.getByText("3 Punkte")).toBeVisible();
+  await expect(page.getByTestId("punkt-loeschen")).toHaveCount(0);
+});

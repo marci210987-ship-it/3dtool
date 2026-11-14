@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { abstandsvorschlag, masseSetzen, masswertText, aussenmass, fangpunkteVon, ausrichten, formMitte, gitter, kopieren, kreismuster, laesstSichDrehen, reihe, spiegeln, bezugsrahmen, einrasten, fangpunkte, formBox, formHoehen, formOberkante, gesamthoehe, hoehenanteil, massangaben, VORLAGEN, zahlText, kreisAus, neuesTeil, polygonAus, rechteckAus, rechteckMm, runden, teilVonServer, verschieben, verschiebenMitFang, type Form } from "./zeichnen";
+import { abstandsvorschlag, masseSetzen, masswertText, aussenmass, fangpunkteVon, ausrichten, formMitte, gitter, kopieren, kreismuster, laesstSichDrehen, reihe, spiegeln, bezugsrahmen, einrasten, fangpunkte, formBox, formHoehen, formOberkante, gesamthoehe, hoehenanteil, massangaben, VORLAGEN, zahlText, kreisAus, neuesTeil, polygonAus, polygonSelbstschnitt, gruppeBox, gruppeKopieren, gruppeSpiegeln, gruppeVerschieben, langlochAus, traghoehe, textMasse, textNormal, aussenBox, punktEinfuegen, punktLoeschen, punktVerschieben, rechteckAus, rechteckMm, runden, teilVonServer, verschieben, verschiebenMitFang, type Form } from "./zeichnen";
 
 describe("Zeichnen", () => {
   it("rastet auf das Raster ein", () => {
@@ -260,5 +260,94 @@ describe("Zeichnen", () => {
     expect(massangaben(rechteck, 4).map((m) => m.feld)).toEqual(["b", "t"]);
     expect(massangaben(kreis, 4).map((m) => m.feld)).toEqual(["d"]);
     expect(massangaben({ typ: "polygon", punkte: [[0, 0], [5, 0], [0, 5]], loch: false }, 4)[0].feld).toBeUndefined();
+  });
+});
+
+describe("Vieleck-Punkte bearbeiten", () => {
+  const dreieck = polygonAus([[0, 0], [10, 0], [0, 10]], false) as Extract<Form, { typ: "polygon" }>;
+  it("verschiebt einen Punkt", () => {
+    const f = punktVerschieben(dreieck, 1, [20, 5]) as typeof dreieck;
+    expect(f.punkte).toEqual([[0, 0], [20, 5], [0, 10]]);
+    expect(dreieck.punkte[1]).toEqual([10, 0]);
+  });
+  it("fügt in der Kantenmitte ein, auch an der Schlusskante", () => {
+    expect((punktEinfuegen(dreieck, 0) as typeof dreieck).punkte).toEqual([[0, 0], [5, 0], [10, 0], [0, 10]]);
+    expect((punktEinfuegen(dreieck, 2) as typeof dreieck).punkte).toEqual([[0, 0], [10, 0], [0, 10], [0, 5]]);
+  });
+  it("löscht, behält aber drei Punkte", () => {
+    const vier = punktEinfuegen(dreieck, 0);
+    expect((punktLoeschen(vier, 1) as typeof dreieck).punkte).toHaveLength(3);
+    expect(punktLoeschen(dreieck, 0)).toBe(dreieck);
+  });
+  it("erkennt Selbstschnitt", () => {
+    expect(polygonSelbstschnitt([[0, 0], [10, 10], [10, 0], [0, 10]])).toBe(true);
+    expect(polygonSelbstschnitt([[0, 0], [10, 0], [10, 10], [0, 10]])).toBe(false);
+  });
+});
+
+describe("Gruppen", () => {
+  const a = rechteckAus([0, 0], [10, 10], false) as Form;
+  const b = kreisAus([30, 5], [35, 5], false) as Form;
+  const c = rechteckAus([100, 100], [110, 110], false) as Form;
+  it("gemeinsame Box und Verschieben nur der Gewählten", () => {
+    expect(gruppeBox([a, b, c], [0, 1])).toEqual([0, 0, 35, 10]);
+    const neu = gruppeVerschieben([a, b, c], [0, 1], 5, 2);
+    expect(formBox(neu[0])).toEqual([5, 2, 15, 12]);
+    expect(formBox(neu[2])).toEqual([100, 100, 110, 110]);
+  });
+  it("Kopieren hängt an und liefert die Indizes", () => {
+    const r = gruppeKopieren([a, b, c], [1, 0], 0, 20);
+    expect(r.formen).toHaveLength(5);
+    expect(r.neu).toEqual([3, 4]);
+    expect(formBox(r.formen[3])).toEqual([0, 20, 10, 30]);
+  });
+  it("Spiegeln an der Gruppenmitte lässt die Gruppenbox stehen", () => {
+    const sp = gruppeSpiegeln([a, b, c], [0, 1], "x", 10);
+    expect(gruppeBox(sp, [0, 1])).toEqual([0, 0, 35, 10]);
+    expect(formBox(sp[0])[0]).toBeCloseTo(25);
+    expect(sp[2]).toBe(c);
+  });
+});
+
+describe("Langloch, Text und Drehteil", () => {
+  it("Langloch ist ein Rechteck mit vollem Radius und Winkel", () => {
+    const f = langlochAus([10, 10], [30, 10], 6, true) as Extract<Form, { typ: "rechteck" }>;
+    expect(f).toMatchObject({ typ: "rechteck", x: 7, y: 7, b: 26, t: 6, radius: 3, loch: true });
+    expect(f.winkel).toBeUndefined();
+    const schraeg = langlochAus([0, 0], [10, 10], 4, false) as Extract<Form, { typ: "rechteck" }>;
+    expect(schraeg.winkel).toBe(45);
+    expect(langlochAus([0, 0], [0, 0], 4, false)).toBeNull();
+    expect(langlochAus([0, 0], [10, 0], 0.1, false)).toBeNull();
+  });
+  it("Text: Maße wie im Sidecar", () => {
+    expect(textMasse("AB", 7)).toEqual({ b: 11, t: 7 });
+    expect(textNormal("Größe")).toBe("GROESSE");
+    expect(textMasse("", 7).b).toBe(0);
+  });
+  it("Außenbox enthält das Drehprofil", () => {
+    const teil = { formen: [], profil: [[0, 0], [10, 0], [5, 8]] as [number, number][], dreh_x_mm: 12, dreh_y_mm: 12 };
+    expect(aussenBox(teil)).toEqual([2, 2, 22, 22]);
+    expect(aussenBox({ formen: [], profil: [], dreh_x_mm: 0, dreh_y_mm: 0 })).toBeNull();
+  });
+});
+
+describe("Texthöhe", () => {
+  it("zweiter erhabener Text sitzt auf der Platte, nicht auf dem ersten Text", () => {
+    const platte = rechteckAus([0, 0], [60, 40], false) as Form;
+    const text1: Form = { typ: "text", x: 2, y: 2, text: "A", schrift_mm: 5, loch: false, z_mm: 10, h_mm: 0.6 };
+    const teil = { formen: [platte, text1], hoehe_mm: 10, profil: [], dreh_x_mm: 0, dreh_y_mm: 0 };
+    expect(traghoehe(teil, [30, 20])).toBe(10);
+    expect(traghoehe({ ...teil, formen: [platte] }, [30, 20])).toBe(10);
+  });
+  it("Stufe: Text auf der höheren Form", () => {
+    const platte = rechteckAus([0, 0], [60, 40], false) as Form;
+    const stufe = { ...(rechteckAus([10, 10], [30, 30], false) as Form), z_mm: 5, h_mm: 15 } as Form;
+    const teil = { formen: [platte, stufe], hoehe_mm: 5, profil: [], dreh_x_mm: 0, dreh_y_mm: 0 };
+    expect(traghoehe(teil, [20, 20])).toBe(20);
+    expect(traghoehe(teil, [50, 5])).toBe(5);
+  });
+  it("Punkt außerhalb aller Formen nimmt die höchste Oberkante ohne Text", () => {
+    const platte = rechteckAus([0, 0], [60, 40], false) as Form;
+    expect(traghoehe({ formen: [platte], hoehe_mm: 8, profil: [], dreh_x_mm: 0, dreh_y_mm: 0 }, [100, 100])).toBe(8);
   });
 });

@@ -328,6 +328,8 @@ def generiere(projekt: Projekt, out_dir: Path, freecad_pfad: str | None = None, 
     hinweise = list(auftrag["ansicht"].get("hinweise") or [])
     if auftrag["ansicht"].get("randstreifen"):
         hinweise.append(auftrag["ansicht"].get("randstreifen_hinweis") or "")
+    for teil in teile_ausgabe:
+        hinweise.extend(h for h in (teil.get("hinweise") or []) if h not in hinweise)
     hinweise.append("Masse in Gramm ist eine Schätzung über das CAD-Volumen, kein gewogenes Teil.")
     if any(t.get("anzahl_ist_vorschlag") for t in teile_ausgabe):
         hinweise.append("Die Anzahl der Rastclips ist ein Vorschlag, keine gemessene Empfehlung.")
@@ -450,3 +452,80 @@ def lade_und_merke(pfad: str) -> dict:
     projekt = projekt_laden(ziel)
     recent_merken(ziel, projekt.name)
     return {"ok": True, "pfad": str(ziel.resolve()), "projekt": projekt.to_dict()}
+
+
+# --- 3D-Vorschau: eine FreeCAD-Sitzung bleibt kurz offen, damit Änderungen schnell erscheinen ---
+
+_VORSCHAU = {"sitzung": None, "pfad": None, "timer": None}
+_VORSCHAU_SPERRE = threading.Lock()
+_VORSCHAU_LEERLAUF_S = 300.0
+
+
+def _vorschau_schliessen() -> None:
+    with _VORSCHAU_SPERRE:
+        _vorschau_schliessen_ohne_sperre()
+
+
+def _vorschau_schliessen_ohne_sperre() -> None:
+    sitzung = _VORSCHAU.get("sitzung")
+    _VORSCHAU["sitzung"] = None
+    if _VORSCHAU.get("timer"):
+        _VORSCHAU["timer"].cancel()
+        _VORSCHAU["timer"] = None
+    if sitzung is not None:
+        try:
+            sitzung.close()
+        except Exception:
+            pass
+
+
+def vorschau_bauen(projekt_dict: dict, teil_ids: list[str] | None = None, freecad_pfad: str | None = None, modus: str | None = None) -> dict:
+    """Dreiecksnetze der Teile für die 3D-Ansicht. Prüft zuerst wie der Export; ohne FreeCAD gibt es eine Meldung."""
+    projekt = Projekt.from_dict(projekt_dict)
+    if teil_ids:
+        # Nur gezeichnete Teile: ein Teil allein, ohne Schublade, Platten und Montageplan
+        projekt.eigene = [e for e in projekt.eigene if e.id in set(teil_ids)]
+        projekt.nur_eigene, projekt.nur_ersatz, projekt.nur_kabel, projekt.nur_gehaeuse = True, False, False, False
+    if modus in ("ersatz", "kabel", "gehaeuse"):
+        projekt.nur_eigene = False
+        projekt.nur_ersatz = modus == "ersatz"
+        projekt.nur_kabel = modus == "kabel"
+        projekt.nur_gehaeuse = modus == "gehaeuse"
+    auftrag = auftrag_bauen(projekt)
+    if not auftrag.get("ok"):
+        return {"ok": False, "fehler": auftrag.get("fehler") or ["Ungültige Eingabe."], "netze": [], "hinweise": []}
+    teile = [t for t in auftrag["teile"] if t["rolle"] in ("eigen", "ersatzteil", "kabel", "gehaeuse")][:8]
+    if not teile:
+        return {"ok": False, "fehler": ["Es gibt nichts zu zeigen."], "netze": [], "hinweise": []}
+    with _VORSCHAU_SPERRE:
+        sitzung = _VORSCHAU.get("sitzung")
+        if sitzung is not None and (sitzung.proc is None or sitzung.proc.poll() is not None or _VORSCHAU.get("pfad") != (freecad_pfad or "")):
+            _vorschau_schliessen_ohne_sperre()
+            sitzung = None
+        if sitzung is None:
+            befehl, info = freecad_befehl(freecad_pfad)
+            if not befehl:
+                return {"ok": False, "fehler": [info.get("hinweis") or "FreeCAD wurde nicht gefunden."], "netze": [], "hinweise": [], "ohne_freecad": True}
+            sitzung = FreeCADSession(befehl)
+            sitzung.start()
+            _VORSCHAU["sitzung"], _VORSCHAU["pfad"] = sitzung, freecad_pfad or ""
+        try:
+            antwort = sitzung.request({"cmd": "vorschau", "teile": teile}, timeout=300)
+        except Exception as exc:
+            _vorschau_schliessen_ohne_sperre()
+            return {"ok": False, "fehler": ["Vorschau abgebrochen: %s" % exc], "netze": [], "hinweise": []}
+        if _VORSCHAU.get("timer"):
+            _VORSCHAU["timer"].cancel()
+        zeitgeber = threading.Timer(_VORSCHAU_LEERLAUF_S, _vorschau_schliessen)
+        zeitgeber.daemon = True
+        zeitgeber.start()
+        _VORSCHAU["timer"] = zeitgeber
+    if not antwort.get("ok"):
+        text = str(antwort.get("fehler") or "Die Geometrie lässt sich nicht berechnen.")
+        return {"ok": False, "fehler": [text.splitlines()[0]], "netze": [], "hinweise": []}
+    return {"ok": True, "fehler": [], **antwort["result"]}
+
+
+import atexit  # noqa: E402
+
+atexit.register(_vorschau_schliessen)

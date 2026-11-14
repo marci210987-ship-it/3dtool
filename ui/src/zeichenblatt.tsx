@@ -1,7 +1,11 @@
-import { useId, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { Ansicht3D } from "./ansicht3d";
+import { ProfilPanel, SenkPanel, SeitenlochPanel, TextPanel } from "./erweitert";
+import { OptZahlfeld, Zahlfeld } from "./felder";
 import { dateiText, type ImportErgebnis, leseDxf, leseSvg, zuFormen } from "./import";
 import {
   aussenmass,
+  bereinigen,
   ausrichten,
   type AusrichtModus,
   bezugsrahmen,
@@ -28,6 +32,18 @@ import {
   massangaben,
   neuesTeil,
   polygonAus,
+  textNormal,
+  formBox,
+  textMasse,
+  langlochAus,
+  traghoehe,
+  gruppeBox,
+  gruppeKopieren,
+  gruppeSpiegeln,
+  polygonSelbstschnitt,
+  punktEinfuegen,
+  punktLoeschen,
+  punktVerschieben,
   Punkt,
   rechteckAus,
   rechteckMm,
@@ -39,10 +55,10 @@ import {
   verschieben,
 } from "./zeichnen";
 
-type Werkzeug = "wahl" | "rechteck" | "kreis" | "polygon";
+type Werkzeug = "wahl" | "rechteck" | "kreis" | "langloch" | "polygon" | "text";
 
 interface Entwurf {
-  typ: "rechteck" | "kreis";
+  typ: "rechteck" | "kreis" | "langloch";
   a: Punkt;
   b: Punkt;
 }
@@ -51,13 +67,17 @@ interface Ziehen {
   index: number;
   start: Punkt;
   original: Form;
+  /** Gruppe: alle gewählten Formen mit ihrer Ausgangslage (dann ist original die Gesamtbox als Rechteck) */
+  gruppe?: Array<{ index: number; original: Form }>;
 }
 
 const WERKZEUGE: Array<{ id: Werkzeug; titel: string; hilfe: string }> = [
   { id: "wahl", titel: "Auswählen / Verschieben", hilfe: "Form anklicken, ziehen zum Verschieben. Entf löscht." },
   { id: "rechteck", titel: "Rechteck", hilfe: "Mit gedrückter Maustaste von Ecke zu Ecke ziehen." },
   { id: "kreis", titel: "Kreis", hilfe: "Vom Mittelpunkt nach außen ziehen." },
+  { id: "langloch", titel: "Langloch", hilfe: "Von der Mitte des einen Endes zur Mitte des anderen Endes ziehen. Die Breite steht neben der Werkzeugleiste." },
   { id: "polygon", titel: "Vieleck", hilfe: "Punkte anklicken. Klick auf den ersten Punkt, Enter oder „Fertig“ schließt die Form." },
+  { id: "text", titel: "Text", hilfe: "Auf das Blatt klicken: der Text mit der Höhe und Art aus der Leiste wird dort links unten gesetzt." },
 ];
 
 const RASTER_AUSWAHL = [0.1, 0.5, 1, 5, 10];
@@ -83,8 +103,10 @@ export function Zeichnen({
   meineVorlagen = [],
   onVorlageSpeichern,
   onVorlageLoeschen,
+  freecadPfad,
 }: {
   teile: Eigenteil[];
+  freecadPfad?: string;
   onChange: (teile: Eigenteil[]) => void;
   fehler: string[];
   lageplan?: Lageplan | null;
@@ -110,6 +132,17 @@ export function Zeichnen({
   const [vorlagenMeldung, setVorlagenMeldung] = useState("");
   const [masseEdit, setMasseEdit] = useState<{ index: number; feld: MassFeld; text: string; x: number; y: number } | null>(null);
   const [fangAn, setFangAn] = useState(true);
+  // Eckpunkt eines gewählten Vielecks: gewählter Punkt und laufender Zug
+  const [punktAuswahl, setPunktAuswahl] = useState<number | null>(null);
+  const [punktZug, setPunktZug] = useState<number | null>(null);
+  // Gruppe: mehrere gewählte Formen (Umschalt-Klick); dann ist auswahl leer
+  const [mehr, setMehr] = useState<number[]>([]);
+  // Werkzeug Langloch und Text
+  const [langlochBreite, setLanglochBreite] = useState(6);
+  const [textEingabe, setTextEingabe] = useState("TEXT");
+  const [schriftHoehe, setSchriftHoehe] = useState(7);
+  const [textArt, setTextArt] = useState<"erhaben" | "vertieft">("erhaben");
+  const [textTiefe, setTextTiefe] = useState(0.6);
   const [fangLinien, setFangLinien] = useState<{ x?: number; y?: number }>({});
 
   const teil = teile.find((t) => t.id === aktivId) ?? teile[0] ?? null;
@@ -165,10 +198,9 @@ export function Zeichnen({
         mx = Math.max(mx, f.x + f.r);
         my = Math.max(my, f.y + f.r);
       } else {
-        for (const [x, y] of f.punkte) {
-          mx = Math.max(mx, x);
-          my = Math.max(my, y);
-        }
+        const [, , x1, y1] = formBox(f);
+        mx = Math.max(mx, x1);
+        my = Math.max(my, y1);
       }
     }
     const rund = (v: number) => Math.max(120, Math.ceil((v + 20) / 10) * 10);
@@ -214,6 +246,31 @@ export function Zeichnen({
     return ziel.punkt;
   }
 
+  useEffect(() => {
+    if (auswahl !== null) setMehr([]);
+  }, [auswahl]);
+
+  const gruppe = auswahl === null && teil ? mehr.filter((i) => i < teil.formen.length) : [];
+  const gruppeAktiv = gruppe.length > 1;
+
+  function entwurfForm(e: Entwurf, mitLoch = loch): Form | null {
+    if (e.typ === "rechteck") return rechteckAus(e.a, e.b, mitLoch);
+    if (e.typ === "langloch") return langlochAus(e.a, e.b, langlochBreite, mitLoch);
+    return kreisAus(e.a, e.b, mitLoch);
+  }
+
+  function textSetzen(p: Punkt) {
+    if (!teil || !textEingabe.trim()) return;
+    const oben = traghoehe(teil, p);
+    const basis = { typ: "text" as const, x: p[0], y: p[1], text: textEingabe, schrift_mm: schriftHoehe };
+    const form: Form =
+      textArt === "erhaben"
+        ? { ...basis, loch: false, z_mm: bereinigen(oben), h_mm: textTiefe }
+        : { ...basis, loch: true, z_mm: bereinigen(Math.max(0, oben - textTiefe)), h_mm: bereinigen(textTiefe + 1) };
+    formen([...teil.formen, form]);
+    setAuswahl(teil.formen.length);
+  }
+
   function polygonFertig() {
     if (!teil) return;
     const form = polygonAus(polyPunkte, loch);
@@ -233,9 +290,11 @@ export function Zeichnen({
   function runter(e: React.PointerEvent<SVGSVGElement>) {
     if (!teil) return;
     const p = welt(e);
-    if (werkzeug === "rechteck" || werkzeug === "kreis") {
+    if (werkzeug === "rechteck" || werkzeug === "kreis" || werkzeug === "langloch") {
       svgRef.current?.setPointerCapture(e.pointerId);
       setEntwurf({ typ: werkzeug, a: p, b: p });
+    } else if (werkzeug === "text") {
+      textSetzen(p);
     } else if (werkzeug === "polygon") {
       const erster = polyPunkte[0];
       if (erster && polyPunkte.length >= 3 && Math.hypot(p[0] - erster[0], p[1] - erster[1]) <= Math.max(raster, 2)) {
@@ -245,6 +304,8 @@ export function Zeichnen({
       }
     } else {
       setAuswahl(null);
+      setMehr([]);
+      setPunktAuswahl(null);
     }
   }
 
@@ -260,25 +321,38 @@ export function Zeichnen({
       const f = einrasten(p, fangpunkte(teil?.formen ?? []), fangSchwelle);
       setFangLinien({ x: f.fangX, y: f.fangY });
     }
+    if (punktZug !== null && teil && auswahl !== null) {
+      const q = welt(e, false);
+      const ziel = fangAn ? einrasten(q, fangpunkte(teil.formen, auswahl), fangSchwelle) : { punkt: q, fangX: undefined, fangY: undefined };
+      setFangLinien({ x: ziel.fangX, y: ziel.fangY });
+      formen(teil.formen.map((f, i) => (i === auswahl ? punktVerschieben(f, punktZug, ziel.punkt) : f)), "zug");
+    }
     if (ziehen && teil) {
       let dx = p[0] - ziehen.start[0];
       let dy = p[1] - ziehen.start[1];
+      const ids = new Set(ziehen.gruppe ? ziehen.gruppe.map((g) => g.index) : [ziehen.index]);
       if (fangAn) {
-        const s = verschiebenMitFang(ziehen.original, dx, dy, teil.formen.filter((_, i) => i !== ziehen.index), fangSchwelle);
+        const s = verschiebenMitFang(ziehen.original, dx, dy, teil.formen.filter((_, i) => !ids.has(i)), fangSchwelle);
         dx = s.dx;
         dy = s.dy;
         setFangLinien({ x: s.fangX, y: s.fangY });
       }
-      const neu = verschieben(ziehen.original, dx, dy);
-      formen(teil.formen.map((f, i) => (i === ziehen.index ? neu : f)), "zug");
+      if (ziehen.gruppe) {
+        const original = new Map(ziehen.gruppe.map((g) => [g.index, g.original]));
+        formen(teil.formen.map((f, i) => (original.has(i) ? verschieben(original.get(i)!, dx, dy) : f)), "zug");
+      } else {
+        const neu = verschieben(ziehen.original, dx, dy);
+        formen(teil.formen.map((f, i) => (i === ziehen.index ? neu : f)), "zug");
+      }
     }
   }
 
   function hoch(e: React.PointerEvent<SVGSVGElement>) {
     setFangLinien({});
     if (ziehen) setZiehen(null);
+    if (punktZug !== null) setPunktZug(null);
     if (!entwurf || !teil) return;
-    const form = entwurf.typ === "rechteck" ? rechteckAus(entwurf.a, welt(e), loch) : kreisAus(entwurf.a, welt(e), loch);
+    const form = entwurfForm({ ...entwurf, b: welt(e) });
     setEntwurf(null);
     if (form) {
       formen([...teil.formen, form]);
@@ -286,9 +360,55 @@ export function Zeichnen({
     }
   }
 
+  function punktGedrueckt(e: React.PointerEvent, punkt: number) {
+    if (!teil) return;
+    e.stopPropagation();
+    merke();
+    svgRef.current?.setPointerCapture(e.pointerId);
+    setPunktAuswahl(punkt);
+    setPunktZug(punkt);
+  }
+
+  function kanteGedrueckt(e: React.PointerEvent, punkt: number) {
+    if (!teil || auswahl === null) return;
+    e.stopPropagation();
+    merke();
+    svgRef.current?.setPointerCapture(e.pointerId);
+    formen(teil.formen.map((f, i) => (i === auswahl ? punktEinfuegen(f, punkt) : f)), "zug");
+    setPunktAuswahl(punkt + 1);
+    setPunktZug(punkt + 1);
+  }
+
   function formGedrueckt(e: React.PointerEvent, index: number) {
     if (werkzeug !== "wahl" || !teil) return;
     e.stopPropagation();
+    if (e.shiftKey) {
+      // Umschalt-Klick: Form zur Gruppe hinzufügen oder aus ihr nehmen
+      const basis = auswahl !== null ? [auswahl] : gruppe;
+      const neu = basis.includes(index) ? basis.filter((i) => i !== index) : [...basis, index];
+      setPunktAuswahl(null);
+      if (neu.length === 1) {
+        setMehr([]);
+        setAuswahl(neu[0]);
+      } else {
+        setAuswahl(null);
+        setMehr(neu);
+      }
+      return;
+    }
+    if (gruppeAktiv && gruppe.includes(index)) {
+      const box = gruppeBox(teil.formen, gruppe)!;
+      merke();
+      svgRef.current?.setPointerCapture(e.pointerId);
+      setZiehen({
+        index,
+        start: welt(e, false),
+        original: { typ: "rechteck", x: box[0], y: box[1], b: box[2] - box[0], t: box[3] - box[1], loch: false },
+        gruppe: gruppe.map((i) => ({ index: i, original: teil.formen[i] })),
+      });
+      return;
+    }
+    if (index !== auswahl) setPunktAuswahl(null);
     merke();
     svgRef.current?.setPointerCapture(e.pointerId);
     setAuswahl(index);
@@ -307,9 +427,20 @@ export function Zeichnen({
       wiederholen();
       return;
     }
-    if (e.key === "Escape") abbrechen();
+    if (e.key === "Escape") { abbrechen(); setMehr([]); }
+    else if ((e.key === "Delete" || e.key === "Backspace") && gruppeAktiv && teil) {
+      const weg = new Set(gruppe);
+      formen(teil.formen.filter((_, i) => !weg.has(i)));
+      setMehr([]);
+    }
     else if (e.key === "Enter" && werkzeug === "polygon") polygonFertig();
-    else if ((e.key === "Delete" || e.key === "Backspace") && auswahl !== null && teil) {
+    else if ((e.key === "Delete" || e.key === "Backspace") && auswahl !== null && teil && punktAuswahl !== null && teil.formen[auswahl]?.typ === "polygon") {
+      const f = teil.formen[auswahl];
+      if (f.typ === "polygon" && f.punkte.length > 3) {
+        formen(teil.formen.map((g, i) => (i === auswahl ? punktLoeschen(g, punktAuswahl) : g)));
+        setPunktAuswahl(null);
+      }
+    } else if ((e.key === "Delete" || e.key === "Backspace") && auswahl !== null && teil) {
       formen(teil.formen.filter((_, i) => i !== auswahl));
       setAuswahl(null);
     }
@@ -320,7 +451,7 @@ export function Zeichnen({
     formen(teil.formen.map((f, i) => (i === index ? ({ ...f, ...patch } as Form) : f)), "tippen");
   }
 
-  const maß = teil ? aussenmass(teil.formen) : null;
+  const maß = teil ? aussenmass(teil.formen, teil) : null;
   const gewaehlt = teil && auswahl !== null ? teil.formen[auswahl] : null;
   const material = (teil?.formen ?? []).map((f, i) => ({ f, i })).filter((x) => !x.f.loch);
   const loecher = (teil?.formen ?? []).map((f, i) => ({ f, i })).filter((x) => x.f.loch);
@@ -436,7 +567,7 @@ export function Zeichnen({
             <button
               type="button"
               onClick={() => {
-                const kopie = { ...neuesTeil(teile), name: `${teil.name} (Kopie)`, hoehe_mm: teil.hoehe_mm, boden_mm: teil.boden_mm, anzahl: teil.anzahl, formen: teil.formen.map((f) => ({ ...f })) as Form[] };
+                const kopie = { ...neuesTeil(teile), name: `${teil.name} (Kopie)`, hoehe_mm: teil.hoehe_mm, boden_mm: teil.boden_mm, anzahl: teil.anzahl, formen: teil.formen.map((f) => ({ ...f })) as Form[], seitenloecher: (teil.seitenloecher ?? []).map((l) => ({ ...l })), profil: (teil.profil ?? []).map((p) => [...p] as Punkt), dreh_x_mm: teil.dreh_x_mm ?? 0, dreh_y_mm: teil.dreh_y_mm ?? 0 };
                 onChange([...teile, kopie]);
                 setAktivId(kopie.id);
               }}
@@ -497,6 +628,34 @@ export function Zeichnen({
                   ))}
                 </select>
               </label>
+              {werkzeug === "langloch" && (
+                <label className="check">
+                  Breite (mm)
+                  <input data-testid="langloch-breite" inputMode="decimal" size={4} value={String(langlochBreite)} onChange={(e) => { const z = Number(e.target.value.replace(",", ".")); if (Number.isFinite(z)) setLanglochBreite(z); }} />
+                </label>
+              )}
+              {werkzeug === "text" && (
+                <>
+                  <label className="check">
+                    Text
+                    <input data-testid="text-neu" size={14} maxLength={40} value={textEingabe} onChange={(e) => setTextEingabe(e.target.value)} />
+                  </label>
+                  <label className="check">
+                    Höhe (mm)
+                    <input data-testid="text-neu-hoehe" inputMode="decimal" size={4} value={String(schriftHoehe)} onChange={(e) => { const z = Number(e.target.value.replace(",", ".")); if (Number.isFinite(z)) setSchriftHoehe(z); }} />
+                  </label>
+                  <label className="check">
+                    <select data-testid="text-neu-art" value={textArt} onChange={(e) => setTextArt(e.target.value as "erhaben" | "vertieft")}>
+                      <option value="erhaben">erhaben (auf der Oberseite)</option>
+                      <option value="vertieft">vertieft (in die Oberseite)</option>
+                    </select>
+                  </label>
+                  <label className="check">
+                    Tiefe/Höhe (mm)
+                    <input data-testid="text-neu-tiefe" inputMode="decimal" size={4} value={String(textTiefe)} onChange={(e) => { const z = Number(e.target.value.replace(",", ".")); if (Number.isFinite(z)) setTextTiefe(z); }} />
+                  </label>
+                </>
+              )}
               {werkzeug === "polygon" && polyPunkte.length >= 3 && (
                 <button type="button" onClick={polygonFertig}>Fertig</button>
               )}
@@ -552,6 +711,9 @@ export function Zeichnen({
                 <line key={`h${i}`} x1={0} y1={H - i * 10} x2={W} y2={H - i * 10} stroke={i % 5 === 0 ? "#cfc7b6" : "#eee8dc"} strokeWidth={i % 5 === 0 ? 0.4 : 0.25} />
               ))}
               <g transform={`translate(0 ${H}) scale(1 -1)`}>
+                {(teil.profil?.length ?? 0) > 0 && (
+                  <circle cx={teil.dreh_x_mm ?? 0} cy={teil.dreh_y_mm ?? 0} r={Math.max(...(teil.profil ?? []).map((p) => p[0]))} fill="rgba(0,174,66,0.15)" stroke="#00AE42" strokeWidth={0.5} strokeDasharray="3 1.5" pointerEvents="none" data-testid="profil-umriss" />
+                )}
                 <g mask={`url(#m${maskenId})`} stroke="#00AE42" strokeWidth={0.5}>
                   {material.map(({ f, i }) => (
                     <g key={i} fill={hoehenFarbe(hoehenanteil(f, teil))} onPointerDown={(e) => formGedrueckt(e, i)} style={{ cursor: werkzeug === "wahl" ? "move" : "crosshair" }} data-testid={`form-${i}`}>
@@ -571,6 +733,34 @@ export function Zeichnen({
                     {formElement(gewaehlt)}
                   </g>
                 )}
+                {gruppeAktiv && (
+                  <g fill="none" stroke="#0F1F3A" strokeWidth={0.9} pointerEvents="none" data-testid="gruppe-markierung">
+                    {gruppe.map((i) => (<g key={i}>{formElement(teil.formen[i])}</g>))}
+                  </g>
+                )}
+                {gewaehlt && gewaehlt.typ === "polygon" && werkzeug === "wahl" && (
+                  <g data-testid="punkt-griffe">
+                    {gewaehlt.punkte.map((p, i) => {
+                      const q = gewaehlt.punkte[(i + 1) % gewaehlt.punkte.length];
+                      const r = W / 130;
+                      return (
+                        <rect key={`k${i}`} x={(p[0] + q[0]) / 2 - r * 0.7} y={(p[1] + q[1]) / 2 - r * 0.7} width={r * 1.4} height={r * 1.4} fill="#fff" stroke="#00AE42" strokeWidth={0.4} style={{ cursor: "copy" }} onPointerDown={(e) => kanteGedrueckt(e, i)} data-testid={`kante-griff-${i}`} />
+                      );
+                    })}
+                    {gewaehlt.punkte.map((p, i) => (
+                      <circle key={`p${i}`} cx={p[0]} cy={p[1]} r={W / 110} fill={i === punktAuswahl ? "#d4572b" : "#0F1F3A"} stroke="#fff" strokeWidth={0.3} style={{ cursor: "grab" }} onPointerDown={(e) => punktGedrueckt(e, i)} data-testid={`punkt-griff-${i}`} />
+                    ))}
+                  </g>
+                )}
+                {gewaehlt && gewaehlt.typ === "kreis" && gewaehlt.loch && gewaehlt.senk_art && gewaehlt.senk_art !== "keine" && (gewaehlt.senk_d_mm ?? 0) > gewaehlt.r * 2 && (
+                  <g fill="none" stroke="#b3434b" strokeWidth={0.4} strokeDasharray="1 1" pointerEvents="none" data-testid="senk-ring">
+                    {gewaehlt.senk_art === "sechskant" ? (
+                      <polygon points={Array.from({ length: 6 }, (_, k) => { const R = (gewaehlt.senk_d_mm ?? 0) / Math.sqrt(3); return `${gewaehlt.x + R * Math.cos((Math.PI / 3) * k)},${gewaehlt.y + R * Math.sin((Math.PI / 3) * k)}`; }).join(" ")} />
+                    ) : (
+                      <circle cx={gewaehlt.x} cy={gewaehlt.y} r={(gewaehlt.senk_d_mm ?? 0) / 2} />
+                    )}
+                  </g>
+                )}
                 {(fangLinien.x !== undefined || fangLinien.y !== undefined) && (
                   <g stroke="#d4572b" strokeWidth={0.35} strokeDasharray="1.5 1" pointerEvents="none" data-testid="fanglinien">
                     {fangLinien.x !== undefined && <line x1={fangLinien.x} y1={0} x2={fangLinien.x} y2={H} />}
@@ -579,9 +769,7 @@ export function Zeichnen({
                 )}
                 {entwurf && (
                   <g fill="none" stroke="#0F1F3A" strokeDasharray="2 1" strokeWidth={0.6} pointerEvents="none">
-                    {entwurf.typ === "rechteck"
-                      ? (() => { const f = rechteckAus(entwurf.a, entwurf.b, loch); return f ? formElement(f) : null; })()
-                      : (() => { const f = kreisAus(entwurf.a, entwurf.b, loch); return f ? formElement(f) : null; })()}
+                    {(() => { const f = entwurfForm(entwurf); return f ? formElement(f) : null; })()}
                   </g>
                 )}
                 {polyPunkte.length > 0 && (
@@ -596,7 +784,7 @@ export function Zeichnen({
                   {[
                     ...teil.formen.map((f, i) => ({ f, aktiv: i === auswahl, index: i })),
                     ...(entwurf
-                      ? [{ f: entwurf.typ === "rechteck" ? rechteckAus(entwurf.a, entwurf.b, loch) : kreisAus(entwurf.a, entwurf.b, loch), aktiv: true, index: -1 }]
+                      ? [{ f: entwurfForm(entwurf), aktiv: true, index: -1 }]
                       : []),
                   ].flatMap(({ f, aktiv, index }, k) =>
                     f
@@ -637,8 +825,10 @@ export function Zeichnen({
             <p className="leise" data-testid="zeigerinfo">
               {zeiger ? `Zeiger: ${zeiger[0]} / ${zeiger[1]} mm` : "Ursprung links unten, Maße in Millimeter."}
               {entwurf?.typ === "rechteck" && ` · ${Math.abs(entwurf.b[0] - entwurf.a[0]).toFixed(1)} × ${Math.abs(entwurf.b[1] - entwurf.a[1]).toFixed(1)} mm`}
+              {entwurf?.typ === "langloch" && ` · Länge ${Math.hypot(entwurf.b[0] - entwurf.a[0], entwurf.b[1] - entwurf.a[1]).toFixed(1)} mm (Mitte zu Mitte), Breite ${langlochBreite} mm`}
               {entwurf?.typ === "kreis" && ` · Ø ${(2 * Math.hypot(entwurf.b[0] - entwurf.a[0], entwurf.b[1] - entwurf.a[1])).toFixed(1)} mm`}
             </p>
+            <Ansicht3D projekt={{ eigene: [teil] }} teilIds={[teil.id]} freecadPfad={freecadPfad} titel="3D-Ansicht dieses Teils" />
           </div>
 
           <div className="eigenschaften">
@@ -666,6 +856,8 @@ export function Zeichnen({
               <Zahlfeld label="Größe obere Kante (mm)" wert={teil.kante_oben_mm} testid="kante-mm" onChange={(v) => aendereTeil((t) => ({ ...t, kante_oben_mm: Math.max(0, v) }), "tippen")} />
             )}
             <Zahlfeld label="Fase unten (mm, gegen Elefantenfuß)" wert={teil.kante_unten_mm} testid="kante-unten" onChange={(v) => aendereTeil((t) => ({ ...t, kante_unten_mm: Math.max(0, v) }), "tippen")} />
+            <SeitenlochPanel teil={teil} onChange={(liste) => aendereTeil((t) => ({ ...t, seitenloecher: liste }))} />
+            <ProfilPanel teil={teil} onChange={(patch) => aendereTeil((t) => ({ ...t, ...patch }))} />
             <p className="leise" data-testid="teil-mass">
               {maß ? `Außenmaß ${maß.breite} × ${maß.tiefe} × ${gesamthoehe(teil)} mm` : "Noch keine Form, die Material hinzufügt."}
               {maß && (maß.breite > 256 || maß.tiefe > 256 || gesamthoehe(teil) > 256) && " · passt nicht aufs Druckbett (256 mm)"}
@@ -701,9 +893,22 @@ export function Zeichnen({
             {teil.formen.length === 0 && <p className="leise">Noch keine Formen.</p>}
             <ol className="formliste">
               {teil.formen.map((f, i) => (
-                <li key={i} className={i === auswahl ? "aktiv" : ""}>
-                  <button type="button" onClick={() => { setAuswahl(i); setWerkzeug("wahl"); }}>
-                    {f.typ === "rechteck" ? "Rechteck" : f.typ === "kreis" ? "Kreis" : "Vieleck"} {f.loch ? "(Loch)" : ""}
+                <li key={i} className={i === auswahl || (gruppeAktiv && gruppe.includes(i)) ? "aktiv" : ""}>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      setWerkzeug("wahl");
+                      if (e.shiftKey) {
+                        const basis = auswahl !== null ? [auswahl] : gruppe;
+                        const neu = basis.includes(i) ? basis.filter((k) => k !== i) : [...basis, i];
+                        if (neu.length === 1) { setMehr([]); setAuswahl(neu[0]); } else { setAuswahl(null); setMehr(neu); }
+                      } else {
+                        setMehr([]);
+                        setAuswahl(i);
+                      }
+                    }}
+                  >
+                    {f.typ === "rechteck" ? (f.radius && f.radius >= Math.min(f.b, f.t) / 2 - 1e-6 ? "Langloch" : "Rechteck") : f.typ === "kreis" ? "Kreis" : f.typ === "text" ? `Text „${f.text}“` : "Vieleck"} {f.loch ? "(Loch)" : ""}
                   </button>
                   <button type="button" aria-label={`Form ${i + 1} löschen`} onClick={() => { formen(teil.formen.filter((_, j) => j !== i)); setAuswahl(null); }}>
                     ×
@@ -711,6 +916,36 @@ export function Zeichnen({
                 </li>
               ))}
             </ol>
+            {gruppeAktiv && (
+              <div className="formular" data-testid="gruppe-panel">
+                <p>{gruppe.length} Formen gewählt. Ziehen verschiebt alle gemeinsam, Entf löscht sie.</p>
+                <div className="knopfzeile">
+                  <button
+                    type="button"
+                    data-testid="gruppe-kopieren"
+                    onClick={() => {
+                      const box = gruppeBox(teil.formen, gruppe)!;
+                      const r = gruppeKopieren(teil.formen, gruppe, bereinigen(box[2] - box[0] + 5), 0);
+                      formen(r.formen);
+                      setMehr(r.neu);
+                    }}
+                  >
+                    Daneben kopieren
+                  </button>
+                  <button type="button" data-testid="gruppe-spiegel-x" onClick={() => formen(gruppeSpiegeln(teil.formen, gruppe, "x", teil.hoehe_mm))}>
+                    Spiegeln ↔
+                  </button>
+                  <button type="button" data-testid="gruppe-spiegel-y" onClick={() => formen(gruppeSpiegeln(teil.formen, gruppe, "y", teil.hoehe_mm))}>
+                    Spiegeln ↕
+                  </button>
+                  <button type="button" data-testid="gruppe-loeschen" onClick={() => { const weg = new Set(gruppe); formen(teil.formen.filter((_, i) => !weg.has(i))); setMehr([]); }}>
+                    Löschen
+                  </button>
+                  <button type="button" onClick={() => setMehr([])}>Auswahl aufheben</button>
+                </div>
+                <p className="leise">Umschalt-Klick fügt Formen hinzu oder nimmt sie heraus.</p>
+              </div>
+            )}
             {gewaehlt && auswahl !== null && (
               <div className="formular">
                 <label className="check">
@@ -733,7 +968,24 @@ export function Zeichnen({
                     <Zahlfeld label="Radius" wert={gewaehlt.r} onChange={(v) => setzeFeld(auswahl, { r: v })} />
                   </>
                 )}
-                {gewaehlt.typ === "polygon" && <p className="leise">{gewaehlt.punkte.length} Punkte. Zum Verschieben ziehen.</p>}
+                {gewaehlt.typ === "kreis" && gewaehlt.loch && <SenkPanel form={gewaehlt} onChange={(patch) => setzeFeld(auswahl, patch)} />}
+                {gewaehlt.typ === "text" && <TextPanel form={gewaehlt} onChange={(patch) => setzeFeld(auswahl, patch)} />}
+                {gewaehlt.typ === "polygon" && auswahl !== null && (
+                  <>
+                    <Zahlfeld label="Eckenradius (mm, 0 = eckig)" wert={gewaehlt.radius ?? 0} testid="poly-radius" onChange={(v) => setzeFeld(auswahl, { radius: v > 0 ? v : undefined })} />
+                    <p className="leise">
+                      {gewaehlt.punkte.length} Punkte. Form ziehen verschiebt, Punkt ziehen ändert die Ecke, Quadrat auf einer Kante fügt einen Punkt ein, Entf löscht den gewählten Punkt (mindestens 3).
+                    </p>
+                    {polygonSelbstschnitt(gewaehlt.punkte) && <p style={{ color: "#b3434b" }} data-testid="polygon-selbstschnitt">Das Vieleck überschneidet sich selbst. Der Export lehnt es ab.</p>}
+                    {punktAuswahl !== null && punktAuswahl < gewaehlt.punkte.length && (
+                      <>
+                        <Zahlfeld label={`Punkt ${punktAuswahl + 1} x`} wert={gewaehlt.punkte[punktAuswahl][0]} testid="punkt-x" onChange={(v) => formen(teil!.formen.map((g, i) => (i === auswahl ? punktVerschieben(g, punktAuswahl, [v, gewaehlt.punkte[punktAuswahl][1]]) : g)), "tippen")} />
+                        <Zahlfeld label={`Punkt ${punktAuswahl + 1} y`} wert={gewaehlt.punkte[punktAuswahl][1]} testid="punkt-y" onChange={(v) => formen(teil!.formen.map((g, i) => (i === auswahl ? punktVerschieben(g, punktAuswahl, [gewaehlt.punkte[punktAuswahl][0], v]) : g)), "tippen")} />
+                        <button type="button" disabled={gewaehlt.punkte.length <= 3} onClick={() => { formen(teil!.formen.map((g, i) => (i === auswahl ? punktLoeschen(g, punktAuswahl) : g))); setPunktAuswahl(null); }} data-testid="punkt-loeschen">Punkt löschen</button>
+                      </>
+                    )}
+                  </>
+                )}
                 <OptZahlfeld
                   label={gewaehlt.loch ? "Loch ab Höhe (mm, leer = ab Boden)" : "Starthöhe (mm, leer = 0)"}
                   wert={gewaehlt.z_mm}
@@ -862,24 +1114,52 @@ function formElement(f: Form) {
     );
   }
   if (f.typ === "kreis") return <circle cx={f.x} cy={f.y} r={f.r} />;
+  if (f.typ === "text") {
+    // Vereinfachte Vorschau: das umschließende Rechteck mit der Schrift (der Export setzt die Pixelschrift)
+    const { b, t } = textMasse(f.text, f.schrift_mm);
+    return (
+      <g>
+        <rect x={f.x} y={f.y} width={b} height={t} />
+        {!f.loch && <g transform={`translate(${f.x} ${f.y + t}) scale(1 -1)`}>
+          <text x={0} y={t * 0.88} fontSize={t} textLength={b} lengthAdjust="spacingAndGlyphs" fontFamily="monospace" fill="#fff" stroke="none">{textNormal(f.text)}</text>
+        </g>}
+      </g>
+    );
+  }
+  if (f.punkte.length < 3) return <polygon points="" />;
+  if (f.radius && f.radius > 0) return <path d={gerundeterPfad(f.punkte, f.radius)} />;
   return <polygon points={f.punkte.map((p) => p.join(",")).join(" ")} />;
 }
 
-function Zahlfeld({ label, wert, onChange, testid }: { label: string; wert: number; onChange: (v: number) => void; testid?: string }) {
-  return (
-    <label>
-      {label}
-      <input
-        data-testid={testid}
-        inputMode="decimal"
-        value={String(wert)}
-        onChange={(e) => {
-          const zahl = Number(e.target.value.replace(",", "."));
-          if (Number.isFinite(zahl)) onChange(zahl);
-        }}
-      />
-    </label>
-  );
+/** SVG-Pfad eines Vielecks mit Kreisbögen an den Ecken (wie im Export, Radius je Ecke begrenzt). */
+function gerundeterPfad(punkte: Punkt[], radius: number): string {
+  const n = punkte.length;
+  const teile: string[] = [];
+  const ecken = punkte.map((v, i) => {
+    const p = punkte[(i + n - 1) % n];
+    const q = punkte[(i + 1) % n];
+    const a = [p[0] - v[0], p[1] - v[1]];
+    const b = [q[0] - v[0], q[1] - v[1]];
+    const la = Math.hypot(a[0], a[1]);
+    const lb = Math.hypot(b[0], b[1]);
+    const cos = Math.max(-1, Math.min(1, (a[0] * b[0] + a[1] * b[1]) / (la * lb)));
+    const theta = Math.acos(cos);
+    if (!(la > 0 && lb > 0) || theta < 1e-6 || theta > Math.PI - 1e-6) return { von: v, bis: v, r: 0, links: false };
+    const tl = Math.min(radius / Math.tan(theta / 2), la / 2, lb / 2);
+    const r = tl * Math.tan(theta / 2);
+    const kreuz = a[0] * b[1] - a[1] * b[0];
+    return {
+      von: [v[0] + (a[0] / la) * tl, v[1] + (a[1] / la) * tl] as Punkt,
+      bis: [v[0] + (b[0] / lb) * tl, v[1] + (b[1] / lb) * tl] as Punkt,
+      r,
+      links: kreuz < 0,
+    };
+  });
+  ecken.forEach((e, i) => {
+    teile.push(`${i === 0 ? "M" : "L"}${e.von[0]},${e.von[1]}`);
+    if (e.r > 0) teile.push(`A${e.r},${e.r} 0 0 ${e.links ? 1 : 0} ${e.bis[0]},${e.bis[1]}`);
+  });
+  return teile.join(" ") + " Z";
 }
 
 function LageplanAnsicht({
@@ -968,25 +1248,6 @@ function hoehenFarbe(anteil: number): string {
   const bis = [0, 140, 53];
   const mix = von.map((v, i) => Math.round(v + (bis[i] - v) * anteil));
   return `rgb(${mix[0]}, ${mix[1]}, ${mix[2]})`;
-}
-
-function OptZahlfeld({ label, wert, onChange, testid }: { label: string; wert: number | undefined; onChange: (v: number | undefined) => void; testid?: string }) {
-  return (
-    <label>
-      {label}
-      <input
-        data-testid={testid}
-        inputMode="decimal"
-        value={wert === undefined ? "" : String(wert)}
-        onChange={(e) => {
-          const text = e.target.value.trim().replace(",", ".");
-          if (text === "") return onChange(undefined);
-          const zahl = Number(text);
-          if (Number.isFinite(zahl)) onChange(zahl);
-        }}
-      />
-    </label>
-  );
 }
 
 function MusterPanel({
