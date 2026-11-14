@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { api, dateiUrl, gesundheit, jobStatus, leereSchublade, Schublade } from "./api";
 import { Ansicht3D } from "./ansicht3d";
 import { Editor } from "./editor";
@@ -99,6 +99,13 @@ export function App() {
   const [restFuellen, setRestFuellen] = useState(true);
   const [fuellstil, setFuellstil] = useState("einheitlich");
   const [plan, setPlan] = useState<Plan | null>(null);
+  // Antworten von „plane“ können außer der Reihe eintreffen: nur die jüngste Anfrage darf den Plan setzen
+  const planNr = useRef(0);
+  async function planAbrufen(projektDaten: Record<string, unknown>) {
+    const nr = ++planNr.current;
+    const antwort = await api<Plan>("plane", { projekt: projektDaten });
+    return { antwort, aktuell: nr === planNr.current };
+  }
   const [dienst, setDienst] = useState<boolean | null>(null);
   const [recent, setRecent] = useState<Array<{ pfad: string; name: string }>>([]);
   const [einstellungen, setEinstellungen] = useState<Record<string, unknown>>({});
@@ -170,20 +177,20 @@ export function App() {
 
   async function rasterBerechnen(naechsterSchritt = true) {
     setMeldung("");
-    const antwort = await api<Plan>("plane", { projekt });
+    const { antwort, aktuell } = await planAbrufen(projekt);
     if (!antwort.ok || !antwort.result) {
       setMeldung(antwort.fehler || "Das Raster konnte nicht berechnet werden.");
       return;
     }
-    setPlan(antwort.result);
+    if (aktuell) setPlan(antwort.result);
     if (naechsterSchritt) setSchritt(2);
   }
 
   async function boxenAktualisieren(neu: Box[]) {
     setBoxen(neu);
     setErgebnis(null);
-    const antwort = await api<Plan>("plane", { projekt: anProjekt(name, schublade, neu, eigene, nurEigene) });
-    if (antwort.result) setPlan(antwort.result);
+    const { antwort, aktuell } = await planAbrufen(anProjekt(name, schublade, neu, eigene, nurEigene));
+    if (aktuell && antwort.result) setPlan(antwort.result);
   }
 
   async function vorlageSpeichern(vorlagenName: string, teil: Eigenteil): Promise<string | null> {
@@ -201,8 +208,8 @@ export function App() {
   async function eigeneAktualisieren(neu: Eigenteil[]) {
     setEigene(neu);
     setErgebnis(null);
-    const antwort = await api<Plan>("plane", { projekt: anProjekt(name, schublade, boxen, neu, nurEigene) });
-    if (antwort.result) setPlan(antwort.result);
+    const { antwort, aktuell } = await planAbrufen(anProjekt(name, schublade, boxen, neu, nurEigene));
+    if (aktuell && antwort.result) setPlan(antwort.result);
   }
 
   async function automatischFuellen(mitWuenschen = false) {
@@ -281,8 +288,8 @@ export function App() {
     setSchritt(geladenNurEigene ? 4 : 1);
     setAnsicht(geladenNurGehaeuse ? "gehaeuse" : geladenNurKabel ? "kabel" : geladenNurErsatz ? "ersatz" : "arbeit");
     setMeldung("");
-    const antwort = await api<Plan>("plane", {
-      projekt: anProjekt(
+    const { antwort, aktuell } = await planAbrufen(
+      anProjekt(
         geladenName,
         geladenSchublade,
         geladenBoxen,
@@ -295,8 +302,8 @@ export function App() {
         geladenesGehaeuse,
         geladenNurGehaeuse,
       ),
-    });
-    if (antwort.result) setPlan(antwort.result);
+    );
+    if (aktuell && antwort.result) setPlan(antwort.result);
   }
 
   async function dateiOeffnen(file: File) {
@@ -483,8 +490,8 @@ export function App() {
               setSpeicherpfad("");
               setSchritt(4);
               setAnsicht("arbeit");
-              const antwort = await api<Plan>("plane", { projekt: anProjekt("Eigene Teile", schublade, [], start, true) });
-              if (antwort.result) setPlan(antwort.result);
+              const { antwort, aktuell } = await planAbrufen(anProjekt("Eigene Teile", schublade, [], start, true));
+              if (aktuell && antwort.result) setPlan(antwort.result);
             }
             if (id === "kabel") {
               let katalog = kabelKatalog;

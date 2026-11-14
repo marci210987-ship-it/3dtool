@@ -171,3 +171,25 @@ test("Wunschliste: Seite links und rechts", async ({ page }) => {
   const fach = lagen.find((l) => l.text.includes("Besteck"))!;
   expect(kabel.x).toBeLessThan(fach.x);
 });
+
+test("Eine verspätete Planantwort überschreibt den neuen Stand nicht", async ({ page }) => {
+  // Die erste „plane“-Antwort (leeres Teil, Fehler) kommt erst nach der zweiten an: der Knopf muss trotzdem frei werden
+  let erste = true;
+  await page.route("**/api", async (route) => {
+    const anfrage = route.request().postDataJSON() as { cmd?: string };
+    if (anfrage?.cmd === "plane" && erste) {
+      erste = false;
+      const antwort = await route.fetch();
+      await new Promise((warten) => setTimeout(warten, 2500));
+      await route.fulfill({ response: antwort });
+      return;
+    }
+    await route.continue();
+  });
+  await oeffnen(page);
+  await page.getByTestId("vorlage").selectOption("senkung");
+  await page.getByRole("button", { name: "5. Drucken" }).click();
+  await expect(page.getByTestId("erzeugen")).toBeEnabled({ timeout: 15000 });
+  await page.waitForTimeout(3500); // die verspätete Antwort ist inzwischen da
+  await expect(page.getByTestId("erzeugen")).toBeEnabled();
+});
