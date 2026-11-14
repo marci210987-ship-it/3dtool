@@ -167,7 +167,8 @@ export function App() {
       .then((r) => {
         if (!r.result) return;
         setVorlagen(r.result.vorlagen || {});
-        setGehaeuse(r.result.standard);
+        // Eine verspätete (zweite) Antwort darf Eingaben des Benutzers nicht auf die Standardwerte zurücksetzen
+        setGehaeuse((alt) => (alt.innen_b_mm ? alt : r.result!.standard));
       })
       .catch(() => undefined);
     return () => {
