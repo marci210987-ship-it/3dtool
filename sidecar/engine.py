@@ -333,7 +333,7 @@ def generiere(projekt: Projekt, out_dir: Path, freecad_pfad: str | None = None, 
         hinweise.append("Die Anzahl der Rastclips ist ein Vorschlag, keine gemessene Empfehlung.")
 
     schreibe_stueckliste(out_dir / "Stueckliste.json", out_dir / "Stueckliste.csv", stueck, hinweise)
-    if projekt.nur_eigene:
+    if projekt.nur_eigene or projekt.nur_ersatz:
         uebersicht = {}
     else:
         boxen_zeichnung = _boxen_zeichnung(projekt, auftrag["ansicht"])

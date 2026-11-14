@@ -6,7 +6,7 @@ Der Druckerbezug ist ein Bambu Lab P2S mit 256 × 256 × 256 mm Bauraum. Das Ras
 
 ## Start
 
-Auf der Startseite liegen vier Bereiche. **Schubladen-Konfigurator** und **Eigene Teile zeichnen** sind benutzbar. Ersatzteile, Kabelmanagement und Elektronikgehäuse stehen auf „in Vorbereitung“.
+Auf der Startseite liegen fünf Bereiche. **Schubladen-Konfigurator**, **Eigene Teile zeichnen** und **Ersatzteile** sind benutzbar. Kabelmanagement und Elektronikgehäuse stehen auf „in Vorbereitung“.
 
 Darunter stehen die zuletzt geöffneten Projekte. Ein Klick lädt die Datei wieder, auch nach einem Neustart des Programms.
 
@@ -115,6 +115,27 @@ Grenzen: keine Gewinde, keine frei geformten Flächen, keine Texte. Ein Vieleck 
 Grün wird der Abschluss nur, wenn jede Datei vorhanden ist, das Dreiecksnetz geschlossen ist und die FCStd-Datei einen gültigen Körper mit Tabellenblatt enthält. Andernfalls steht dort **Nicht exportiert** und der Grund.
 
 Die Projektdatei (`.cadstudio.json`) speichert Maße, Spiel und die Lage der Boxen. Die STL-Dateien liegen daneben im Exportordner.
+
+## Ersatzteile
+
+Über die Kachel **Ersatzteile** entstehen einzelne Gebrauchsstücke, ohne Schublade. Acht Formen:
+
+| Teil | Wofür |
+|---|---|
+| Kabelclip | ein oder mehrere Kabel, mit Schraubenlasche oder nur zum Kleben |
+| Distanzhülse | Abstand um eine Schraube |
+| Unterlegscheibe | flache Scheibe unter einem Schraubenkopf |
+| Wandhaken | kleiner Haken mit Schraubenloch |
+| Möbelfuß | runder Gleiter mit Sackloch |
+| Drehknopf | für eine runde oder abgeflachte Welle |
+| Stopfen | verschließt ein rundes Loch, Kragen liegt auf |
+| Winkel | L-Verbindung mit einem Loch je Schenkel |
+
+Ein Teil antippen legt es an. Die Maße stehen daneben, mit sinnvollen Grenzen. Zu dünne Wände (unter 1,2 mm bei einer 0,4-mm-Düse) und Teile über 256 mm werden auf Deutsch abgelehnt, der Knopf **Teil berechnen** bleibt dann aus. Unter den Feldern steht, wie das Teil auf das Druckbett gehört.
+
+Solange noch nicht gerechnet wurde, ist die 3D-Ansicht eine **vereinfachte Vorschau**. Nach dem Berechnen kommt die Ansicht aus der STL-Datei, und grün wird es nur, wenn Datei, geschlossenes Netz und gültiger Körper stimmen. **Speichern** schreibt dasselbe Projektformat `.cadstudio.json`. Mehrere Ersatzteile können in einer Datei liegen.
+
+Das Spiel am Stopfen (Vorgabe 0,3 mm) und die Passung der Bohrungen sind nicht an einem gedruckten Teil geprüft.
 
 ## Was die Dateien nicht versprechen
 

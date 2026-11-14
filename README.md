@@ -54,7 +54,7 @@ Der Workflow `.github/workflows/windows.yml` baut auf `windows-latest` MSI und N
 
 ## Bedienung
 
-Siehe [docs/BEDIENUNGSANLEITUNG.md](docs/BEDIENUNGSANLEITUNG.md).
+Siehe [docs/BEDIENUNGSANLEITUNG.md](docs/BEDIENUNGSANLEITUNG.md). Ersatzteile (Kabelclip, Hülse, Scheibe, Haken, Fuß, Knopf, Stopfen, Winkel) liegen auf der Startseite und werden mit FreeCAD erzeugt.
 
 Beispiel: [examples/schublade_480x420.cadstudio.json](examples/schublade_480x420.cadstudio.json) (480 × 420 mm, vier Boxen, eine davon gedreht, eine in der Höhe geändert).
 

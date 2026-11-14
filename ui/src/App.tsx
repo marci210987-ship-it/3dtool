@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { api, dateiUrl, gesundheit, jobStatus, leereSchublade, Schublade } from "./api";
 import { Editor } from "./editor";
+import { ErsatzArt, Ersatzteil, ErsatzteilAnsicht } from "./ersatzteile";
 import { Box, KATALOG } from "./layout";
 import { Vorschau } from "./preview";
 import { Eigenteil, neuesTeil, teilVonServer } from "./zeichnen";
 import { type MeineVorlage, Zeichnen } from "./zeichenblatt";
 
-type Ansicht = "start" | "arbeit" | "einstellungen";
+type Ansicht = "start" | "arbeit" | "einstellungen" | "ersatz";
 
 interface Plan {
   ok: boolean;
@@ -57,7 +58,7 @@ interface Ergebnis {
 const BEREICHE = [
   { id: "schublade", titel: "Schubladen-Konfigurator", text: "Schublade ausmessen, Raster legen, Boxen verteilen, Druckdateien erzeugen.", bereit: true },
   { id: "zeichnen", titel: "Eigene Teile zeichnen", text: "Formen zeichnen, extrudieren und als STL/FCStd ausgeben, ohne Schublade.", bereit: true },
-  { id: "ersatz", titel: "Ersatzteile", text: "Einzelteile nachbestellen und neu ausgeben.", bereit: false },
+  { id: "ersatz", titel: "Ersatzteile", text: "Clip, Hülse, Scheibe, Haken und andere kleine Teile erzeugen.", bereit: true },
   { id: "kabel", titel: "Kabelmanagement", text: "Kanäle und Führungen.", bereit: false },
   { id: "gehaeuse", titel: "Elektronikgehäuse", text: "Gehäuse um Platinen.", bereit: false },
 ];
@@ -70,6 +71,12 @@ export function App() {
   const [boxen, setBoxen] = useState<Box[]>([]);
   const [eigene, setEigene] = useState<Eigenteil[]>([]);
   const [nurEigene, setNurEigene] = useState(false);
+  const [ersatzteile, setErsatzteile] = useState<Ersatzteil[]>([]);
+  const [nurErsatz, setNurErsatz] = useState(false);
+  const [ersatzKatalog, setErsatzKatalog] = useState<ErsatzArt[]>([]);
+  const [ersatzAktiv, setErsatzAktiv] = useState<string | null>(null);
+  const [ersatzFehler, setErsatzFehler] = useState<string[]>([]);
+  const [ersatzSoll, setErsatzSoll] = useState<number[] | null>(null);
   const [meineVorlagen, setMeineVorlagen] = useState<MeineVorlage[]>([]);
   const [wuensche, setWuensche] = useState<Record<string, number>>({});
   const [restFuellen, setRestFuellen] = useState(true);
@@ -85,7 +92,10 @@ export function App() {
   const [ergebnis, setErgebnis] = useState<Ergebnis | null>(null);
   const [rechnet, setRechnet] = useState(false);
 
-  const projekt = useMemo(() => anProjekt(name, schublade, boxen, eigene, nurEigene), [name, schublade, boxen, eigene, nurEigene]);
+  const projekt = useMemo(
+    () => anProjekt(name, schublade, boxen, eigene, nurEigene, ersatzteile, nurErsatz),
+    [name, schublade, boxen, eigene, nurEigene, ersatzteile, nurErsatz],
+  );
 
   useEffect(() => {
     gesundheit().then(setDienst);
@@ -107,6 +117,7 @@ export function App() {
     }).catch(() => undefined);
     api<MeineVorlage[]>("vorlagen").then((r) => setMeineVorlagen((r.result as MeineVorlage[]) || [])).catch(() => undefined);
     api("detect", { probe: false }).then((r) => setFreecad((r.result as Record<string, unknown>) || null)).catch(() => undefined);
+    api<ErsatzArt[]>("ersatz_katalog").then((r) => setErsatzKatalog(r.result || [])).catch(() => undefined);
   }, []);
 
   async function rasterBerechnen(naechsterSchritt = true) {
@@ -203,10 +214,15 @@ export function App() {
     const geladenNurEigene = Boolean(roh.nur_eigene);
     setEigene(geladeneEigene);
     setNurEigene(geladenNurEigene);
+    const geladeneErsatz = ((roh.ersatzteile as Ersatzteil[]) || []).map((e) => ({ ...e, parameter: { ...(e.parameter || {}) } }));
+    const geladenNurErsatz = Boolean(roh.nur_ersatz);
+    setErsatzteile(geladeneErsatz);
+    setNurErsatz(geladenNurErsatz);
+    setErsatzAktiv(geladeneErsatz[0]?.id ?? null);
     setSpeicherpfad(pfad);
     setErgebnis(null);
     setSchritt(geladenNurEigene ? 4 : 1);
-    setAnsicht("arbeit");
+    setAnsicht(geladenNurErsatz ? "ersatz" : "arbeit");
     setMeldung("");
     const antwort = await api<Plan>("plane", { projekt: anProjekt(geladenName, geladenSchublade, geladenBoxen, geladeneEigene, geladenNurEigene) });
     if (antwort.result) setPlan(antwort.result);
@@ -220,8 +236,31 @@ export function App() {
     setMeldung("Projekt gelesen. Speichern legt eine neue Datei an.");
   }
 
+  useEffect(() => {
+    if (!nurErsatz) return;
+    const teil = ersatzteile.find((t) => t.id === ersatzAktiv) ?? ersatzteile[0];
+    if (!teil) {
+      setErsatzFehler(["Noch kein Ersatzteil ausgewählt."]);
+      setErsatzSoll(null);
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      api("ersatz_pruefen", { art: teil.art, parameter: parameterZahlen(teil.parameter) }).then((antwort) => {
+        const daten = antwort as { ok?: boolean; fehler?: string[]; soll_mm?: number[] | null };
+        setErsatzFehler(daten.ok ? [] : daten.fehler || ["Die Maße passen nicht."]);
+        setErsatzSoll(daten.soll_mm || null);
+      }).catch(() => setErsatzFehler(["Der lokale Dienst antwortet nicht."]));
+    }, 200);
+    return () => window.clearTimeout(timer);
+  }, [nurErsatz, ersatzteile, ersatzAktiv]);
+
   async function erzeugen() {
-    if (!plan?.ok) {
+    if (nurErsatz) {
+      if (ersatzFehler.length) {
+        setMeldung("Zuerst die markierten Maße korrigieren.");
+        return;
+      }
+    } else if (!plan?.ok) {
       setMeldung("Zuerst die markierten Konflikte lösen. Ein Export mit Überlappung gilt nicht als erfolgreich.");
       return;
     }
@@ -294,6 +333,25 @@ export function App() {
               setNurEigene(false);
               setAnsicht("arbeit");
             }
+            if (id === "ersatz") {
+              let katalog = ersatzKatalog;
+              if (!katalog.length) {
+                const geladen = await api<ErsatzArt[]>("ersatz_katalog");
+                katalog = geladen.result || [];
+                setErsatzKatalog(katalog);
+              }
+              const start = ersatzStart(katalog);
+              setName("Ersatzteil");
+              setBoxen([]);
+              setEigene([]);
+              setNurEigene(false);
+              setNurErsatz(true);
+              setErsatzteile(start);
+              setErsatzAktiv(start[0]?.id ?? null);
+              setErgebnis(null);
+              setSpeicherpfad("");
+              setAnsicht("ersatz");
+            }
             if (id === "zeichnen") {
               const start = [neuesTeil([])];
               setName("Eigene Teile");
@@ -308,6 +366,34 @@ export function App() {
               if (antwort.result) setPlan(antwort.result);
             }
           }}
+        />
+      )}
+      {ansicht === "ersatz" && (
+        <ErsatzteilAnsicht
+          katalog={ersatzKatalog}
+          teile={ersatzteile}
+          aktivId={ersatzAktiv}
+          fehler={ersatzFehler}
+          soll={ersatzSoll}
+          onWaehlen={setErsatzAktiv}
+          onNeu={(art) => {
+            const neu = neuesErsatzteil(ersatzKatalog, art, ersatzteile);
+            if (!neu) return;
+            setErsatzteile((alt) => [...alt, neu]);
+            setErsatzAktiv(neu.id);
+            setErgebnis(null);
+          }}
+          onParameter={(id, key, wert) => {
+            setErsatzteile((alt) => alt.map((teil) => (teil.id === id ? { ...teil, parameter: { ...teil.parameter, [key]: wert } } : teil)));
+            setErgebnis(null);
+          }}
+          onErzeugen={erzeugen}
+          ergebnis={ergebnis}
+          rechnet={rechnet}
+          jobText={jobText}
+          speicherpfad={speicherpfad}
+          onSpeicherpfad={setSpeicherpfad}
+          onSpeichern={speichern}
         />
       )}
       {ansicht === "einstellungen" && (
@@ -742,7 +828,15 @@ function Zahl({ label, wert, onChange, testid }: { label: string; wert: number; 
   );
 }
 
-function anProjekt(name: string, schublade: Schublade, boxen: Box[], eigene: Eigenteil[] = [], nurEigene = false) {
+function anProjekt(
+  name: string,
+  schublade: Schublade,
+  boxen: Box[],
+  eigene: Eigenteil[] = [],
+  nurEigene = false,
+  ersatzteile: Ersatzteil[] = [],
+  nurErsatz = false,
+) {
   return {
     format: "cadstudio.projekt",
     version: 1,
@@ -751,6 +845,8 @@ function anProjekt(name: string, schublade: Schublade, boxen: Box[], eigene: Eig
     notiz: "",
     eigene,
     nur_eigene: nurEigene,
+    ersatzteile,
+    nur_ersatz: nurErsatz,
     boxen: boxen.map((box) => ({
       id: box.id,
       name: box.name,
@@ -769,6 +865,29 @@ function anProjekt(name: string, schublade: Schublade, boxen: Box[], eigene: Eig
       art: box.art,
     })),
   };
+}
+
+function parameterZahlen(parameter: Record<string, string | number>) {
+  const aus: Record<string, string | number> = {};
+  for (const [key, wert] of Object.entries(parameter)) {
+    if (typeof wert === "string" && /^-?\d+(\.\d+)?$/.test(wert)) aus[key] = Number(wert);
+    else aus[key] = wert;
+  }
+  return aus;
+}
+
+function neuesErsatzteil(katalog: ErsatzArt[], art: string, vorhanden: Ersatzteil[]): Ersatzteil | null {
+  const vorlage = katalog.find((e) => e.id === art);
+  if (!vorlage) return null;
+  const nummern = vorhanden.map((t) => Number(/^ET(\d+)$/.exec(t.id)?.[1] || 0));
+  const id = `ET${Math.max(0, ...nummern) + 1}`;
+  return { id, art, name: `${vorlage.name} ${id}`, parameter: { ...vorlage.standard } };
+}
+
+function ersatzStart(katalog: ErsatzArt[]): Ersatzteil[] {
+  const clip = katalog.find((e) => e.id === "kabelclip") ?? katalog[0];
+  if (!clip) return [];
+  return [{ id: "ET1", art: clip.id, name: clip.name, parameter: { ...clip.standard } }];
 }
 
 function boxVonServer(roh: Record<string, unknown>): Box {

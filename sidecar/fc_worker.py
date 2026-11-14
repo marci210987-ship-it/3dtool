@@ -368,6 +368,10 @@ def _shapes_fuer(teil: dict):
         return {"Rastclip": _drucklage(make_rastclip_shape(params), App)}, {"zentriert": False}
     if rolle == "eigen":
         return {"Eigenteil": _drucklage(_eigen_shape(params), App)}, {"zentriert": False}
+    if rolle == "ersatzteil":
+        from sidecar.ersatzteil_geom import baue_ersatzteil
+
+        return {"Ersatzteil": _drucklage(baue_ersatzteil(params), App)}, {"zentriert": False}
     if rolle == "besteck":
         from hausraster_phase3_geom import besteck_teile
 
@@ -428,7 +432,7 @@ def baue_teil(teil: dict, out_dir: Path) -> dict:
             continue
         bauraum = _bauraum_fehler(info["bbox_mm"])
         soll_fehler = ""
-        if haupt and teil["rolle"] in ("grundplatte", "box", "phase4", "eigen"):
+        if haupt and teil["rolle"] in ("grundplatte", "box", "phase4", "eigen", "ersatzteil"):
             soll_fehler = _passt_soll(info["bbox_mm"], soll)
         haupt = False
         if bauraum or soll_fehler:
@@ -441,6 +445,11 @@ def baue_teil(teil: dict, out_dir: Path) -> dict:
         if teil["rolle"] == "eigen":
             # Das Tabellenblatt kennt nur Zahlen; die Formen stehen im Lesen-Text.
             formen_text = "\nFormen (mm, Draufsicht): " + json.dumps(params.pop("Formen", []), ensure_ascii=False)
+        if teil["rolle"] == "ersatzteil":
+            texte = {k: v for k, v in params.items() if isinstance(v, str)}
+            for key in texte:
+                params.pop(key)
+            formen_text = "\n" + "\n".join("%s: %s" % (k, v) for k, v in texte.items())
         bemerkung = (
             "Hausraster 0.2-qs1, erzeugt von CAD Studio.\n"
             "Teil %s – %s.\n"

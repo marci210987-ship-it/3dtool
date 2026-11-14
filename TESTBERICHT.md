@@ -127,3 +127,16 @@ Fund: jsdom kennt `getScreenCTM` nicht; der Zugriff ist jetzt optional abgesiche
 Fund: Eine Vorlage oder ein Import neben einem leeren Startteil ließ das leere Teil stehen und blockierte den Export. Ein leeres aktives Teil wird jetzt ersetzt. Der E2E-Test lief vorher nur mit Linux-Pfaden und startete keine Server; er ist portabel und startet Dienst und Oberfläche selbst.
 
 Nicht ausgeführt: `npx playwright test` (Spezifikation auf die neue Schrittnummer „5. Drucken“ angepasst, aber nicht gelaufen), Start des Windows-Installers, Druck auf dem P2S, Passung der Füllplatten und Spiele.
+
+## Ersatzteil-Generator (14. November 2026)
+
+FreeCAD 1.1.4 auf Linux (`AppRun freecadcmd`). Acht Teile: Kabelclip, Distanzhülse, Unterlegscheibe, Wandhaken, Möbelfuß, Drehknopf, Stopfen, Winkel. Nichts hier ist geschätzt. Ein Start auf Windows-Hardware hat nicht stattgefunden.
+
+| Prüfung | Ergebnis |
+|---|---|
+| `python3 -m unittest tests.test_ersatzteil` mit `FREECADCMD` | bestanden, 14. November 2026. Standard und Extremwerte jeder Art exportiert (STL wasserdicht, Bounding-Box zum Soll, FCStd erneut als gültiger Körper). Kabelclip Durchmesser 4 mm gegen 12 mm: Tiefe und Höhe der Bounding-Box wachsen. Ungültige Werte (zu dünn, außerhalb der Grenzen, zu großes Loch) werden auf Deutsch abgelehnt, der Auftrag bleibt `ok` falsch. |
+| `python3 -m unittest tests.test_layout tests.test_stlcheck tests.test_detect tests.test_projekt tests.test_server tests.test_vorlagen tests.test_einbetten tests.test_ersatzteil` | bestanden, 36 Tests |
+| `python3 -m unittest tests.test_abnahme tests.test_sonder tests.test_eigenteil` | bestanden, 49 Tests. Die Schublade und die gezeichneten Teile bleiben grün. |
+| `npm test`, `npm run build` | bestanden, 51 Vitest-Tests, Produktionsbau ohne Typfehler |
+| `npx playwright test tests/e2e/ersatzteil.spec.ts tests/e2e/schublade.spec.ts` mit FreeCAD | bestanden, 14. November 2026, 23,4 Sekunden. Ersatzteile ist aktiv, zwei Kacheln bleiben „in Vorbereitung“. Kabelclip: Durchmesser 0 wird abgelehnt und der Knopf gesperrt, Durchmesser 10 zeigt das Außenmaß. Der Schubladenablauf mit Export bleibt grün. |
+| Windows-Hardware, Druck, Passung der Bohrungen und des Stopfen-Spiels 0,3 mm | nicht ausgeführt |

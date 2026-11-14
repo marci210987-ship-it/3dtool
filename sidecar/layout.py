@@ -35,6 +35,7 @@ from hausraster_const import (  # noqa: E402
 )
 from hausraster_plan import plane_schublade, plan_als_text  # noqa: E402
 from sidecar.eigenteil import Eigenteil, eigen_params, eigenteil_hoehe, eigenteil_pruefen, eigenteil_rechteck_mm  # noqa: E402
+from sidecar.ersatzteil import masse as ersatz_masse, pruefe as ersatz_pruefen, katalog_nach_id  # noqa: E402
 
 
 FORMAT = "cadstudio.projekt"
@@ -103,6 +104,8 @@ class Projekt:
     boxen: list = field(default_factory=list)
     eigene: list = field(default_factory=list)
     nur_eigene: bool = False  # nur gezeichnete Teile, ohne Schublade, Platten und Boxen
+    ersatzteile: list = field(default_factory=list)
+    nur_ersatz: bool = False  # nur Ersatzteile, ohne Schublade
     notiz: str = ""
 
     def to_dict(self) -> dict:
@@ -114,6 +117,8 @@ class Projekt:
             "boxen": [asdict(b) for b in self.boxen],
             "eigene": [e.to_dict() for e in self.eigene],
             "nur_eigene": bool(self.nur_eigene),
+            "ersatzteile": list(self.ersatzteile),
+            "nur_ersatz": bool(self.nur_ersatz),
             "notiz": self.notiz,
         }
 
@@ -129,6 +134,8 @@ class Projekt:
             boxen=[Box.from_dict(b) for b in data.get("boxen") or []],
             eigene=[Eigenteil.from_dict(e) for e in data.get("eigene") or []],
             nur_eigene=bool(data.get("nur_eigene", False)),
+            ersatzteile=[dict(e) for e in data.get("ersatzteile") or []],
+            nur_ersatz=bool(data.get("nur_ersatz", False)),
             notiz=data.get("notiz") or "",
         )
 
@@ -353,7 +360,47 @@ def kollisionen(boxen: list[Box]) -> list[dict]:
     return fund
 
 
+def _ersatz_ansicht(teile: list) -> dict:
+    fehler = []
+    hinweise = []
+    if not teile:
+        fehler.append("Noch kein Ersatzteil ausgewählt.")
+    for teil in teile:
+        for meldung in ersatz_pruefen(teil.get("art"), teil.get("parameter") or {}):
+            fehler.append("%s: %s" % (teil.get("name") or teil.get("art"), meldung))
+        eintrag = katalog_nach_id(teil.get("art"))
+        if eintrag and not ersatz_pruefen(teil.get("art"), teil.get("parameter") or {}):
+            hinweise.append("%s – %s" % (teil.get("name") or eintrag["name"], eintrag["druck"]))
+    return {
+        "ok": not fehler,
+        "fehler": fehler,
+        "hinweise": hinweise,
+        "kollisionen": [],
+        "text": "",
+        "ungueltig": False,
+        "platten": [],
+        "randstreifen": [],
+        "randstreifen_hinweis": "",
+        "verbinder": [],
+        "verbinder_anzahl": 0,
+        "einheiten_x": 0,
+        "einheiten_y": 0,
+        "freie_zellen": [],
+        "nutz_x": 0,
+        "nutz_y": 0,
+        "rest_x": 0,
+        "rest_y": 0,
+        "raster_mm": RASTER_MM,
+        "plattenhoehe_mm": 0,
+        "ursprung_x_mm": 0,
+        "ursprung_y_mm": 0,
+    }
+
+
 def layout_pruefen(projekt: Projekt, plan=None) -> dict:
+    if projekt.nur_ersatz:
+        ansicht = _ersatz_ansicht(projekt.ersatzteile)
+        return {"ok": ansicht["ok"], "fehler": ansicht["fehler"], "hinweise": ansicht["hinweise"], "kollisionen": []}
     if plan is None:
         plan = plan_berechnen(projekt.schublade)
     fehler = []
@@ -460,6 +507,8 @@ def _besteck_vorpruefung(box: Box, projekt: Projekt, fehler: list, hinweise: lis
 
 
 def plan_ansicht(projekt: Projekt) -> dict:
+    if projekt.nur_ersatz:
+        return _ersatz_ansicht(projekt.ersatzteile)
     plan = plan_berechnen(projekt.schublade)
     pruefung = layout_pruefen(projekt, plan)
     ox, oy = raster_ursprung_mm(projekt.schublade, plan)
@@ -564,6 +613,28 @@ def _eigen_lage(eigen: Eigenteil, projekt: Projekt) -> dict | None:
 
 def auftrag_bauen(projekt: Projekt) -> dict:
     """Beschreibt alle Körper, ohne sie zu erzeugen."""
+    if projekt.nur_ersatz:
+        ansicht = _ersatz_ansicht(projekt.ersatzteile)
+        if not ansicht["ok"]:
+            return {"ok": False, "fehler": ansicht["fehler"], "ansicht": ansicht, "teile": []}
+        teile = []
+        for teil in projekt.ersatzteile:
+            params = dict(teil.get("parameter") or {})
+            params["art"] = teil.get("art")
+            soll = ersatz_masse(teil.get("art"), params)
+            teile.append(
+                {
+                    "id": teil.get("id") or "ET",
+                    "rolle": "ersatzteil",
+                    "name": teil.get("name") or teil.get("art"),
+                    "params": params,
+                    "soll_mm": [round(v, 3) for v in soll],
+                    "lage": None,
+                    "anzahl": 1,
+                    "passt_in_bauraum": True,
+                }
+            )
+        return {"ok": True, "fehler": [], "ansicht": ansicht, "teile": teile}
     if projekt.nur_eigene:
         fehler = layout_pruefen(projekt)["fehler"]
         ansicht = {

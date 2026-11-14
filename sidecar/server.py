@@ -254,6 +254,20 @@ class Handler(BaseHTTPRequestHandler):
 
                 _json(self, 200, {"ok": True, "result": vorlage_loeschen(str(anfrage.get("id") or ""))})
                 return
+            if cmd == "ersatz_katalog":
+                from sidecar.ersatzteil import KATALOG
+
+                _json(self, 200, {"ok": True, "result": KATALOG})
+                return
+            if cmd == "ersatz_pruefen":
+                from sidecar.ersatzteil import masse as ersatz_masse, pruefe as ersatz_pruefen
+
+                art = str(anfrage.get("art") or "")
+                parameter = anfrage.get("parameter") or {}
+                meldungen = ersatz_pruefen(art, parameter)
+                soll = ersatz_masse(art, {**parameter, "art": art}) if not meldungen else None
+                _json(self, 200, {"ok": not meldungen, "fehler": meldungen, "soll_mm": soll})
+                return
             if cmd == "autofill":
                 from sidecar.autofill import auto_bestuecken
                 from sidecar.layout import Projekt
