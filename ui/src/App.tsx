@@ -112,7 +112,17 @@ export function App() {
   );
 
   useEffect(() => {
-    gesundheit().then(setDienst);
+    let aktiv = true;
+    (async () => {
+      for (let versuch = 0; versuch < 5 && aktiv; versuch += 1) {
+        if (await gesundheit()) {
+          if (aktiv) setDienst(true);
+          return;
+        }
+        await new Promise((warten) => setTimeout(warten, 400));
+      }
+      if (aktiv) setDienst(false);
+    })();
     api<Record<string, unknown>[]>("recent").then((r) => setRecent((r.result as Array<{ pfad: string; name: string }>) || [])).catch(() => undefined);
     api<Record<string, unknown>>("settings_get").then((r) => {
       if (r.result) {
@@ -129,7 +139,17 @@ export function App() {
         );
       }
     }).catch(() => undefined);
-    api<MeineVorlage[]>("vorlagen").then((r) => setMeineVorlagen((r.result as MeineVorlage[]) || [])).catch(() => undefined);
+    (async () => {
+      for (let versuch = 0; versuch < 5 && aktiv; versuch += 1) {
+        try {
+          const r = await api<MeineVorlage[]>("vorlagen");
+          if (aktiv) setMeineVorlagen((r.result as MeineVorlage[]) || []);
+          return;
+        } catch {
+          await new Promise((warten) => setTimeout(warten, 400));
+        }
+      }
+    })();
     api("detect", { probe: false }).then((r) => setFreecad((r.result as Record<string, unknown>) || null)).catch(() => undefined);
     api<ErsatzArt[]>("ersatz_katalog").then((r) => setErsatzKatalog(r.result || [])).catch(() => undefined);
     api<KabelArt[]>("kabel_katalog").then((r) => setKabelKatalog(r.result || [])).catch(() => undefined);
@@ -140,6 +160,9 @@ export function App() {
         setGehaeuse(r.result.standard);
       })
       .catch(() => undefined);
+    return () => {
+      aktiv = false;
+    };
   }, []);
 
   async function rasterBerechnen(naechsterSchritt = true) {

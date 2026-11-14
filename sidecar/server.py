@@ -82,12 +82,16 @@ def _cors(handler: BaseHTTPRequestHandler) -> None:
 
 def _json(handler: BaseHTTPRequestHandler, code: int, payload: dict):
     data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
-    handler.send_response(code)
-    handler.send_header("Content-Type", "application/json; charset=utf-8")
-    handler.send_header("Content-Length", str(len(data)))
-    _cors(handler)
-    handler.end_headers()
-    handler.wfile.write(data)
+    try:
+        handler.send_response(code)
+        handler.send_header("Content-Type", "application/json; charset=utf-8")
+        handler.send_header("Content-Length", str(len(data)))
+        _cors(handler)
+        handler.end_headers()
+        handler.wfile.write(data)
+    except (BrokenPipeError, ConnectionAbortedError, ConnectionResetError):
+        # Der Browser hat die Seite neu geladen und die Verbindung geschlossen.
+        return
 
 
 def _verboten(handler: BaseHTTPRequestHandler):
