@@ -153,7 +153,30 @@ export function ErsatzteilAnsicht({
               ))}
             </div>
           )}
-          {ergebnis?.ok && <p className="erfolg" data-testid="export-erfolg">Das Teil ist erzeugt. Datei, Netz und Körper sind geprüft.</p>}
+          {ergebnis?.ok && (
+            <>
+              <p className="erfolg" data-testid="export-erfolg">Das Teil ist erzeugt. Datei, Netz und Körper sind geprüft.</p>
+              <ul className="dateien" data-testid="ersatz-dateien">
+                {(ergebnis.teile || []).flatMap((teil) => teil.dateien || []).map((datei) => (
+                  <li key={datei.id}>
+                    {datei.id}
+                    {datei.stl && (
+                      <>
+                        {" "}
+                        <a href={dateiUrl(datei.stl)}>STL</a>
+                      </>
+                    )}
+                    {datei.fcstd && (
+                      <>
+                        {" "}
+                        <a href={dateiUrl(datei.fcstd)}>FCStd</a>
+                      </>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
           <div className="speichern">
             <label>
               Projektdatei

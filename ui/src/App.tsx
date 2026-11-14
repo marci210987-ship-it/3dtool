@@ -291,7 +291,7 @@ export function App() {
   }
 
   return (
-    <div className="app">
+    <div className="app" data-modus={nurErsatz ? "ersatz" : nurEigene ? "zeichnen" : "schublade"}>
       <header>
         <button type="button" className="marke" onClick={() => setAnsicht("start")}>
           CAD Studio
@@ -321,6 +321,7 @@ export function App() {
             setBoxen([]);
             setEigene([]);
             setNurEigene(false);
+            setNurErsatz(false);
             setPlan(null);
             setErgebnis(null);
             setSchritt(1);
@@ -331,6 +332,7 @@ export function App() {
           onBereich={async (id) => {
             if (id === "schublade") {
               setNurEigene(false);
+              setNurErsatz(false);
               setAnsicht("arbeit");
             }
             if (id === "ersatz") {
@@ -358,6 +360,7 @@ export function App() {
               setBoxen([]);
               setEigene(start);
               setNurEigene(true);
+              setNurErsatz(false);
               setErgebnis(null);
               setSpeicherpfad("");
               setSchritt(4);

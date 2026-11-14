@@ -13,4 +13,8 @@ test("Ersatzteil: Kabelclip wählen, ungültigen Durchmesser ablehnen", async ({
   await page.getByTestId("feld-durchmesser_mm").fill("10");
   await expect(page.getByTestId("ersatz-fehler")).toHaveCount(0);
   await expect(page.getByTestId("ersatz-mass")).toContainText("mm");
+
+  await page.getByRole("button", { name: "CAD Studio" }).click();
+  await page.getByRole("button", { name: /Schubladen-Konfigurator/ }).click();
+  await expect(page.locator(".app")).toHaveAttribute("data-modus", "schublade");
 });

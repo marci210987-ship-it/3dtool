@@ -116,6 +116,24 @@ class ErsatzExport(unittest.TestCase):
             exportiere(eintrag["name"], [teil_anlegen(eintrag["id"], id_="ET1")])
             exportiere(eintrag["name"] + " extrem", [teil_anlegen(eintrag["id"], EXTREM[eintrag["id"]], id_="ET1")])
 
+    def test_d_welle_laesst_material_an_der_abflachung(self):
+        freecad = _freecad()
+        if not freecad:
+            self.fail("FreeCADCmd fehlt. Der Export wurde nicht als bestanden gewertet.")
+        os.environ["FREECADCMD"] = freecad
+        from sidecar.engine import generiere
+
+        basis = {"durchmesser_mm": 24, "hoehe_mm": 14, "welle_mm": 6, "tiefe_mm": 8}
+
+        def volumen(art):
+            projekt = Projekt(name=art, nur_ersatz=True, ersatzteile=[teil_anlegen("knopf", {**basis, "wellenart": art}, id_="ET1")])
+            with tempfile.TemporaryDirectory() as tmp:
+                ergebnis = generiere(projekt, Path(tmp), freecad_pfad=freecad)
+                self.assertTrue(ergebnis["ok"], ergebnis.get("fehler"))
+                return ergebnis["teile"][0]["dateien"][0]["solid"]["volume_mm3"]
+
+        self.assertGreater(volumen("d"), volumen("rund"))
+
 
 if __name__ == "__main__":
     unittest.main()

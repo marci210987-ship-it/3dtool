@@ -107,11 +107,13 @@ def _knopf(p):
     welle = float(p["welle_mm"])
     tiefe = float(p["tiefe_mm"])
     koerper = _zyl(d / 2.0, h, 0, 0, 0)
-    koerper = koerper.cut(_zyl(welle / 2.0, tiefe + 0.2, 0, 0, -0.2))
+    radius = welle / 2.0
+    bohrung = _zyl(radius, tiefe + 0.4, 0, 0, -0.2)
     if str(p.get("wellenart")) == "d":
-        # Abflachung: eine Seite der Bohrung wird bis zur Sehne freigeschnitten.
-        sehne = welle / 2.0 - min(1.5, welle * 0.25)
-        koerper = koerper.cut(_box(sehne, -welle, -0.2, welle, welle, tiefe))
+        # Der Schneider ist selbst D-förmig: die Seite jenseits der Sehne bleibt Material.
+        sehne = radius - min(1.5, radius * 0.5)
+        bohrung = bohrung.cut(_box(sehne, -(radius + 1), -0.5, radius + 1, radius + 1, tiefe + 0.6))
+    koerper = koerper.cut(bohrung)
     koerper.translate(App.Vector(d / 2.0, d / 2.0, 0))
     return _einzel(koerper, "Drehknopf")
 

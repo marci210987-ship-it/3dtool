@@ -72,4 +72,32 @@ describe("Ersatzteil-Formular", () => {
     expect(screen.getByTestId("ersatz-fehler").textContent).toMatch(/außerhalb/);
     expect((screen.getByTestId("ersatz-erzeugen") as HTMLButtonElement).disabled).toBe(true);
   });
+
+  it("zeigt STL und FCStd nach erfolgreichem Export", () => {
+    render(
+      <ErsatzteilAnsicht
+        katalog={katalog}
+        teile={[{ id: "ET1", art: "kabelclip", name: "Kabelclip", parameter: { durchmesser_mm: 6, befestigung: "schraube" } }]}
+        aktivId="ET1"
+        fehler={[]}
+        soll={[14, 26.4, 5.8]}
+        onWaehlen={() => undefined}
+        onNeu={() => undefined}
+        onParameter={() => undefined}
+        onErzeugen={() => undefined}
+        ergebnis={{
+          ok: true,
+          teile: [{ dateien: [{ id: "ET1", stl: "/tmp/ET1.stl", fcstd: "/tmp/ET1.FCStd", ok: true }] }],
+        }}
+        rechnet={false}
+        jobText=""
+        speicherpfad=""
+        onSpeicherpfad={() => undefined}
+        onSpeichern={() => undefined}
+      />,
+    );
+    const dateien = screen.getByTestId("ersatz-dateien");
+    expect(dateien.textContent).toMatch(/STL/);
+    expect(dateien.textContent).toMatch(/FCStd/);
+  });
 });
