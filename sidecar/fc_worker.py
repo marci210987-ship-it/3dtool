@@ -376,6 +376,11 @@ def _shapes_fuer(teil: dict):
         from sidecar.kabel_geom import baue_kabel
 
         return {"Kabel": _drucklage(baue_kabel(params), App)}, {"zentriert": False}
+    if rolle == "gehaeuse":
+        from sidecar.gehaeuse_geom import baue_gehaeuse
+
+        name = "Deckel" if str(params.get("teil")) == "deckel" else "Gehäuse"
+        return {name: _drucklage(baue_gehaeuse(params), App)}, {"zentriert": False}
     if rolle == "besteck":
         from hausraster_phase3_geom import besteck_teile
 
@@ -436,7 +441,7 @@ def baue_teil(teil: dict, out_dir: Path) -> dict:
             continue
         bauraum = _bauraum_fehler(info["bbox_mm"])
         soll_fehler = ""
-        if haupt and teil["rolle"] in ("grundplatte", "box", "phase4", "eigen", "ersatzteil", "kabel"):
+        if haupt and teil["rolle"] in ("grundplatte", "box", "phase4", "eigen", "ersatzteil", "kabel", "gehaeuse"):
             soll_fehler = _passt_soll(info["bbox_mm"], soll)
         haupt = False
         if bauraum or soll_fehler:
@@ -449,8 +454,8 @@ def baue_teil(teil: dict, out_dir: Path) -> dict:
         if teil["rolle"] == "eigen":
             # Das Tabellenblatt kennt nur Zahlen; die Formen stehen im Lesen-Text.
             formen_text = "\nFormen (mm, Draufsicht): " + json.dumps(params.pop("Formen", []), ensure_ascii=False)
-        if teil["rolle"] in ("ersatzteil", "kabel"):
-            texte = {k: v for k, v in params.items() if isinstance(v, str)}
+        if teil["rolle"] in ("ersatzteil", "kabel", "gehaeuse"):
+            texte = {k: v for k, v in params.items() if not isinstance(v, (int, float))}
             for key in texte:
                 params.pop(key)
             formen_text = "\n" + "\n".join("%s: %s" % (k, v) for k, v in texte.items())
@@ -599,6 +604,10 @@ def behandle(anfrage: dict) -> dict:
             from sidecar.kabel_geom import passung_geometrisch
 
             return _antwort(True, passung_geometrisch(anfrage.get("a") or {}, anfrage.get("b") or {}))
+        if cmd == "gehaeuse_passung":
+            from sidecar.gehaeuse_geom import passung as gehaeuse_passung
+
+            return _antwort(True, gehaeuse_passung(anfrage.get("parameter") or {}))
         return _antwort(False, fehler="Unbekannter Befehl: %s" % cmd)
     except Exception as exc:
         return _antwort(False, fehler="%s\n%s" % (exc, traceback.format_exc()))

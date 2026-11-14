@@ -259,6 +259,21 @@ class Handler(BaseHTTPRequestHandler):
 
                 _json(self, 200, {"ok": True, "result": KATALOG})
                 return
+            if cmd == "gehaeuse_vorlagen":
+                from sidecar.gehaeuse import VORLAGEN, standard
+
+                _json(self, 200, {"ok": True, "result": {"vorlagen": VORLAGEN, "standard": standard()}})
+                return
+            if cmd == "gehaeuse_pruefen":
+                from sidecar.gehaeuse import masse_deckel, masse_korpus, pruefe as gehaeuse_pruefen
+
+                parameter = anfrage.get("parameter") or {}
+                meldungen = gehaeuse_pruefen(parameter)
+                soll = None
+                if not meldungen:
+                    soll = {"korpus": masse_korpus(parameter), "deckel": masse_deckel(parameter)}
+                _json(self, 200, {"ok": not meldungen, "fehler": meldungen, "soll_mm": soll})
+                return
             if cmd == "kabel_katalog":
                 from sidecar.kabel import KATALOG
 

@@ -59,7 +59,7 @@ jobs:
           npm test
           npm run build
       - name: Python-Tests mit FreeCAD
-        run: python -m unittest tests.test_layout tests.test_stlcheck tests.test_detect tests.test_projekt tests.test_server tests.test_abnahme tests.test_sonder tests.test_eigenteil tests.test_vorlagen tests.test_ersatzteil tests.test_kabel
+        run: python -m unittest tests.test_layout tests.test_stlcheck tests.test_detect tests.test_projekt tests.test_server tests.test_abnahme tests.test_sonder tests.test_eigenteil tests.test_vorlagen tests.test_ersatzteil tests.test_kabel tests.test_gehaeuse
       - name: Browser für Playwright
         run: npx playwright install chromium
       - name: Bedienung (Playwright, mit FreeCAD-Export)

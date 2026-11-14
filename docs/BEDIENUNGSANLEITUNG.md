@@ -6,7 +6,7 @@ Der Druckerbezug ist ein Bambu Lab P2S mit 256 × 256 × 256 mm Bauraum. Das Ras
 
 ## Start
 
-Auf der Startseite liegen fünf Bereiche. **Schubladen-Konfigurator**, **Eigene Teile zeichnen**, **Ersatzteile** und **Kabelmanagement** sind benutzbar. Elektronikgehäuse steht auf „in Vorbereitung“.
+Auf der Startseite liegen fünf Bereiche. **Schubladen-Konfigurator**, **Eigene Teile zeichnen**, **Ersatzteile**, **Kabelmanagement** und **Elektronikgehäuse** sind benutzbar.
 
 Darunter stehen die zuletzt geöffneten Projekte. Ein Klick lädt die Datei wieder, auch nach einem Neustart des Programms.
 
@@ -152,6 +152,24 @@ Das Spiel am Stopfen (Vorgabe 0,3 mm) und die Passung der Bohrungen sind nicht a
 Ein Teil antippen fügt es mit dem Profil des gerade gewählten Teils hinzu. **Dieses Profil auf alle Teile übertragen** gleicht die anderen an. Weicht ein Teil ab, steht auf Deutsch, welches Maß nicht zusammenpasst, und **Teile berechnen** bleibt aus. Zu dünne Wände (unter 1,2 mm, und nur in 0,4-mm-Schritten) und Stücke über 256 mm werden ebenfalls abgelehnt.
 
 Unter den Feldern steht, wie das Teil auf das Druckbett gehört: Kanäle und Ecken mit der Öffnung nach oben, Deckel und Lasche flach. Die Skizze und die 3D-Ansicht vor dem Berechnen sind vereinfacht und so beschriftet. Nach dem Berechnen kommt die Ansicht aus der STL-Datei. Grün wird es nur, wenn Datei, geschlossenes Netz und gültiger Körper stimmen. STL und FCStd lassen sich danach öffnen. **Speichern** schreibt dasselbe Projektformat `.cadstudio.json`.
+
+## Elektronikgehäuse
+
+Über die Kachel **Elektronikgehäuse** entsteht ein zweiteiliges Gehäuse. Du gibst den **Innenraum** ein, nicht das Außenmaß. Wand, Boden und Deckel sind mindestens 1,2 mm dick und ein Vielfaches von 0,4 mm. Die Ecken können gerundet sein. Das Spiel zum Deckel ist standardmäßig 0,20 mm. Das ist die Lücke im Modell. Ob sie gedruckt passt, ist nicht geprüft.
+
+**Schraubdeckel:** vier Säulen in den Ecken, Kernloch 2,5 mm für eine M3-Blechschraube oder 2,0 mm für M2,5. Der Deckel hat die passenden Durchgangslöcher, auf Wunsch mit Senkung. **Schiebedeckel:** zwei Schienen innen, der Deckel wird von vorn eingeschoben.
+
+**Platine:** eine Vorlage setzt Größe und Lochbild. Die Zahlen sind Nennwerte aus den Zeichnungen, kein vermessenes Brett.
+
+- Raspberry Pi 4 und Raspberry Pi 5: 85 × 56 mm, vier Bohrungen Ø 2,7 mm im Raster 58 × 49 mm, 3,5 mm vom linken Rand und von beiden Längskanten. Quelle: Raspberry Pi Ltd, Mechanical Drawing der Pi 4 (RP-008343-DS) und die Mechanical Drawing der Pi 5.
+- Arduino Uno R3 (A000066): 68,58 × 53,34 mm, vier Bohrungen Ø 3,2 mm, kein Rechteck. Ursprung an der USB-Kante unten links: (13,97 / 2,54), (15,24 / 50,80), (66,04 / 7,62), (66,04 / 35,56) mm. Quelle: Arduino-Datenblatt A000066, Abschnitt „Board Outline & Mounting Holes“, und die UNO-R3-Referenz.
+- Eigenes Rechteck: vier Löcher, in der Platine zentriert, Abstand frei wählbar.
+
+Die Stützen stehen unter diesen Löchern. Ein M2,5- oder M3-Kernloch oder ein Nennloch für ein Einpressgewinde (3,2 mm bzw. 4,0 mm, typische Herstellerangabe, nicht geprüft). Passt die Platine nicht in den Innenraum oder trifft eine Stütze eine Schraubensäule, bleibt der Export aus.
+
+**Öffnungen:** Rechteck oder Rund auf vorne, hinten, links, rechts oder im Boden. Position ist die Mitte entlang der Wand, die zweite Zahl die Höhe von außen unten (beim Boden die Tiefe). Lüftungsschlitze und zwei Wandlaschen hinten lassen sich dazuschalten. Eine Öffnung an einer Schraubensäule oder durch den Rand wird abgelehnt.
+
+Drucken: Gehäuse mit der Öffnung nach oben, Deckel flach. Die Vorschau vor dem Berechnen ist vereinfacht und so beschriftet. Danach kommt die Ansicht aus der STL. Grün wird es nur, wenn Datei, geschlossenes Netz und gültiger Körper für Gehäuse und Deckel stimmen. **Speichern** nutzt dasselbe Projektformat.
 
 ## Was die Dateien nicht versprechen
 

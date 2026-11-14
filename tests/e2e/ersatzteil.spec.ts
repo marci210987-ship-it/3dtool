@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 
 test("Ersatzteil: Kabelclip wählen, ungültigen Durchmesser ablehnen", async ({ page }) => {
   await page.goto("/");
-  await expect(page.getByText("in Vorbereitung")).toHaveCount(1);
+  await expect(page.getByText("in Vorbereitung")).toHaveCount(0);
   await page.getByRole("button", { name: /Ersatzteile/ }).click();
   await expect(page.getByTestId("ersatz-kabelclip")).toBeVisible();
   await expect(page.getByTestId("feld-durchmesser_mm")).toHaveValue("6");

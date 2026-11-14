@@ -153,4 +153,16 @@ FreeCAD 1.1.4 auf Linux (`AppRun freecadcmd`). Fünf Teile eines Systems: Kabelk
 | `npm test`, `npm run build` | bestanden, 14. November 2026, 56 Vitest-Tests, Produktionsbau ohne Typfehler |
 | `npx playwright test tests/e2e/kabel.spec.ts tests/e2e/ersatzteil.spec.ts tests/e2e/schublade.spec.ts` | bestanden, 14. November 2026. Kabelmanagement ist aktiv, eine Kachel bleibt „in Vorbereitung“. Wand 0,4 mm wird abgelehnt und der Knopf gesperrt. Eine Ecke mit anderer Innenbreite meldet „passen nicht“. Profil angleichen hebt die Meldung auf. „Neue Schublade“ verlässt den Kabel-Modus. Der Schubladenablauf mit Export bleibt grün (23,4 Sekunden). |
 | Windows-Hardware, Druck, ob das Spiel von 0,20 mm auf dem P2S sitzt | nicht ausgeführt |
+| GitHub Actions `windows.yml`, Commit `631255c`, beide Jobs | bestanden, 14. November 2026. Lauf [43575410119](https://github.com/marci210987-ship-it/3dtool/actions/runs/43575410119). Jobs `tests` und `installer` grün. Artifacts: `cad-studio-windows-msi` 14 340 270 Byte, `cad-studio-windows-setup` 11 409 354 Byte. [Artifacts](https://github.com/marci210987-ship-it/3dtool/actions/runs/43575410119#artifacts). Der Installer wurde dabei nicht auf einem privaten Windows-PC gestartet. |
+
+## Elektronikgehäuse (14. November 2026)
+
+FreeCAD 1.1.4 auf Linux (`AppRun freecadcmd`). Innenmaß, Schraubdeckel mit Säulen und optionaler Senkung, Schiebedeckel, Platinenstützen für Raspberry Pi 4, Raspberry Pi 5 und Arduino Uno R3 sowie eigene Rechtecke, rechteckige und runde Öffnungen, Lüftungsschlitze, Wandlaschen. Nichts hier ist geschätzt. Ein Start auf Windows-Hardware hat nicht stattgefunden. Lochbilder sind Nennwerte der genannten Zeichnungen. Das Spiel und die Einpresslöcher sind nicht gedruckt geprüft.
+
+| Prüfung | Ergebnis |
+|---|---|
+| `python3 -m unittest tests.test_gehaeuse` mit `FREECADCMD` | bestanden, 14. November 2026, 6 Tests. Standard, Extrem (Arduino Uno, Senkung, Lüftung, Laschen) und Schiebedeckel exportiert: Korpus und Deckel je STL wasserdicht und mannigfaltig, ein gültiger Körper, Bounding-Box zum Soll, FCStd erneut geladen. Innenbreite 100 gegen 130 mm: die Bounding-Box in X wächst um 30 mm. Deckel auf dem Korpus: Schnittvolumen 0, gemessene Lücken 0,20 mm, bei Spiel 0,35 mm entsprechend 0,35 mm. Schraubenlöcher fluchten mit den Säulen, Platinenlöcher mit den Stützen, auch beim Uno und beim Schiebedeckel. Ungültige Wand, zu große Platine und eine Öffnung an der Säule werden auf Deutsch abgelehnt, der Auftrag bleibt erfolglos. |
+| `npm test`, `npm run build` | bestanden, 14. November 2026, 59 Vitest-Tests. `tsc --noEmit` ohne Typfehler |
+| `npx playwright test tests/e2e/gehaeuse.spec.ts tests/e2e/kabel.spec.ts tests/e2e/ersatzteil.spec.ts tests/e2e/schublade.spec.ts` | bestanden, 14. November 2026. Elektronikgehäuse ist aktiv, keine Kachel mehr „in Vorbereitung“. Wand 0,4 mm wird abgelehnt und der Knopf gesperrt, 1,6 mm hebt die Meldung auf. „Neue Schublade“ verlässt den Gehäuse-Modus. Kabel, Ersatzteile und der Schubladenablauf mit Export (23 Sekunden) bleiben grün. |
+| Windows-Hardware, Druck, Sitz des Deckels und der Platine, Einpressgewinde | nicht ausgeführt |
 | GitHub Actions `windows.yml` für diesen Stand | noch nicht ausgeführt | |

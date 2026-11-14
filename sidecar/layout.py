@@ -36,6 +36,7 @@ from hausraster_const import (  # noqa: E402
 from hausraster_plan import plane_schublade, plan_als_text  # noqa: E402
 from sidecar.eigenteil import Eigenteil, eigen_params, eigenteil_hoehe, eigenteil_pruefen, eigenteil_rechteck_mm  # noqa: E402
 from sidecar.ersatzteil import masse as ersatz_masse, pruefe as ersatz_pruefen, katalog_nach_id  # noqa: E402
+from sidecar.gehaeuse import masse_deckel as gehaeuse_deckel, masse_korpus as gehaeuse_korpus, pruefe as gehaeuse_pruefen  # noqa: E402
 from sidecar.kabel import (  # noqa: E402
     katalog_nach_id as kabel_katalog,
     nutzlaengen as kabel_laengen,
@@ -114,6 +115,8 @@ class Projekt:
     nur_ersatz: bool = False  # nur Ersatzteile, ohne Schublade
     kabel: list = field(default_factory=list)
     nur_kabel: bool = False  # nur Kabelmanagement, ohne Schublade
+    gehaeuse: dict = field(default_factory=dict)
+    nur_gehaeuse: bool = False  # nur das Elektronikgehäuse, ohne Schublade
     notiz: str = ""
 
     def to_dict(self) -> dict:
@@ -129,6 +132,8 @@ class Projekt:
             "nur_ersatz": bool(self.nur_ersatz),
             "kabel": list(self.kabel),
             "nur_kabel": bool(self.nur_kabel),
+            "gehaeuse": dict(self.gehaeuse),
+            "nur_gehaeuse": bool(self.nur_gehaeuse),
             "notiz": self.notiz,
         }
 
@@ -148,6 +153,8 @@ class Projekt:
             nur_ersatz=bool(data.get("nur_ersatz", False)),
             kabel=[dict(k) for k in data.get("kabel") or []],
             nur_kabel=bool(data.get("nur_kabel", False)),
+            gehaeuse=dict(data.get("gehaeuse") or {}),
+            nur_gehaeuse=bool(data.get("nur_gehaeuse", False)),
             notiz=data.get("notiz") or "",
         )
 
@@ -453,7 +460,44 @@ def _kabel_ansicht(teile: list) -> dict:
     }
 
 
+def _gehaeuse_ansicht(daten: dict) -> dict:
+    fehler = gehaeuse_pruefen(daten or {})
+    hinweise = []
+    if not fehler and daten:
+        art = "Schraubdeckel, Öffnung nach oben." if str(daten.get("deckel")) == "schraube" else "Schiebedeckel von vorn einschieben, Gehäuse mit der Öffnung nach oben."
+        hinweise.append(art + " Das Spiel ist die Lücke im Modell, nicht am Druck geprüft.")
+        if str(daten.get("platine")) not in ("", "keine"):
+            hinweise.append("Die Platinenmaße sind Nennwerte aus der genannten Zeichnung, kein vermessenes Brett.")
+    return {
+        "ok": not fehler,
+        "fehler": fehler,
+        "hinweise": hinweise,
+        "kollisionen": [],
+        "text": "",
+        "ungueltig": False,
+        "platten": [],
+        "randstreifen": [],
+        "randstreifen_hinweis": "",
+        "verbinder": [],
+        "verbinder_anzahl": 0,
+        "einheiten_x": 0,
+        "einheiten_y": 0,
+        "freie_zellen": [],
+        "nutz_x": 0,
+        "nutz_y": 0,
+        "rest_x": 0,
+        "rest_y": 0,
+        "raster_mm": RASTER_MM,
+        "plattenhoehe_mm": 0,
+        "ursprung_x_mm": 0,
+        "ursprung_y_mm": 0,
+    }
+
+
 def layout_pruefen(projekt: Projekt, plan=None) -> dict:
+    if projekt.nur_gehaeuse:
+        ansicht = _gehaeuse_ansicht(projekt.gehaeuse)
+        return {"ok": ansicht["ok"], "fehler": ansicht["fehler"], "hinweise": ansicht["hinweise"], "kollisionen": []}
     if projekt.nur_kabel:
         ansicht = _kabel_ansicht(projekt.kabel)
         return {"ok": ansicht["ok"], "fehler": ansicht["fehler"], "hinweise": ansicht["hinweise"], "kollisionen": []}
@@ -566,6 +610,8 @@ def _besteck_vorpruefung(box: Box, projekt: Projekt, fehler: list, hinweise: lis
 
 
 def plan_ansicht(projekt: Projekt) -> dict:
+    if projekt.nur_gehaeuse:
+        return _gehaeuse_ansicht(projekt.gehaeuse)
     if projekt.nur_kabel:
         return _kabel_ansicht(projekt.kabel)
     if projekt.nur_ersatz:
@@ -674,6 +720,30 @@ def _eigen_lage(eigen: Eigenteil, projekt: Projekt) -> dict | None:
 
 def auftrag_bauen(projekt: Projekt) -> dict:
     """Beschreibt alle Körper, ohne sie zu erzeugen."""
+    if projekt.nur_gehaeuse:
+        ansicht = _gehaeuse_ansicht(projekt.gehaeuse)
+        if not ansicht["ok"]:
+            return {"ok": False, "fehler": ansicht["fehler"], "ansicht": ansicht, "teile": []}
+        teile = []
+        for stueck, soll in (
+            ("korpus", gehaeuse_korpus(projekt.gehaeuse)),
+            ("deckel", gehaeuse_deckel(projekt.gehaeuse)),
+        ):
+            params = dict(projekt.gehaeuse)
+            params["teil"] = stueck
+            teile.append(
+                {
+                    "id": "G_%s" % stueck,
+                    "rolle": "gehaeuse",
+                    "name": "Gehäuse" if stueck == "korpus" else "Deckel",
+                    "params": params,
+                    "soll_mm": [round(float(v), 3) for v in soll],
+                    "lage": None,
+                    "anzahl": 1,
+                    "passt_in_bauraum": True,
+                }
+            )
+        return {"ok": True, "fehler": [], "ansicht": ansicht, "teile": teile}
     if projekt.nur_kabel:
         ansicht = _kabel_ansicht(projekt.kabel)
         if not ansicht["ok"]:
