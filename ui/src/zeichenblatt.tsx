@@ -36,6 +36,7 @@ import {
   formBox,
   textMasse,
   langlochAus,
+  traghoehe,
   gruppeBox,
   gruppeKopieren,
   gruppeSpiegeln,
@@ -260,7 +261,7 @@ export function Zeichnen({
 
   function textSetzen(p: Punkt) {
     if (!teil || !textEingabe.trim()) return;
-    const oben = gesamthoehe(teil);
+    const oben = traghoehe(teil, p);
     const basis = { typ: "text" as const, x: p[0], y: p[1], text: textEingabe, schrift_mm: schriftHoehe };
     const form: Form =
       textArt === "erhaben"

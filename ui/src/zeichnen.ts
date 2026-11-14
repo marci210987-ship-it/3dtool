@@ -738,3 +738,26 @@ export function gruppeSpiegeln(formen: Form[], indizes: number[], achse: "x" | "
   const menge = new Set(indizes);
   return formen.map((f, i) => (menge.has(i) ? spiegeln(f, achse, pos, teilHoehe) : f));
 }
+
+/**
+ * Höhe der Fläche, auf der ein Text an Punkt p sitzt: Oberkante der Material-Formen (ohne andere Texte), die p enthalten,
+ * sonst die höchste Oberkante ohne Texte. So schweben zwei erhabene Beschriftungen auf derselben Platte nicht übereinander.
+ */
+export function traghoehe(teil: Pick<Eigenteil, "formen" | "hoehe_mm" | "profil" | "dreh_x_mm" | "dreh_y_mm">, p: Punkt): number {
+  const traeger = teil.formen.filter((f) => !f.loch && f.typ !== "text");
+  const darunter = traeger.filter((f) => {
+    const [x0, y0, x1, y1] = formBox(f);
+    return p[0] >= x0 - 1e-9 && p[0] <= x1 + 1e-9 && p[1] >= y0 - 1e-9 && p[1] <= y1 + 1e-9;
+  });
+  const oberkanten = (liste: Form[]) => liste.map((f) => formOberkante(f, teil.hoehe_mm));
+  const profil = teil.profil ?? [];
+  let hoehe = 0;
+  if (darunter.length) hoehe = Math.max(...oberkanten(darunter));
+  const pb = profilBox(teil);
+  if (pb && profil.length && Math.hypot(p[0] - (teil.dreh_x_mm ?? 0), p[1] - (teil.dreh_y_mm ?? 0)) <= (pb[2] - pb[0]) / 2) {
+    hoehe = Math.max(hoehe, ...profil.map((q) => q[1]));
+  }
+  if (hoehe > 0) return bereinigen(hoehe);
+  const alle = oberkanten(traeger);
+  return bereinigen(alle.length ? Math.max(...alle) : teil.hoehe_mm);
+}

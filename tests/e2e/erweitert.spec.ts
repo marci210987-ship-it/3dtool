@@ -71,6 +71,13 @@ test("Langloch, Text und Senkung zeichnen", async ({ page }) => {
   await expect(page.getByTestId("text-panel")).toBeVisible();
   await page.getByTestId("text-inhalt").fill("A1");
   await expect(page.locator(".formliste li button", { hasText: "Text „A1“" })).toBeVisible();
+
+  // Ein zweiter erhabener Text sitzt auf der Platte, nicht auf dem ersten Text: die Gesamthöhe bleibt 10,6 mm
+  await page.getByTestId("werkzeug-text").click();
+  mm = await blattKoordinaten(blatt);
+  await page.mouse.click(mm(40, 42).x, mm(40, 42).y);
+  await expect(page.locator(".formliste li button", { hasText: "Text „M3“" })).toBeVisible();
+  await expect(page.getByTestId("teil-mass")).toContainText("× 10.6 mm");
 });
 
 test("Gruppe wählen, gemeinsam verschieben, kopieren und spiegeln", async ({ page }) => {

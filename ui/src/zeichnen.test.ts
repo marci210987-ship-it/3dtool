@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { abstandsvorschlag, masseSetzen, masswertText, aussenmass, fangpunkteVon, ausrichten, formMitte, gitter, kopieren, kreismuster, laesstSichDrehen, reihe, spiegeln, bezugsrahmen, einrasten, fangpunkte, formBox, formHoehen, formOberkante, gesamthoehe, hoehenanteil, massangaben, VORLAGEN, zahlText, kreisAus, neuesTeil, polygonAus, polygonSelbstschnitt, gruppeBox, gruppeKopieren, gruppeSpiegeln, gruppeVerschieben, langlochAus, textMasse, textNormal, aussenBox, punktEinfuegen, punktLoeschen, punktVerschieben, rechteckAus, rechteckMm, runden, teilVonServer, verschieben, verschiebenMitFang, type Form } from "./zeichnen";
+import { abstandsvorschlag, masseSetzen, masswertText, aussenmass, fangpunkteVon, ausrichten, formMitte, gitter, kopieren, kreismuster, laesstSichDrehen, reihe, spiegeln, bezugsrahmen, einrasten, fangpunkte, formBox, formHoehen, formOberkante, gesamthoehe, hoehenanteil, massangaben, VORLAGEN, zahlText, kreisAus, neuesTeil, polygonAus, polygonSelbstschnitt, gruppeBox, gruppeKopieren, gruppeSpiegeln, gruppeVerschieben, langlochAus, traghoehe, textMasse, textNormal, aussenBox, punktEinfuegen, punktLoeschen, punktVerschieben, rechteckAus, rechteckMm, runden, teilVonServer, verschieben, verschiebenMitFang, type Form } from "./zeichnen";
 
 describe("Zeichnen", () => {
   it("rastet auf das Raster ein", () => {
@@ -328,5 +328,26 @@ describe("Langloch, Text und Drehteil", () => {
     const teil = { formen: [], profil: [[0, 0], [10, 0], [5, 8]] as [number, number][], dreh_x_mm: 12, dreh_y_mm: 12 };
     expect(aussenBox(teil)).toEqual([2, 2, 22, 22]);
     expect(aussenBox({ formen: [], profil: [], dreh_x_mm: 0, dreh_y_mm: 0 })).toBeNull();
+  });
+});
+
+describe("Texthöhe", () => {
+  it("zweiter erhabener Text sitzt auf der Platte, nicht auf dem ersten Text", () => {
+    const platte = rechteckAus([0, 0], [60, 40], false) as Form;
+    const text1: Form = { typ: "text", x: 2, y: 2, text: "A", schrift_mm: 5, loch: false, z_mm: 10, h_mm: 0.6 };
+    const teil = { formen: [platte, text1], hoehe_mm: 10, profil: [], dreh_x_mm: 0, dreh_y_mm: 0 };
+    expect(traghoehe(teil, [30, 20])).toBe(10);
+    expect(traghoehe({ ...teil, formen: [platte] }, [30, 20])).toBe(10);
+  });
+  it("Stufe: Text auf der höheren Form", () => {
+    const platte = rechteckAus([0, 0], [60, 40], false) as Form;
+    const stufe = { ...(rechteckAus([10, 10], [30, 30], false) as Form), z_mm: 5, h_mm: 15 } as Form;
+    const teil = { formen: [platte, stufe], hoehe_mm: 5, profil: [], dreh_x_mm: 0, dreh_y_mm: 0 };
+    expect(traghoehe(teil, [20, 20])).toBe(20);
+    expect(traghoehe(teil, [50, 5])).toBe(5);
+  });
+  it("Punkt außerhalb aller Formen nimmt die höchste Oberkante ohne Text", () => {
+    const platte = rechteckAus([0, 0], [60, 40], false) as Form;
+    expect(traghoehe({ formen: [platte], hoehe_mm: 8, profil: [], dreh_x_mm: 0, dreh_y_mm: 0 }, [100, 100])).toBe(8);
   });
 });
