@@ -6,7 +6,7 @@ Der Druckerbezug ist ein Bambu Lab P2S mit 256 × 256 × 256 mm Bauraum. Das Ras
 
 ## Start
 
-Auf der Startseite liegen fünf Bereiche. **Schubladen-Konfigurator**, **Eigene Teile zeichnen** und **Ersatzteile** sind benutzbar. Kabelmanagement und Elektronikgehäuse stehen auf „in Vorbereitung“.
+Auf der Startseite liegen fünf Bereiche. **Schubladen-Konfigurator**, **Eigene Teile zeichnen**, **Ersatzteile** und **Kabelmanagement** sind benutzbar. Elektronikgehäuse steht auf „in Vorbereitung“.
 
 Darunter stehen die zuletzt geöffneten Projekte. Ein Klick lädt die Datei wieder, auch nach einem Neustart des Programms.
 
@@ -136,6 +136,22 @@ Ein Teil antippen legt es an. Die Maße stehen daneben, mit sinnvollen Grenzen. 
 Solange noch nicht gerechnet wurde, ist die 3D-Ansicht eine **vereinfachte Vorschau**. Nach dem Berechnen kommt die Ansicht aus der STL-Datei, und grün wird es nur, wenn Datei, geschlossenes Netz und gültiger Körper stimmen. **Speichern** schreibt dasselbe Projektformat `.cadstudio.json`. Mehrere Ersatzteile können in einer Datei liegen.
 
 Das Spiel am Stopfen (Vorgabe 0,3 mm) und die Passung der Bohrungen sind nicht an einem gedruckten Teil geprüft.
+
+## Kabelmanagement
+
+Über die Kachel **Kabelmanagement** entsteht ein Satz zusammengehöriger Teile, ohne Schublade. Alle Teile eines Satzes teilen sich dasselbe Profil: Innenbreite, Innenhöhe, Wandstärke, Spiel und Einstecktiefe. Die Vorgabe für das Spiel ist 0,20 mm. Das ist die Lücke im Modell. Ob sie gedruckt passt, ist nicht geprüft.
+
+| Teil | Wofür |
+|---|---|
+| Kabelkanal | gerades Stück, Buchse am Anfang, Stecker am Ende. Länger als das Bett wird er in Stücke geteilt. Optional mit aufsteckbarem Deckel. |
+| 90°-Ecke | Winkel mit derselben Buchse und demselben Stecker |
+| Endkappe | schließt wahlweise das Stecker- oder das Buchsen-Ende |
+| Wandhalter | Schelle um den Kanal, Lasche mit Schraubenloch |
+| Kabelauslass | kurzes Stück mit einem Loch im Boden |
+
+Ein Teil antippen fügt es mit dem Profil des gerade gewählten Teils hinzu. **Dieses Profil auf alle Teile übertragen** gleicht die anderen an. Weicht ein Teil ab, steht auf Deutsch, welches Maß nicht zusammenpasst, und **Teile berechnen** bleibt aus. Zu dünne Wände (unter 1,2 mm, und nur in 0,4-mm-Schritten) und Stücke über 256 mm werden ebenfalls abgelehnt.
+
+Unter den Feldern steht, wie das Teil auf das Druckbett gehört: Kanäle und Ecken mit der Öffnung nach oben, Deckel und Lasche flach. Die Skizze und die 3D-Ansicht vor dem Berechnen sind vereinfacht und so beschriftet. Nach dem Berechnen kommt die Ansicht aus der STL-Datei. Grün wird es nur, wenn Datei, geschlossenes Netz und gültiger Körper stimmen. STL und FCStd lassen sich danach öffnen. **Speichern** schreibt dasselbe Projektformat `.cadstudio.json`.
 
 ## Was die Dateien nicht versprechen
 

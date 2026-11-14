@@ -259,6 +259,28 @@ class Handler(BaseHTTPRequestHandler):
 
                 _json(self, 200, {"ok": True, "result": KATALOG})
                 return
+            if cmd == "kabel_katalog":
+                from sidecar.kabel import KATALOG
+
+                _json(self, 200, {"ok": True, "result": KATALOG})
+                return
+            if cmd == "kabel_system":
+                from sidecar.kabel import masse as kabel_masse, nutzlaengen, pruefe as kabel_pruefen, system_meldungen
+
+                teile = anfrage.get("teile") or []
+                meldungen = system_meldungen(teile)
+                aktiv_id = anfrage.get("aktiv")
+                aktiv = next((t for t in teile if t.get("id") == aktiv_id), teile[0] if teile else None)
+                soll = None
+                anzahl = 0
+                if aktiv and not kabel_pruefen(aktiv.get("art"), aktiv.get("parameter") or {}):
+                    soll = kabel_masse(aktiv.get("art"), aktiv.get("parameter") or {})
+                    if aktiv.get("art") == "kanal":
+                        anzahl = len(nutzlaengen(dict(aktiv.get("parameter") or {}, art="kanal")))
+                    else:
+                        anzahl = 1
+                _json(self, 200, {"ok": not meldungen, "fehler": meldungen, "soll_mm": soll, "stuecke": anzahl})
+                return
             if cmd == "ersatz_pruefen":
                 from sidecar.ersatzteil import masse as ersatz_masse, pruefe as ersatz_pruefen
 

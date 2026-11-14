@@ -372,6 +372,10 @@ def _shapes_fuer(teil: dict):
         from sidecar.ersatzteil_geom import baue_ersatzteil
 
         return {"Ersatzteil": _drucklage(baue_ersatzteil(params), App)}, {"zentriert": False}
+    if rolle == "kabel":
+        from sidecar.kabel_geom import baue_kabel
+
+        return {"Kabel": _drucklage(baue_kabel(params), App)}, {"zentriert": False}
     if rolle == "besteck":
         from hausraster_phase3_geom import besteck_teile
 
@@ -432,7 +436,7 @@ def baue_teil(teil: dict, out_dir: Path) -> dict:
             continue
         bauraum = _bauraum_fehler(info["bbox_mm"])
         soll_fehler = ""
-        if haupt and teil["rolle"] in ("grundplatte", "box", "phase4", "eigen", "ersatzteil"):
+        if haupt and teil["rolle"] in ("grundplatte", "box", "phase4", "eigen", "ersatzteil", "kabel"):
             soll_fehler = _passt_soll(info["bbox_mm"], soll)
         haupt = False
         if bauraum or soll_fehler:
@@ -445,7 +449,7 @@ def baue_teil(teil: dict, out_dir: Path) -> dict:
         if teil["rolle"] == "eigen":
             # Das Tabellenblatt kennt nur Zahlen; die Formen stehen im Lesen-Text.
             formen_text = "\nFormen (mm, Draufsicht): " + json.dumps(params.pop("Formen", []), ensure_ascii=False)
-        if teil["rolle"] == "ersatzteil":
+        if teil["rolle"] in ("ersatzteil", "kabel"):
             texte = {k: v for k, v in params.items() if isinstance(v, str)}
             for key in texte:
                 params.pop(key)
@@ -591,6 +595,10 @@ def behandle(anfrage: dict) -> dict:
             return _antwort(True, baue_alles(anfrage))
         if cmd == "verify_files":
             return _antwort(True, pruefe_dateien(anfrage))
+        if cmd == "kabel_passung":
+            from sidecar.kabel_geom import passung_geometrisch
+
+            return _antwort(True, passung_geometrisch(anfrage.get("a") or {}, anfrage.get("b") or {}))
         return _antwort(False, fehler="Unbekannter Befehl: %s" % cmd)
     except Exception as exc:
         return _antwort(False, fehler="%s\n%s" % (exc, traceback.format_exc()))

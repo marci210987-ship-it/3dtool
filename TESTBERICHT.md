@@ -141,3 +141,16 @@ FreeCAD 1.1.4 auf Linux (`AppRun freecadcmd`). Acht Teile: Kabelclip, Distanzhü
 | `npx playwright test tests/e2e/ersatzteil.spec.ts tests/e2e/schublade.spec.ts` mit FreeCAD | bestanden, 14. November 2026, 23,4 Sekunden. Ersatzteile ist aktiv, zwei Kacheln bleiben „in Vorbereitung“. Kabelclip: Durchmesser 0 wird abgelehnt und der Knopf gesperrt, Durchmesser 10 zeigt das Außenmaß. Der Schubladenablauf mit Export bleibt grün. |
 | Windows-Hardware, Druck, Passung der Bohrungen und des Stopfen-Spiels 0,3 mm | nicht ausgeführt |
 | GitHub Actions `windows.yml`, Commit `ce0f2f7`, beide Jobs | bestanden, 14. November 2026. Lauf [43570280793](https://github.com/marci210987-ship-it/3dtool/actions/runs/43570280793). Jobs `tests` und `installer` grün. Artifacts: `cad-studio-windows-msi` 14 336 174 Byte, `cad-studio-windows-setup` 11 402 054 Byte. [Artifacts](https://github.com/marci210987-ship-it/3dtool/actions/runs/43570280793#artifacts). Der Installer wurde dabei nicht auf einem privaten Windows-PC gestartet. |
+
+## Kabelmanagement (14. November 2026)
+
+FreeCAD 1.1.4 auf Linux (`AppRun freecadcmd`). Fünf Teile eines Systems: Kabelkanal (Buchse und Stecker, optionaler Deckel, Teilung auf höchstens 250 mm), 90°-Ecke, Endkappe, Wandhalter, Kabelauslass. Dasselbe Profil (Innenmaß, Wand, Spiel, Einstecktiefe). Nichts hier ist geschätzt. Ein Start auf Windows-Hardware hat nicht stattgefunden. Das Spiel ist die Lücke im Modell, kein gedruckter Sitz.
+
+| Prüfung | Ergebnis |
+|---|---|
+| `python3 -m unittest tests.test_kabel` mit `FREECADCMD` | bestanden, 14. November 2026, 9 Tests. Standard und Extremwerte jeder Art exportiert (STL wasserdicht und mannigfaltig, ein gültiger Körper, Bounding-Box zum Soll, FCStd erneut geladen). Ein Kanal von 400 mm wird in zwei Stücke plus Deckel geteilt, jedes Stück höchstens 250 mm. Zwei Kanäle mit Spiel 0,20 mm: Schnittvolumen 0, gemessene Lücken links, rechts und unten je 0,20 mm. Mit Spiel 0,35 mm liegen die Lücken bei 0,35 mm. Ein zu breiter Stecker schneidet die schmalere Buchse (Schnittvolumen über 1 mm³), die deutsche Meldung nennt die abweichende Innenbreite. Eine zu schmale Seite lässt eine größere Lücke als das Spiel. Ecke in beide Richtungen und der Wandhalter um den Kanal: Schnittvolumen 0, Lücke 0,20 mm. Ungültige Werte (Wand 0,4 mm, zu kurzer Schenkel, Spiel 2 mm, zu großes Loch, Auslass ohne Rand) werden auf Deutsch abgelehnt. |
+| `python3 -m unittest tests.test_layout tests.test_projekt tests.test_server tests.test_kabel.KabelPruefung` | bestanden, 20 Tests. Alte Projektdateien ohne das Feld `kabel` laden weiter. |
+| `npm test`, `npm run build` | bestanden, 14. November 2026, 56 Vitest-Tests, Produktionsbau ohne Typfehler |
+| `npx playwright test tests/e2e/kabel.spec.ts tests/e2e/ersatzteil.spec.ts tests/e2e/schublade.spec.ts` | bestanden, 14. November 2026. Kabelmanagement ist aktiv, eine Kachel bleibt „in Vorbereitung“. Wand 0,4 mm wird abgelehnt und der Knopf gesperrt. Eine Ecke mit anderer Innenbreite meldet „passen nicht“. Profil angleichen hebt die Meldung auf. „Neue Schublade“ verlässt den Kabel-Modus. Der Schubladenablauf mit Export bleibt grün (23,4 Sekunden). |
+| Windows-Hardware, Druck, ob das Spiel von 0,20 mm auf dem P2S sitzt | nicht ausgeführt |
+| GitHub Actions `windows.yml` für diesen Stand | noch nicht ausgeführt | |

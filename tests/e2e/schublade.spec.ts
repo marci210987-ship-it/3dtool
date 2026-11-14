@@ -12,7 +12,7 @@ fs.mkdirSync(BILDER, { recursive: true });
 test("Schublade anlegen, prüfen, speichern, neu öffnen, erzeugen", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByText("Schubladen-Konfigurator")).toBeVisible();
-  await expect(page.getByText("in Vorbereitung")).toHaveCount(2);
+  await expect(page.getByText("in Vorbereitung")).toHaveCount(1);
   await page.screenshot({ path: path.join(BILDER, "startseite.png"), fullPage: true });
 
   await page.getByTestId("neue-schublade").click();

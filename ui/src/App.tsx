@@ -2,12 +2,13 @@ import { useEffect, useMemo, useState } from "react";
 import { api, dateiUrl, gesundheit, jobStatus, leereSchublade, Schublade } from "./api";
 import { Editor } from "./editor";
 import { ErsatzArt, Ersatzteil, ErsatzteilAnsicht } from "./ersatzteile";
+import { KabelArt, Kabelteil, KabelAnsicht, profilKopieren } from "./kabel";
 import { Box, KATALOG } from "./layout";
 import { Vorschau } from "./preview";
 import { Eigenteil, neuesTeil, teilVonServer } from "./zeichnen";
 import { type MeineVorlage, Zeichnen } from "./zeichenblatt";
 
-type Ansicht = "start" | "arbeit" | "einstellungen" | "ersatz";
+type Ansicht = "start" | "arbeit" | "einstellungen" | "ersatz" | "kabel";
 
 interface Plan {
   ok: boolean;
@@ -59,7 +60,7 @@ const BEREICHE = [
   { id: "schublade", titel: "Schubladen-Konfigurator", text: "Schublade ausmessen, Raster legen, Boxen verteilen, Druckdateien erzeugen.", bereit: true },
   { id: "zeichnen", titel: "Eigene Teile zeichnen", text: "Formen zeichnen, extrudieren und als STL/FCStd ausgeben, ohne Schublade.", bereit: true },
   { id: "ersatz", titel: "Ersatzteile", text: "Clip, Hülse, Scheibe, Haken und andere kleine Teile erzeugen.", bereit: true },
-  { id: "kabel", titel: "Kabelmanagement", text: "Kanäle und Führungen.", bereit: false },
+  { id: "kabel", titel: "Kabelmanagement", text: "Kanäle, Ecken und Halter mit gemeinsamer Steckverbindung.", bereit: true },
   { id: "gehaeuse", titel: "Elektronikgehäuse", text: "Gehäuse um Platinen.", bereit: false },
 ];
 
@@ -77,6 +78,13 @@ export function App() {
   const [ersatzAktiv, setErsatzAktiv] = useState<string | null>(null);
   const [ersatzFehler, setErsatzFehler] = useState<string[]>([]);
   const [ersatzSoll, setErsatzSoll] = useState<number[] | null>(null);
+  const [kabel, setKabel] = useState<Kabelteil[]>([]);
+  const [nurKabel, setNurKabel] = useState(false);
+  const [kabelKatalog, setKabelKatalog] = useState<KabelArt[]>([]);
+  const [kabelAktiv, setKabelAktiv] = useState<string | null>(null);
+  const [kabelFehler, setKabelFehler] = useState<string[]>([]);
+  const [kabelSoll, setKabelSoll] = useState<number[] | null>(null);
+  const [kabelStuecke, setKabelStuecke] = useState(1);
   const [meineVorlagen, setMeineVorlagen] = useState<MeineVorlage[]>([]);
   const [wuensche, setWuensche] = useState<Record<string, number>>({});
   const [restFuellen, setRestFuellen] = useState(true);
@@ -93,8 +101,8 @@ export function App() {
   const [rechnet, setRechnet] = useState(false);
 
   const projekt = useMemo(
-    () => anProjekt(name, schublade, boxen, eigene, nurEigene, ersatzteile, nurErsatz),
-    [name, schublade, boxen, eigene, nurEigene, ersatzteile, nurErsatz],
+    () => anProjekt(name, schublade, boxen, eigene, nurEigene, ersatzteile, nurErsatz, kabel, nurKabel),
+    [name, schublade, boxen, eigene, nurEigene, ersatzteile, nurErsatz, kabel, nurKabel],
   );
 
   useEffect(() => {
@@ -118,6 +126,7 @@ export function App() {
     api<MeineVorlage[]>("vorlagen").then((r) => setMeineVorlagen((r.result as MeineVorlage[]) || [])).catch(() => undefined);
     api("detect", { probe: false }).then((r) => setFreecad((r.result as Record<string, unknown>) || null)).catch(() => undefined);
     api<ErsatzArt[]>("ersatz_katalog").then((r) => setErsatzKatalog(r.result || [])).catch(() => undefined);
+    api<KabelArt[]>("kabel_katalog").then((r) => setKabelKatalog(r.result || [])).catch(() => undefined);
   }, []);
 
   async function rasterBerechnen(naechsterSchritt = true) {
@@ -219,12 +228,19 @@ export function App() {
     setErsatzteile(geladeneErsatz);
     setNurErsatz(geladenNurErsatz);
     setErsatzAktiv(geladeneErsatz[0]?.id ?? null);
+    const geladenesKabel = ((roh.kabel as Kabelteil[]) || []).map((e) => ({ ...e, parameter: { ...(e.parameter || {}) } }));
+    const geladenNurKabel = Boolean(roh.nur_kabel);
+    setKabel(geladenesKabel);
+    setNurKabel(geladenNurKabel);
+    setKabelAktiv(geladenesKabel[0]?.id ?? null);
     setSpeicherpfad(pfad);
     setErgebnis(null);
     setSchritt(geladenNurEigene ? 4 : 1);
-    setAnsicht(geladenNurErsatz ? "ersatz" : "arbeit");
+    setAnsicht(geladenNurKabel ? "kabel" : geladenNurErsatz ? "ersatz" : "arbeit");
     setMeldung("");
-    const antwort = await api<Plan>("plane", { projekt: anProjekt(geladenName, geladenSchublade, geladenBoxen, geladeneEigene, geladenNurEigene) });
+    const antwort = await api<Plan>("plane", {
+      projekt: anProjekt(geladenName, geladenSchublade, geladenBoxen, geladeneEigene, geladenNurEigene, geladeneErsatz, geladenNurErsatz, geladenesKabel, geladenNurKabel),
+    });
     if (antwort.result) setPlan(antwort.result);
   }
 
@@ -254,8 +270,29 @@ export function App() {
     return () => window.clearTimeout(timer);
   }, [nurErsatz, ersatzteile, ersatzAktiv]);
 
+  useEffect(() => {
+    if (!nurKabel) return;
+    const timer = window.setTimeout(() => {
+      api("kabel_system", {
+        teile: kabel.map((teil) => ({ ...teil, parameter: parameterZahlen(teil.parameter) })),
+        aktiv: kabelAktiv,
+      }).then((antwort) => {
+        const daten = antwort as { ok?: boolean; fehler?: string[]; soll_mm?: number[] | null; stuecke?: number };
+        setKabelFehler(daten.ok ? [] : daten.fehler || ["Die Maße passen nicht."]);
+        setKabelSoll(daten.soll_mm || null);
+        setKabelStuecke(daten.stuecke || 1);
+      }).catch(() => setKabelFehler(["Der lokale Dienst antwortet nicht."]));
+    }, 200);
+    return () => window.clearTimeout(timer);
+  }, [nurKabel, kabel, kabelAktiv]);
+
   async function erzeugen() {
-    if (nurErsatz) {
+    if (nurKabel) {
+      if (kabelFehler.length) {
+        setMeldung("Zuerst die markierten Maße korrigieren.");
+        return;
+      }
+    } else if (nurErsatz) {
       if (ersatzFehler.length) {
         setMeldung("Zuerst die markierten Maße korrigieren.");
         return;
@@ -291,7 +328,7 @@ export function App() {
   }
 
   return (
-    <div className="app" data-modus={nurErsatz ? "ersatz" : nurEigene ? "zeichnen" : "schublade"}>
+    <div className="app" data-modus={nurKabel ? "kabel" : nurErsatz ? "ersatz" : nurEigene ? "zeichnen" : "schublade"}>
       <header>
         <button type="button" className="marke" onClick={() => setAnsicht("start")}>
           CAD Studio
@@ -322,6 +359,7 @@ export function App() {
             setEigene([]);
             setNurEigene(false);
             setNurErsatz(false);
+            setNurKabel(false);
             setPlan(null);
             setErgebnis(null);
             setSchritt(1);
@@ -333,6 +371,7 @@ export function App() {
             if (id === "schublade") {
               setNurEigene(false);
               setNurErsatz(false);
+              setNurKabel(false);
               setAnsicht("arbeit");
             }
             if (id === "ersatz") {
@@ -348,6 +387,7 @@ export function App() {
               setEigene([]);
               setNurEigene(false);
               setNurErsatz(true);
+              setNurKabel(false);
               setErsatzteile(start);
               setErsatzAktiv(start[0]?.id ?? null);
               setErgebnis(null);
@@ -361,12 +401,33 @@ export function App() {
               setEigene(start);
               setNurEigene(true);
               setNurErsatz(false);
+              setNurKabel(false);
               setErgebnis(null);
               setSpeicherpfad("");
               setSchritt(4);
               setAnsicht("arbeit");
               const antwort = await api<Plan>("plane", { projekt: anProjekt("Eigene Teile", schublade, [], start, true) });
               if (antwort.result) setPlan(antwort.result);
+            }
+            if (id === "kabel") {
+              let katalog = kabelKatalog;
+              if (!katalog.length) {
+                const geladen = await api<KabelArt[]>("kabel_katalog");
+                katalog = geladen.result || [];
+                setKabelKatalog(katalog);
+              }
+              const start = kabelStart(katalog);
+              setName("Kabelmanagement");
+              setBoxen([]);
+              setEigene([]);
+              setNurEigene(false);
+              setNurErsatz(false);
+              setNurKabel(true);
+              setKabel(start);
+              setKabelAktiv(start[0]?.id ?? null);
+              setErgebnis(null);
+              setSpeicherpfad("");
+              setAnsicht("kabel");
             }
           }}
         />
@@ -388,6 +449,45 @@ export function App() {
           }}
           onParameter={(id, key, wert) => {
             setErsatzteile((alt) => alt.map((teil) => (teil.id === id ? { ...teil, parameter: { ...teil.parameter, [key]: wert } } : teil)));
+            setErgebnis(null);
+          }}
+          onErzeugen={erzeugen}
+          ergebnis={ergebnis}
+          rechnet={rechnet}
+          jobText={jobText}
+          speicherpfad={speicherpfad}
+          onSpeicherpfad={setSpeicherpfad}
+          onSpeichern={speichern}
+        />
+      )}
+      {ansicht === "kabel" && (
+        <KabelAnsicht
+          katalog={kabelKatalog}
+          teile={kabel}
+          aktivId={kabelAktiv}
+          fehler={kabelFehler}
+          soll={kabelSoll}
+          stuecke={kabelStuecke}
+          onWaehlen={setKabelAktiv}
+          onNeu={(art) => {
+            const neu = neuesKabelteil(kabelKatalog, art, kabel, kabelAktiv);
+            if (!neu) return;
+            setKabel((alt) => [...alt, neu]);
+            setKabelAktiv(neu.id);
+            setErgebnis(null);
+          }}
+          onEntfernen={(id) => {
+            setKabel((alt) => alt.filter((teil) => teil.id !== id));
+            setKabelAktiv((bisher) => (bisher === id ? null : bisher));
+            setErgebnis(null);
+          }}
+          onParameter={(id, key, wert) => {
+            setKabel((alt) => alt.map((teil) => (teil.id === id ? { ...teil, parameter: { ...teil.parameter, [key]: wert } } : teil)));
+            setErgebnis(null);
+          }}
+          onAngleichen={() => {
+            if (!kabelAktiv) return;
+            setKabel((alt) => profilKopieren(alt, kabelAktiv));
             setErgebnis(null);
           }}
           onErzeugen={erzeugen}
@@ -839,6 +939,8 @@ function anProjekt(
   nurEigene = false,
   ersatzteile: Ersatzteil[] = [],
   nurErsatz = false,
+  kabel: Kabelteil[] = [],
+  nurKabel = false,
 ) {
   return {
     format: "cadstudio.projekt",
@@ -850,6 +952,8 @@ function anProjekt(
     nur_eigene: nurEigene,
     ersatzteile,
     nur_ersatz: nurErsatz,
+    kabel,
+    nur_kabel: nurKabel,
     boxen: boxen.map((box) => ({
       id: box.id,
       name: box.name,
@@ -885,6 +989,27 @@ function neuesErsatzteil(katalog: ErsatzArt[], art: string, vorhanden: Ersatztei
   const nummern = vorhanden.map((t) => Number(/^ET(\d+)$/.exec(t.id)?.[1] || 0));
   const id = `ET${Math.max(0, ...nummern) + 1}`;
   return { id, art, name: `${vorlage.name} ${id}`, parameter: { ...vorlage.standard } };
+}
+
+function neuesKabelteil(katalog: KabelArt[], art: string, vorhanden: Kabelteil[], vonId?: string | null): Kabelteil | null {
+  const vorlage = katalog.find((e) => e.id === art);
+  if (!vorlage) return null;
+  const nummern = vorhanden.map((t) => Number(/^K(\d+)$/.exec(t.id)?.[1] || 0));
+  const id = `K${Math.max(0, ...nummern) + 1}`;
+  const quelle = (vorhanden.find((t) => t.id === vonId) ?? vorhanden[0])?.parameter;
+  const parameter = { ...vorlage.standard };
+  if (quelle) {
+    for (const key of ["innenbreite_mm", "innenhoehe_mm", "wand_mm", "spiel_mm", "zapfen_mm"]) {
+      if (quelle[key] !== undefined) parameter[key] = quelle[key];
+    }
+  }
+  return { id, art, name: `${vorlage.name} ${id}`, parameter };
+}
+
+function kabelStart(katalog: KabelArt[]): Kabelteil[] {
+  const kanal = katalog.find((e) => e.id === "kanal") ?? katalog[0];
+  if (!kanal) return [];
+  return [{ id: "K1", art: kanal.id, name: kanal.name, parameter: { ...kanal.standard } }];
 }
 
 function ersatzStart(katalog: ErsatzArt[]): Ersatzteil[] {

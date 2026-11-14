@@ -36,6 +36,12 @@ from hausraster_const import (  # noqa: E402
 from hausraster_plan import plane_schublade, plan_als_text  # noqa: E402
 from sidecar.eigenteil import Eigenteil, eigen_params, eigenteil_hoehe, eigenteil_pruefen, eigenteil_rechteck_mm  # noqa: E402
 from sidecar.ersatzteil import masse as ersatz_masse, pruefe as ersatz_pruefen, katalog_nach_id  # noqa: E402
+from sidecar.kabel import (  # noqa: E402
+    katalog_nach_id as kabel_katalog,
+    nutzlaengen as kabel_laengen,
+    stuecke as kabel_stuecke,
+    system_meldungen as kabel_meldungen,
+)
 
 
 FORMAT = "cadstudio.projekt"
@@ -106,6 +112,8 @@ class Projekt:
     nur_eigene: bool = False  # nur gezeichnete Teile, ohne Schublade, Platten und Boxen
     ersatzteile: list = field(default_factory=list)
     nur_ersatz: bool = False  # nur Ersatzteile, ohne Schublade
+    kabel: list = field(default_factory=list)
+    nur_kabel: bool = False  # nur Kabelmanagement, ohne Schublade
     notiz: str = ""
 
     def to_dict(self) -> dict:
@@ -119,6 +127,8 @@ class Projekt:
             "nur_eigene": bool(self.nur_eigene),
             "ersatzteile": list(self.ersatzteile),
             "nur_ersatz": bool(self.nur_ersatz),
+            "kabel": list(self.kabel),
+            "nur_kabel": bool(self.nur_kabel),
             "notiz": self.notiz,
         }
 
@@ -136,6 +146,8 @@ class Projekt:
             nur_eigene=bool(data.get("nur_eigene", False)),
             ersatzteile=[dict(e) for e in data.get("ersatzteile") or []],
             nur_ersatz=bool(data.get("nur_ersatz", False)),
+            kabel=[dict(k) for k in data.get("kabel") or []],
+            nur_kabel=bool(data.get("nur_kabel", False)),
             notiz=data.get("notiz") or "",
         )
 
@@ -397,7 +409,54 @@ def _ersatz_ansicht(teile: list) -> dict:
     }
 
 
+def _kabel_ansicht(teile: list) -> dict:
+    fehler = kabel_meldungen(teile)
+    hinweise = []
+    for teil in teile:
+        eintrag = kabel_katalog(teil.get("art"))
+        name = teil.get("name") or (eintrag["name"] if eintrag else teil.get("art"))
+        eigene = [m for m in fehler if str(m).startswith("%s:" % name)]
+        if eintrag and not eigene:
+            hinweise.append("%s – %s" % (name, eintrag["druck"]))
+        if teil.get("art") == "kanal":
+            laengen = kabel_laengen(dict(teil.get("parameter") or {}, art="kanal"))
+            if len(laengen) > 1:
+                hinweise.append(
+                    "%s wird in %d Stücke geteilt, damit jedes auf das 256-mm-Bett passt."
+                    % (name, len(laengen))
+                )
+    if teile and not fehler:
+        hinweise.append("Alle Teile nutzen dasselbe Verbindungsprofil. Das Spiel ist die Lücke im Modell, nicht am Druck geprüft.")
+    return {
+        "ok": not fehler,
+        "fehler": fehler,
+        "hinweise": hinweise,
+        "kollisionen": [],
+        "text": "",
+        "ungueltig": False,
+        "platten": [],
+        "randstreifen": [],
+        "randstreifen_hinweis": "",
+        "verbinder": [],
+        "verbinder_anzahl": 0,
+        "einheiten_x": 0,
+        "einheiten_y": 0,
+        "freie_zellen": [],
+        "nutz_x": 0,
+        "nutz_y": 0,
+        "rest_x": 0,
+        "rest_y": 0,
+        "raster_mm": RASTER_MM,
+        "plattenhoehe_mm": 0,
+        "ursprung_x_mm": 0,
+        "ursprung_y_mm": 0,
+    }
+
+
 def layout_pruefen(projekt: Projekt, plan=None) -> dict:
+    if projekt.nur_kabel:
+        ansicht = _kabel_ansicht(projekt.kabel)
+        return {"ok": ansicht["ok"], "fehler": ansicht["fehler"], "hinweise": ansicht["hinweise"], "kollisionen": []}
     if projekt.nur_ersatz:
         ansicht = _ersatz_ansicht(projekt.ersatzteile)
         return {"ok": ansicht["ok"], "fehler": ansicht["fehler"], "hinweise": ansicht["hinweise"], "kollisionen": []}
@@ -507,6 +566,8 @@ def _besteck_vorpruefung(box: Box, projekt: Projekt, fehler: list, hinweise: lis
 
 
 def plan_ansicht(projekt: Projekt) -> dict:
+    if projekt.nur_kabel:
+        return _kabel_ansicht(projekt.kabel)
     if projekt.nur_ersatz:
         return _ersatz_ansicht(projekt.ersatzteile)
     plan = plan_berechnen(projekt.schublade)
@@ -613,6 +674,26 @@ def _eigen_lage(eigen: Eigenteil, projekt: Projekt) -> dict | None:
 
 def auftrag_bauen(projekt: Projekt) -> dict:
     """Beschreibt alle Körper, ohne sie zu erzeugen."""
+    if projekt.nur_kabel:
+        ansicht = _kabel_ansicht(projekt.kabel)
+        if not ansicht["ok"]:
+            return {"ok": False, "fehler": ansicht["fehler"], "ansicht": ansicht, "teile": []}
+        teile = []
+        for teil in projekt.kabel:
+            for stueck in kabel_stuecke(teil):
+                teile.append(
+                    {
+                        "id": stueck["id"],
+                        "rolle": "kabel",
+                        "name": stueck["name"],
+                        "params": stueck["params"],
+                        "soll_mm": [round(float(v), 3) for v in stueck["soll"]],
+                        "lage": None,
+                        "anzahl": 1,
+                        "passt_in_bauraum": True,
+                    }
+                )
+        return {"ok": True, "fehler": [], "ansicht": ansicht, "teile": teile}
     if projekt.nur_ersatz:
         ansicht = _ersatz_ansicht(projekt.ersatzteile)
         if not ansicht["ok"]:
