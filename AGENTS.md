@@ -13,7 +13,7 @@ python -m sidecar.server        # Dienst starten
 npm ci && npm run dev           # UI auf http://localhost:1420
 npm test                        # Vitest
 npm run build                   # tsc + vite build
-python -m unittest tests.test_layout tests.test_stlcheck tests.test_detect tests.test_projekt tests.test_server tests.test_eigenteil tests.test_ersatzteil tests.test_kabel tests.test_gehaeuse
+python -m unittest tests.test_layout tests.test_stlcheck tests.test_detect tests.test_projekt tests.test_server tests.test_eigenteil tests.test_ersatzteil tests.test_kabel tests.test_gehaeuse tests.test_erweitert tests.test_autofill_optimierer
 FREECADCMD=/pfad/FreeCADCmd python -m unittest tests.test_abnahme tests.test_sonder tests.test_eigenteil   # braucht FreeCAD 1.1
 npx playwright test             # E2E, startet Dienst und UI selbst (Chromium: npx playwright install chromium); FREECADCMD für den Export
 python scripts/python_einbetten.py   # mitgeliefertes Python für den Installer einrichten (vor `tauri build`)
@@ -46,10 +46,12 @@ Ersatzteil-Generator (eigener Bereich, nicht der gezeichnete Modus): Kabelclip, 
 
 Erweiterungen (14.11.2026, Tests mit FreeCAD grün, nicht gedruckt): Langloch (`langlochAus`, Rechteck mit vollem Radius), Vieleck-Eckenradius (`_polygon_gerundet`), Senkung/Gegenbohrung/Sechskant an runden Löchern (`senk_*`, `_senk_werkzeuge`), Text als Pixelschrift (`sidecar/pixelschrift.py`, Form `text`), Gruppen (`gruppe*` in `zeichnen.ts`, Umschalt-Klick), Seitenlöcher (`Eigenteil.seitenloecher`, `_seitenloch_werkzeug`), Drehprofil (`Eigenteil.profil`, `dreh_x_mm/dreh_y_mm`, `_profil_koerper`), Druckhinweise (`sidecar/druckpruefung_geom.py`, nur Rolle `eigen`, Hinweise landen in `hinweise` des Ergebnisses). UI: `ui/src/erweitert.tsx`, `felder.tsx`. Tests: `tests/test_erweitert.py`, `tests/e2e/erweitert.spec.ts`.
 
+3D-Ansicht: `ui/src/ansicht3d.tsx` zeigt die echte Geometrie (FreeCAD-Netze über Befehl `vorschau`, `engine.vorschau_bauen` mit kurz offener FreeCAD-Sitzung, Worker `vorschau_netze`), im Zeichnen, bei Ersatzteilen, Kabeln und Gehäuse. Auto-Bestückung: Wünsche mit `seite` und `gruppe`, Strahlsuche und Verbesserung der Füllung durch Verzweigen und Beschneiden mit fester Knotenzahl (`autofill.py`, Konstanten oben; Tests `tests/test_autofill_optimierer.py`).
+
 Offen, nach Nutzen sortiert:
 1. Playwright-E2E für den Zeichen- und Auto-Fülle-Ablauf ergänzen und laufen lassen.
 2. Zeichnen: Skizzen mit Bedingungen, Text in echten Schriftarten, Gewinde. (Gruppen sind fertig; Vieleck-Punkte bearbeiten ist fertig: Griffe an Ecken und Kanten, Punktfelder, Entf; Hilfsfunktionen `punktVerschieben`, `punktEinfuegen`, `punktLoeschen`, `polygonSelbstschnitt` in `zeichnen.ts`.)
-3. Auto-Bestückung: Wunschliste mit Gruppen („Besteck links, Kabel rechts“), Optimierer statt Greedy.
+3. Auto-Bestückung: Gewichte der Strahlsuche an echten Schubladen abstimmen, Boxen verschiedener Höhe berücksichtigen.
 4. Windows-Installer auf einem echten PC starten und FreeCAD-Anbindung prüfen.
 
 ## Zusammenarbeit

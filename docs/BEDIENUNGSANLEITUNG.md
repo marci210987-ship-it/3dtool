@@ -114,6 +114,14 @@ Jedes Teil besteht aus Formen in der Draufsicht (Ursprung links unten, Millimete
 - **Drehteil:** Profil aus Punkten (Radius, Höhe), das um eine senkrechte Achse gedreht wird (Vorlagen Knopf, Hülse, Rolle, Kegelstumpf). Formen und Löcher lassen sich zusätzlich zeichnen.
 - **Druckhinweise:** Beim Export meldet das Programm Überhänge (waagerechte Decken ab 10 mm Spannweite, Flächen steiler als 45°) und dünne Stellen unter 0,8 mm. Das sind Faustregeln für eine 0,4-mm-Düse, keine Slicer-Simulation, und sie verhindern den Export nicht.
 
+### 3D-Ansicht
+
+Unter dem Zeichenblatt, bei Ersatzteilen, Kabelmanagement und Gehäuse steht eine 3D-Ansicht. Sie zeigt die echte Geometrie, die FreeCAD auch für den Export baut (mit Text, Senkungen, Seitenlöchern und Drehteilen), nicht die vereinfachte Vorschau. Sie rechnet nach jeder Änderung nach kurzer Pause neu (meist unter einer Sekunde, der erste Aufruf etwas länger). Ziehen dreht, das Mausrad zoomt, die rechte Maustaste verschiebt; „Schräg“, „Vorne“, „Oben“ und „Seite“ setzen die Ansicht. Bei ungültigen Eingaben steht die Fehlermeldung statt eines Körpers. FreeCAD muss installiert sein. Darunter erscheinen die Druckhinweise.
+
+### Wunschliste mit Seite und Gruppe
+
+In der Wunschliste lässt sich je Boxsorte eine Seite (links, rechts, vorne, hinten) und eine Gruppe (A, B, C) wählen. Die Sorte wandert dann bevorzugt an diese Seite, Boxen derselben Gruppe liegen beieinander. Das Tool probiert mehrere Anordnungen und füllt den Rest mit möglichst wenigen, einheitlichen Boxen. Die Seite ist ein starker Wunsch, aber keine Pflicht: wenn der Platz fehlt, steht die Box anderswo.
+
 Grenzen: keine Gewinde, keine frei geformten Flächen, keine Schriftarten (nur die 5×7-Pixelschrift). Ein Vieleck darf sich nicht selbst schneiden. Maße über 256 mm werden abgelehnt.
 
 ## 5. Berechnen und speichern

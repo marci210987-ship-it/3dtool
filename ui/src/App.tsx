@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { api, dateiUrl, gesundheit, jobStatus, leereSchublade, Schublade } from "./api";
+import { Ansicht3D } from "./ansicht3d";
 import { Editor } from "./editor";
 import { ErsatzArt, Ersatzteil, ErsatzteilAnsicht } from "./ersatzteile";
 import { KabelArt, Kabelteil, KabelAnsicht, profilKopieren } from "./kabel";
@@ -93,6 +94,8 @@ export function App() {
   const [gehaeuseSoll, setGehaeuseSoll] = useState<{ korpus: number[]; deckel: number[] } | null>(null);
   const [meineVorlagen, setMeineVorlagen] = useState<MeineVorlage[]>([]);
   const [wuensche, setWuensche] = useState<Record<string, number>>({});
+  // Zu jedem Wunsch: gewünschte Seite der Schublade und Gruppe (zusammen platzieren)
+  const [wunschZusatz, setWunschZusatz] = useState<Record<string, { seite: string; gruppe: string }>>({});
   const [restFuellen, setRestFuellen] = useState(true);
   const [fuellstil, setFuellstil] = useState("einheitlich");
   const [plan, setPlan] = useState<Plan | null>(null);
@@ -207,7 +210,7 @@ export function App() {
     const liste = mitWuenschen
       ? Object.entries(wuensche)
           .filter(([, anzahl]) => anzahl > 0)
-          .map(([sorte, anzahl]) => ({ sorte, anzahl }))
+          .map(([sorte, anzahl]) => ({ sorte, anzahl, seite: wunschZusatz[sorte]?.seite || "egal", gruppe: wunschZusatz[sorte]?.gruppe || "" }))
       : [];
     const antwort = await api<{ neu: number; hinweise?: string[] }>("autofill", {
       projekt,
@@ -520,6 +523,7 @@ export function App() {
         />
       )}
       {ansicht === "ersatz" && (
+        <>
         <ErsatzteilAnsicht
           katalog={ersatzKatalog}
           teile={ersatzteile}
@@ -546,8 +550,11 @@ export function App() {
           onSpeicherpfad={setSpeicherpfad}
           onSpeichern={speichern}
         />
+        <div className="ansicht3d-rahmen"><Ansicht3D projekt={projekt} modus="ersatz" freecadPfad={String(einstellungen.freecad_pfad || "")} titel="3D-Ansicht des Ersatzteils" /></div>
+        </>
       )}
       {ansicht === "kabel" && (
+        <>
         <KabelAnsicht
           katalog={kabelKatalog}
           teile={kabel}
@@ -585,8 +592,11 @@ export function App() {
           onSpeicherpfad={setSpeicherpfad}
           onSpeichern={speichern}
         />
+        <div className="ansicht3d-rahmen"><Ansicht3D projekt={projekt} modus="kabel" freecadPfad={String(einstellungen.freecad_pfad || "")} titel="3D-Ansicht des Kabelteils" /></div>
+        </>
       )}
       {ansicht === "gehaeuse" && (
+        <>
         <GehaeuseAnsicht
           daten={gehaeuse}
           vorlagen={vorlagen}
@@ -622,6 +632,8 @@ export function App() {
           onSpeicherpfad={setSpeicherpfad}
           onSpeichern={speichern}
         />
+        <div className="ansicht3d-rahmen"><Ansicht3D projekt={projekt} modus="gehaeuse" freecadPfad={String(einstellungen.freecad_pfad || "")} titel="3D-Ansicht von Gehäuse und Deckel" /></div>
+        </>
       )}
       {ansicht === "einstellungen" && (
         <Einstellungen
@@ -711,21 +723,54 @@ export function App() {
               <Editor breite={schublade.innenbreite_mm} tiefe={schublade.innentiefe_mm} plan={plan} boxen={boxen} onChange={boxenAktualisieren} />
               <details className="wunschliste" data-testid="wunschliste">
                 <summary>Wunschliste: Was brauchst du?</summary>
-                <p className="leise">Das Tool setzt die gewünschten Boxen zuerst an freie Stellen (größte zuerst, bei Bedarf gedreht) und füllt danach optional den Rest. Vorhandene Boxen und platzierte eigene Teile bleiben unberührt.</p>
+                <p className="leise">Das Tool setzt die gewünschten Boxen zuerst an freie Stellen (größte zuerst, bei Bedarf gedreht) und füllt danach optional den Rest. Mit „Seite“ drängt es eine Sorte nach links, rechts, vorne oder hinten, Boxen derselben „Gruppe“ liegen beieinander. Es probiert mehrere Anordnungen und füllt den Rest mit möglichst wenigen Boxen. Vorhandene Boxen und platzierte eigene Teile bleiben unberührt.</p>
                 <div className="formular">
                   {KATALOG.map((eintrag) => (
-                    <label key={eintrag.id}>
-                      {eintrag.name} <small>({eintrag.text})</small>
-                      <input
-                        data-testid={`wunsch-${eintrag.id}`}
-                        inputMode="numeric"
-                        value={String(wuensche[eintrag.id] ?? 0)}
-                        onChange={(e) => {
-                          const zahl = Math.max(0, Math.min(200, Math.round(Number(e.target.value) || 0)));
-                          setWuensche({ ...wuensche, [eintrag.id]: zahl });
-                        }}
-                      />
-                    </label>
+                    <div key={eintrag.id} className="wunschzeile">
+                      <label>
+                        {eintrag.name} <small>({eintrag.text})</small>
+                        <input
+                          data-testid={`wunsch-${eintrag.id}`}
+                          inputMode="numeric"
+                          value={String(wuensche[eintrag.id] ?? 0)}
+                          onChange={(e) => {
+                            const zahl = Math.max(0, Math.min(200, Math.round(Number(e.target.value) || 0)));
+                            setWuensche({ ...wuensche, [eintrag.id]: zahl });
+                          }}
+                        />
+                      </label>
+                      {(wuensche[eintrag.id] ?? 0) > 0 && (
+                        <div className="wunsch-zusatz" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                          <label>
+                            Seite
+                            <select
+                              data-testid={`wunsch-seite-${eintrag.id}`}
+                              value={wunschZusatz[eintrag.id]?.seite || "egal"}
+                              onChange={(e) => setWunschZusatz({ ...wunschZusatz, [eintrag.id]: { seite: e.target.value, gruppe: wunschZusatz[eintrag.id]?.gruppe || "" } })}
+                            >
+                              <option value="egal">egal</option>
+                              <option value="links">links</option>
+                              <option value="rechts">rechts</option>
+                              <option value="vorne">vorne</option>
+                              <option value="hinten">hinten</option>
+                            </select>
+                          </label>
+                          <label>
+                            Gruppe
+                            <select
+                              data-testid={`wunsch-gruppe-${eintrag.id}`}
+                              value={wunschZusatz[eintrag.id]?.gruppe || ""}
+                              onChange={(e) => setWunschZusatz({ ...wunschZusatz, [eintrag.id]: { seite: wunschZusatz[eintrag.id]?.seite || "egal", gruppe: e.target.value } })}
+                            >
+                              <option value="">keine</option>
+                              <option value="A">A</option>
+                              <option value="B">B</option>
+                              <option value="C">C</option>
+                            </select>
+                          </label>
+                        </div>
+                      )}
+                    </div>
                   ))}
                 </div>
                 <label className="check">
@@ -776,6 +821,7 @@ export function App() {
                 meineVorlagen={meineVorlagen}
                 onVorlageSpeichern={vorlageSpeichern}
                 onVorlageLoeschen={vorlageLoeschen}
+                freecadPfad={String(einstellungen.freecad_pfad || "")}
                 fehler={plan && !plan.ok ? plan.fehler : []}
                 lageplan={
                   nurEigene || !plan

@@ -323,6 +323,12 @@ class Handler(BaseHTTPRequestHandler):
                 )
                 _json(self, 200, {"ok": antwort["ok"], "fehler": "; ".join(antwort["fehler"]), "result": antwort, "projekt": projekt.to_dict()})
                 return
+            if cmd == "vorschau":
+                from sidecar.engine import vorschau_bauen
+
+                antwort = vorschau_bauen(anfrage.get("projekt") or {}, anfrage.get("teil_ids") or None, anfrage.get("freecad_pfad") or None, anfrage.get("modus") or None)
+                _json(self, 200, {"ok": antwort["ok"], "fehler": "; ".join(antwort.get("fehler") or []), "result": antwort})
+                return
             if cmd == "save":
                 _json(self, 200, speichere_und_merke(anfrage.get("projekt") or {}, anfrage.get("path") or ""))
                 return

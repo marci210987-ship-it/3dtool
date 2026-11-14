@@ -70,27 +70,64 @@ def _schnitt_flaeche(shape, z: float):
         return None
 
 
+def _versatz_voll(flaeche, delta: float):
+    """Offset einer vollen Fläche. Die Richtung hängt von der Orientierung der Kontur ab; deshalb wird sie an der Flächenänderung geprüft."""
+    neu = flaeche.makeOffset2D(delta, 2)
+    if neu.isNull() or not neu.Faces:
+        return neu
+    wuchs = neu.Area - flaeche.Area
+    if (delta > 0 and wuchs < -1e-6) or (delta < 0 and wuchs > 1e-6):
+        neu = flaeche.makeOffset2D(-delta, 2)
+    return neu
+
+
+def _versatz_flaeche(flaeche, delta: float):
+    """Fläche um delta aufweiten (delta > 0) oder schrumpfen (delta < 0). Außen- und Innenkonturen werden einzeln behandelt,
+    weil die Orientierung der Innenkonturen nach einem Versatz nicht verlässlich ist. Liefert None, wenn nichts übrig bleibt."""
+    import Part
+
+    try:
+        aussen = _versatz_voll(Part.Face(flaeche.OuterWire), delta)
+    except Exception:
+        if delta < 0:
+            return None
+        raise
+    if aussen.isNull() or not aussen.Faces or aussen.Area < 1e-6:
+        return None
+    for draht in flaeche.Wires:
+        if draht.isSame(flaeche.OuterWire):
+            continue
+        loch = Part.Face(draht)
+        try:
+            neu = _versatz_voll(loch, -delta)
+        except Exception:
+            continue  # das Loch verschwindet beim Schrumpfen
+        if neu.isNull() or not neu.Faces or neu.Area < 1e-6:
+            continue
+        aussen = aussen.cut(neu)
+    return aussen if aussen.Area > 1e-6 else None
+
+
 def _duenne_wand(flaeche) -> tuple[float, tuple[float, float]] | None:
     """Fläche, die beim Öffnen (Schrumpfen und Aufweiten um die halbe Mindestwand) verschwindet. Größter Fund über alle Teilflächen."""
     r = MIN_WAND_MM / 2.0
     beste = None
     for teil in flaeche.Faces:
         try:
-            try:
-                innen = teil.makeOffset2D(-r, 2)
-            except Exception:
-                # Kollabiert die Fläche beim Schrumpfen, ist sie überall schmaler als die Mindestwand.
-                # Ein winziger Versatz muss dabei noch gehen, sonst liegt ein anderer Fehler vor.
-                teil.makeOffset2D(-0.01, 2)
-                innen = None
-            if innen is None or innen.isNull() or not innen.Faces:
-                menge = teil.Area  # ganz verschwunden
-                if menge <= FLAECHE_MIN_MM2:
+            innen = _versatz_flaeche(teil, -r)
+            if innen is None:
+                if teil.Area <= FLAECHE_MIN_MM2:
                     continue
                 mitte = teil.CenterOfMass
-                fund = (menge, (mitte.x, mitte.y))
+                fund = (teil.Area, (mitte.x, mitte.y))  # überall schmaler als die Mindestwand
             else:
-                offen = innen.makeOffset2D(r, 2)
+                offen = None
+                for stueck in innen.Faces:
+                    breit = _versatz_flaeche(stueck, r)
+                    if breit is not None:
+                        offen = breit if offen is None else offen.fuse(breit)
+                if offen is None:
+                    continue
                 rest = teil.cut(offen)
                 if rest.Area <= FLAECHE_MIN_MM2:
                     continue
@@ -108,7 +145,8 @@ def _duenne_waende(shape) -> list[str]:
     hoehe = bb.ZMax - bb.ZMin
     if hoehe < 1.0:
         return []
-    ebenen = sorted({round(bb.ZMin + hoehe * f, 3) for f in (0.08, 0.25, 0.5, 0.75, 0.92)})
+    # kleiner Versatz, damit eine Schnittebene nicht genau auf einer Kante (Stufe, Senkungsbeginn) liegt
+    ebenen = sorted({round(bb.ZMin + hoehe * f + 0.0137, 3) for f in (0.08, 0.25, 0.5, 0.75, 0.92)})
     funde = []
     for z in ebenen:
         flaeche = _schnitt_flaeche(shape, z)

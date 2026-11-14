@@ -743,6 +743,33 @@ def pruefe_dateien(payload: dict) -> dict:
     return {"ok": ok, "dateien": bericht}
 
 
+def vorschau_netze(anfrage: dict) -> dict:
+    """Dreiecksnetze der Körper für die 3D-Ansicht (Koordinaten wie gezeichnet, z nach oben)."""
+    from sidecar.druckpruefung_geom import druckhinweise
+
+    toleranz = float(anfrage.get("toleranz") or 0.12)
+    netze = []
+    hinweise: list[str] = []
+    for teil in anfrage.get("teile") or []:
+        shapes, _meta = _shapes_fuer(teil)
+        for name, shape in shapes.items():
+            punkte, dreiecke = shape.tessellate(toleranz)
+            bb = _genaue_bbox(shape)
+            netze.append(
+                {
+                    "teil": teil.get("id"),
+                    "name": "%s%s" % (teil.get("name") or teil.get("id"), "" if len(shapes) == 1 else " (%s)" % name),
+                    "punkte": [round(c, 3) for v in punkte for c in (v.x, v.y, v.z)],
+                    "dreiecke": [i for d in dreiecke for i in d],
+                    "bbox_mm": [round(bb.XMin, 2), round(bb.YMin, 2), round(bb.ZMin, 2), round(bb.XMax, 2), round(bb.YMax, 2), round(bb.ZMax, 2)],
+                    "volumen_mm3": round(shape.Volume, 1),
+                }
+            )
+            if teil.get("rolle") == "eigen":
+                hinweise.extend("%s: %s" % (teil.get("name") or teil.get("id"), h) for h in druckhinweise(shape))
+    return {"netze": netze, "hinweise": hinweise}
+
+
 def behandle(anfrage: dict) -> dict:
     cmd = anfrage.get("cmd")
     try:
@@ -754,6 +781,8 @@ def behandle(anfrage: dict) -> dict:
             return _antwort(True, {"freecad": version, "hausraster": SYSTEM_VERSION})
         if cmd == "build_all":
             return _antwort(True, baue_alles(anfrage))
+        if cmd == "vorschau":
+            return _antwort(True, vorschau_netze(anfrage))
         if cmd == "verify_files":
             return _antwort(True, pruefe_dateien(anfrage))
         if cmd == "kabel_passung":

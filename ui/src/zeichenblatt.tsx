@@ -1,4 +1,5 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { Ansicht3D } from "./ansicht3d";
 import { ProfilPanel, SenkPanel, SeitenlochPanel, TextPanel } from "./erweitert";
 import { OptZahlfeld, Zahlfeld } from "./felder";
 import { dateiText, type ImportErgebnis, leseDxf, leseSvg, zuFormen } from "./import";
@@ -101,8 +102,10 @@ export function Zeichnen({
   meineVorlagen = [],
   onVorlageSpeichern,
   onVorlageLoeschen,
+  freecadPfad,
 }: {
   teile: Eigenteil[];
+  freecadPfad?: string;
   onChange: (teile: Eigenteil[]) => void;
   fehler: string[];
   lageplan?: Lageplan | null;
@@ -824,6 +827,7 @@ export function Zeichnen({
               {entwurf?.typ === "langloch" && ` · Länge ${Math.hypot(entwurf.b[0] - entwurf.a[0], entwurf.b[1] - entwurf.a[1]).toFixed(1)} mm (Mitte zu Mitte), Breite ${langlochBreite} mm`}
               {entwurf?.typ === "kreis" && ` · Ø ${(2 * Math.hypot(entwurf.b[0] - entwurf.a[0], entwurf.b[1] - entwurf.a[1])).toFixed(1)} mm`}
             </p>
+            <Ansicht3D projekt={{ eigene: [teil] }} teilIds={[teil.id]} freecadPfad={freecadPfad} titel="3D-Ansicht dieses Teils" />
           </div>
 
           <div className="eigenschaften">

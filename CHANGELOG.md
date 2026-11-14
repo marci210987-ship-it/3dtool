@@ -4,6 +4,8 @@
 
 - Zeichnen: Vieleck-Punkte ziehen, einfügen und löschen; Langloch; Vieleck mit Eckenradius; Senkung, Gegenbohrung und Sechskant-Tasche an Löchern; Text (Pixelschrift); Gruppen mit Umschalt-Klick; Seitenlöcher; Drehteile aus einem Profil.
 - Export: Druckhinweise zu Überhängen und dünnen Stellen bei eigenen Teilen.
+- 3D-Ansicht mit der echten Geometrie (aus FreeCAD) beim Zeichnen, bei Ersatzteilen, Kabelmanagement und Gehäuse; Druckhinweise erscheinen dort live.
+- Auto-Bestückung: Wünsche mit Seite (links, rechts, vorne, hinten) und Gruppe, Strahlsuche über mehrere Anordnungen, bessere Aufteilung des Rests als beim Zeilenverfahren.
 - Nicht gedruckt geprüft; Maße und Toleranzen sind Modellwerte.
 
 ## 0.3.0

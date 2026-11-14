@@ -201,9 +201,48 @@ class MitFreeCAD(unittest.TestCase):
         self.assertIn("Druckhinweis", text)
         self.assertIn("Decke", text)
         self.assertIn("Dünne Stelle", text)
+        # Regression: Platte mit Loch und Senkung ist keine dünne Stelle (Orientierung der Innenkontur nach dem Versatz)
+        _solid, r = self._export(_teil([_rechteck(40, 30), _kreis(20, 15, 3, senk_art="senkung", senk_d_mm=8, senk_seite="oben")]))
+        self.assertFalse([h for h in r["hinweise"] if "Dünne" in h], r["hinweise"])
         # Ein einfacher Klotz erzeugt keinen Hinweis
         _solid, r = self._export(_teil([_rechteck(30, 20)]))
         self.assertFalse([h for h in r["hinweise"] if "Druckhinweis" in h])
+
+
+@unittest.skipUnless(os.environ.get("FREECADCMD"), "FREECADCMD fehlt")
+class Vorschau(unittest.TestCase):
+    def test_netze_fuer_eigenes_teil_und_wiederverwendung(self):
+        from sidecar.engine import vorschau_bauen
+
+        teil = _teil([_rechteck(40, 30), _kreis(20, 15, 3), {"typ": "text", "x": 3, "y": 3, "text": "A1", "schrift_mm": 5, "loch": False, "z_mm": 12, "h_mm": 0.6}])
+        projekt = Projekt(nur_eigene=True, eigene=[teil, Eigenteil(id="E2", formen=[_rechteck(10, 10)])]).to_dict()
+        r = vorschau_bauen(projekt, ["E1"], os.environ["FREECADCMD"])
+        self.assertTrue(r["ok"], r["fehler"])
+        self.assertEqual(len(r["netze"]), 1)  # nur das gewählte Teil
+        netz = r["netze"][0]
+        self.assertEqual(len(netz["punkte"]) % 3, 0)
+        self.assertEqual(len(netz["dreiecke"]) % 3, 0)
+        self.assertGreater(len(netz["dreiecke"]), 50)
+        self.assertLess(max(netz["dreiecke"]), len(netz["punkte"]) // 3)
+        self.assertAlmostEqual(netz["bbox_mm"][3], 40.0, delta=0.1)
+        self.assertAlmostEqual(netz["bbox_mm"][5], 12.6, delta=0.1)
+        # zweiter Aufruf nutzt die offene Sitzung und ändert das Ergebnis mit den Maßen
+        teil.formen[0]["b"] = 60
+        r2 = vorschau_bauen(Projekt(nur_eigene=True, eigene=[teil]).to_dict(), ["E1"], os.environ["FREECADCMD"])
+        self.assertAlmostEqual(r2["netze"][0]["bbox_mm"][3], 60.0, delta=0.1)
+
+    def test_ungueltig_und_gehaeuse(self):
+        from sidecar.engine import vorschau_bauen
+
+        r = vorschau_bauen(Projekt(nur_eigene=True, eigene=[_teil([_rechteck(b=300)])]).to_dict(), ["E1"], os.environ["FREECADCMD"])
+        self.assertFalse(r["ok"])
+        self.assertTrue(r["fehler"])
+        from sidecar.gehaeuse import standard
+
+        g = Projekt(nur_gehaeuse=True, gehaeuse=standard()).to_dict()
+        r = vorschau_bauen(g, None, os.environ["FREECADCMD"])
+        self.assertTrue(r["ok"], r["fehler"])
+        self.assertEqual(len(r["netze"]), 2)  # Korpus und Deckel
 
 
 if __name__ == "__main__":

@@ -191,3 +191,19 @@ FreeCAD 1.1.4 auf Linux (`AppRun freecadcmd`), Chromium für Playwright. Windows
 | Sichtprüfung | Bildschirmfoto: gerundetes Vieleck, Langloch mit Winkel, erhabener Text lesbar |
 
 Grenzen: Die Druckhinweise sind Faustregeln für eine 0,4-mm-Düse und keine Slicer-Simulation. Die Textvorschau im Blatt ist vereinfacht, der Export setzt die Pixelschrift. Gerundete Vielecke gehen nicht zusammen mit Kantenfase. Nichts davon ist gedruckt.
+
+## 3D-Ansicht und Auto-Bestückung (14. November 2026)
+
+FreeCAD 1.1.4 auf Linux, Chromium mit Software-WebGL. Windows-Hardware, Druck und GitHub Actions: nicht ausgeführt.
+
+| Prüfung | Ergebnis |
+|---|---|
+| Alle Python-Module (15) mit FreeCAD | 126 Tests bestanden. Neu: Netze der Vorschau (nur das gewählte Teil, Maße folgen der Eingabe, ungültige Eingabe meldet Fehler, Gehäuse und Deckel als zwei Netze, Wiederverwendung der Sitzung) |
+| Fund und Korrektur | Die Prüfung auf dünne Stellen meldete eine Platte mit Loch und Senkung fälschlich als dünn (Orientierung der Innenkontur nach dem Flächenversatz). Die Versätze werden jetzt je Kontur und mit Richtungsprüfung gerechnet, dazu ein Regressionstest |
+| `tests.test_autofill_optimierer` | 9 Tests bestanden: linke und rechte Seite, vertauschte Seiten, vorne und hinten, unbekannte Seite, Gruppen zusammenhängend, Suche nie schlechter als das Zeilenverfahren und bei den Zufallsschubladen mehrmals besser, reproduzierbar, alle Zellen belegt |
+| Zufallsprobe (40 Schubladen mit bis zu 3 eigenen Teilen, nicht im Testlauf) | Die Füllung wurde in 30 von 40 Fällen besser als das Zeilenverfahren, der langsamste Lauf dauerte 0,44 s |
+| `npm test`, `npm run build` | 71 Vitest-Tests bestanden, Build ohne Typfehler |
+| Playwright (alle) | 17 von 17 bestanden, neu: 3D-Ansicht beim Zeichnen (Maße, Neuberechnung bei Höhenänderung, Fehlermeldung bei Höhe 0) und Wunschliste mit Seiten |
+| Sichtprüfung | Bildschirmfotos der 3D-Ansicht für ein gezeichnetes Teil mit Drehknopf und für Gehäuse mit Deckel |
+
+Grenzen: Die 3D-Ansicht braucht FreeCAD und WebGL. Die Gewichte der Suche (Seite, Gruppe, Kontakt) sind Vorgaben und noch nicht an echten Schubladen abgestimmt. Die Verbesserung der Füllung hat eine feste Knotenzahl; bei sehr großen freien Flächen kann sie das Optimum verfehlen, ist aber nie schlechter als das Zeilenverfahren.
