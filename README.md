@@ -74,7 +74,7 @@ npm run dev
 
 Die Oberfläche liegt dann auf `http://localhost:1420`. Unter Windows startet die installierte Anwendung den Dienst selbst.
 
-Der Workflow `.github/workflows/windows.yml` baut auf `windows-latest` MSI und NSIS und lädt beide Pakete als GitHub-Actions-Artifacts hoch. Sie bleiben 14 Tage zum Herunterladen. Ein Start dieser Pakete auf einem Windows-Rechner ist damit nicht geprüft.
+Der Workflow `.github/workflows/windows.yml` baut auf `windows-latest` MSI und NSIS und lädt beide Pakete 14 Tage als Actions-Artifacts hoch, zum Prüfen eines Pull Requests. Die dauerhafte Datei liegt auf der [Releases-Seite](https://github.com/marci210987-ship-it/3dtool/releases). Ein Start auf einem Windows-Rechner ist damit nicht geprüft.
 
 ## Bedienung
 
@@ -107,12 +107,23 @@ Der Workflow `.github/workflows/windows.yml` führt in GitHub Actions auf `windo
 
 Der Prüfbericht steht in [TESTBERICHT.md](TESTBERICHT.md).
 
+## Installer herunterladen
+
+Die Installer liegen auf der [Releases-Seite](https://github.com/marci210987-ship-it/3dtool/releases) und laufen nicht ab.
+
+- `CAD-Studio-0.3.0-Setup.exe` ist der einfachere Weg.
+- `CAD-Studio-0.3.0.msi` ist dasselbe Programm als MSI.
+
+FreeCAD 1.1.x muss separat installiert sein. Der Installer ist nicht code-signiert, Windows SmartScreen kann warnen. Ein Hardware-Test auf Marcels PC ist noch nicht ausgeführt.
+
+Ein Release entsteht nach dem Merge, wenn der Tag `v0.3.0` auf `main` zeigt. Derselbe Lauf lässt sich unter **Actions → Release → Run workflow** mit der Eingabe `v0.3.0` starten. Der Lauf installiert das Setup still und prüft `/health`, bevor die Dateien am Release hängen. Vorher gibt es die Dateien nicht.
+
 ## Installer auf dem eigenen Windows-PC prüfen
 
 Diese Schritte sind die Anleitung für den ersten Start. Sie sind kein bereits durchgeführter Test auf Windows-Hardware.
 
-1. Den Pull Request öffnen und unter **Checks** den Workflow **Windows** wählen. Unten auf der Laufseite steht **Artifacts**. Zwei Pakete liegen dort 14 Tage: `cad-studio-windows-msi` und `cad-studio-windows-setup`. Jedes ist ein Zip.
-2. Beide herunterladen und entpacken. Im MSI-Zip liegt `CAD Studio_0.2.0_x64_en-US.msi`, im Setup-Zip `CAD Studio_0.2.0_x64-setup.exe`. Eines von beiden installieren. Das Setup ist der einfachere Weg. Windows SmartScreen kann warnen, weil das Paket nicht signiert ist.
+1. Auf der [Releases-Seite](https://github.com/marci210987-ship-it/3dtool/releases) `CAD-Studio-0.3.0-Setup.exe` oder `CAD-Studio-0.3.0.msi` herunterladen.
+2. Das Setup ist der einfachere Weg. Windows SmartScreen kann warnen, weil das Paket nicht signiert ist.
 3. Python ist nicht nötig, der Installer bringt es mit. Fehlt der Dienst trotzdem („Der lokale Dienst antwortet nicht“), steht die Ausgabe in `%APPDATA%\CADStudio\dienst.log`.
 4. [FreeCAD 1.1.x](https://github.com/FreeCAD/FreeCAD/releases/tag/1.1.4) für Windows installieren, zum Beispiel 1.1.4. CAD Studio enthält FreeCAD nicht. Versionen außerhalb von 1.1.x werden abgelehnt.
 5. CAD Studio starten. Unter **Einstellungen** auf **FreeCAD suchen** tippen. Gesucht wird in dieser Reihenfolge: gespeicherter Pfad, `FREECADCMD`, `FREECAD_ROOT`, `FreeCADCmd.exe` im PATH, `%ProgramFiles%\FreeCAD*\bin\FreeCADCmd.exe`, `%ProgramFiles(x86)%\…`, `%LocalAppData%\Programs\FreeCAD*\bin\FreeCADCmd.exe`, danach die Deinstallations-Schlüssel der Registry, wenn der Anzeigename FreeCAD enthält. Wenn nichts gefunden wird, den Pfad von Hand eintragen, typisch `C:\Program Files\FreeCAD 1.1\bin\FreeCADCmd.exe`, und erneut suchen. Der Hinweis muss Version 1.1.x nennen.
@@ -121,4 +132,4 @@ Diese Schritte sind die Anleitung für den ersten Start. Sie sind kein bereits d
 
 ## Was noch nicht da ist
 
-Freiformflächen, Gewinde, Text und 3D-Skizzen gibt es nicht. Randstreifen sind einfache, glatte Füllplatten ohne Verbinder. Das Spiel an Deckel, Kabeln und Stopfen ist die Lücke im Modell und nicht an einem gedruckten Teil geprüft. Der Windows-Installer wird in GitHub Actions gebaut und dort auf dem Runner gestartet; auf einem echten Windows-PC eines Benutzers wurde er noch nicht geprüft.
+Freiformflächen, Gewinde, Text und 3D-Skizzen gibt es nicht. Randstreifen sind einfache, glatte Füllplatten ohne Verbinder. Das Spiel an Deckel, Kabeln und Stopfen ist die Lücke im Modell und nicht an einem gedruckten Teil geprüft. Der Windows-Installer wird in GitHub Actions gebaut, dort auf dem Runner gestartet und danach als Release abgelegt. Auf einem echten Windows-PC eines Benutzers wurde er noch nicht geprüft.
