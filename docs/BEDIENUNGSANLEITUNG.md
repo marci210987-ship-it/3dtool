@@ -6,7 +6,7 @@ Der Druckerbezug ist ein Bambu Lab P2S mit 256 × 256 × 256 mm Bauraum. Das Ras
 
 ## Installer herunterladen
 
-Die Windows-Dateien liegen auf der [Releases-Seite](https://github.com/marci210987-ship-it/3dtool/releases): `CAD-Studio-0.3.0-Setup.exe` oder `CAD-Studio-0.3.0.msi`. FreeCAD 1.1.x muss separat installiert sein. Der Installer ist nicht code-signiert, Windows SmartScreen kann warnen. Ein Hardware-Test auf Marcels PC ist noch nicht ausgeführt.
+Die Windows-Dateien liegen auf der [Releases-Seite](https://github.com/marci210987-ship-it/3dtool/releases): `CAD-Studio-0.4.0-Setup.exe` oder `CAD-Studio-0.4.0.msi`. FreeCAD 1.1.x muss separat installiert sein. Der Installer ist nicht code-signiert, Windows SmartScreen kann warnen. Ein Hardware-Test auf Marcels PC ist noch nicht ausgeführt.
 
 ## Start
 
