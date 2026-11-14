@@ -8,6 +8,7 @@ FreeCADCmd liest das Startskript von stdin; der Socket bleibt danach frei.
 from __future__ import annotations
 
 import json
+import math
 import os
 import socket
 import sys
@@ -226,8 +227,143 @@ def _form_draht(form: dict):
         return draht
     if typ == "kreis":
         return Part.Wire(Part.makeCircle(float(form["r"]), App.Vector(float(form["x"]), float(form["y"]), 0), App.Vector(0, 0, 1)))
+    radius = float(form.get("radius") or 0.0)
+    if radius > 1e-9:
+        return _polygon_gerundet([(float(px), float(py)) for px, py in form["punkte"]], radius)
     pts = [App.Vector(float(px), float(py), 0) for px, py in form["punkte"]]
     return Part.makePolygon(pts + [pts[0]])
+
+
+def _polygon_gerundet(punkte, radius: float):
+    """Vieleck mit Kreisbögen (Radius) an allen Ecken."""
+    import FreeCAD as App
+    import Part
+
+    n = len(punkte)
+    ecken = []
+    for i, (vx, vy) in enumerate(punkte):
+        px, py = punkte[i - 1]
+        nx, ny = punkte[(i + 1) % n]
+        a = (px - vx, py - vy)
+        b = (nx - vx, ny - vy)
+        la, lb = math.hypot(*a), math.hypot(*b)
+        ua, ub = (a[0] / la, a[1] / la), (b[0] / lb, b[1] / lb)
+        cos_t = max(-1.0, min(1.0, ua[0] * ub[0] + ua[1] * ub[1]))
+        theta = math.acos(cos_t)
+        if theta > math.pi - 1e-6 or theta < 1e-6:
+            ecken.append((App.Vector(vx, vy, 0), None, App.Vector(vx, vy, 0)))
+            continue
+        tl = radius / math.tan(theta / 2.0)
+        if tl > min(la, lb) / 2.0 + 1e-9:
+            raise ValueError("Der Eckenradius %.1f mm ist am Punkt %d zu groß für die anliegenden Seiten." % (radius, i + 1))
+        p1 = App.Vector(vx + ua[0] * tl, vy + ua[1] * tl, 0)
+        p2 = App.Vector(vx + ub[0] * tl, vy + ub[1] * tl, 0)
+        bis = (ua[0] + ub[0], ua[1] + ub[1])
+        lbis = math.hypot(*bis)
+        bis = (bis[0] / lbis, bis[1] / lbis)
+        abstand = radius / math.sin(theta / 2.0)
+        c = (vx + bis[0] * abstand, vy + bis[1] * abstand)
+        mitte = App.Vector(c[0] - bis[0] * radius, c[1] - bis[1] * radius, 0)
+        ecken.append((p1, mitte, p2))
+    kanten = []
+    for i, (p1, mitte, p2) in enumerate(ecken):
+        if mitte is not None:
+            kanten.append(Part.Arc(p1, mitte, p2).toShape())
+        naechste = ecken[(i + 1) % n][0]
+        if (p2 - naechste).Length > 1e-9:
+            kanten.append(Part.makeLine(p2, naechste))
+    return Part.Wire(Part.sortEdges(kanten)[0])
+
+
+def _text_koerper(form: dict, z0: float, h0: float):
+    import FreeCAD as App
+    import Part
+    from sidecar.pixelschrift import text_rechtecke
+
+    boxen = [
+        Part.makeBox(b, t, h0, App.Vector(x, y, z0))
+        for x, y, b, t in text_rechtecke(str(form["text"]), float(form["x"]), float(form["y"]), float(form["schrift_mm"]))
+    ]
+    if not boxen:
+        raise ValueError("Der Text enthält keine Zeichen.")
+    koerper = boxen[0]
+    for kasten in boxen[1:]:
+        koerper = koerper.fuse(kasten)
+    return koerper.removeSplitter()
+
+
+def _senk_werkzeuge(form: dict, hoehe_gesamt: float) -> list:
+    """Zusätzliche Schneidkörper für Senkung, Gegenbohrung oder Sechskant an einem runden Loch."""
+    import FreeCAD as App
+    import Part
+
+    art = form.get("senk_art") or "keine"
+    if art == "keine" or form["typ"] != "kreis" or not form.get("loch"):
+        return []
+    r = float(form["r"])
+    gross = float(form["senk_d_mm"]) / 2.0
+    tief = (gross - r) if art == "senkung" else float(form.get("senk_t_mm") or 0.0)
+    oben = (form.get("senk_seite") or "oben") != "unten"
+    x, y = float(form["x"]), float(form["y"])
+    z_unten = hoehe_gesamt - tief if oben else 0.0
+    ueber = 1.0
+    if art == "senkung":
+        if oben:
+            return [Part.makeCone(r, gross + ueber, tief + ueber, App.Vector(x, y, hoehe_gesamt - tief), App.Vector(0, 0, 1))]
+        return [Part.makeCone(gross + ueber, r, tief + ueber, App.Vector(x, y, -ueber), App.Vector(0, 0, 1))]
+    z_start = z_unten if oben else -ueber
+    if art == "gegenbohrung":
+        return [Part.makeCylinder(gross, tief + ueber, App.Vector(x, y, z_start), App.Vector(0, 0, 1))]
+    umkreis = gross / math.cos(math.radians(30))
+    ecken = [App.Vector(x + umkreis * math.cos(math.radians(60 * k)), y + umkreis * math.sin(math.radians(60 * k)), z_start) for k in range(6)]
+    flaeche = Part.Face(Part.makePolygon(ecken + [ecken[0]]))
+    return [flaeche.extrude(App.Vector(0, 0, tief + ueber))]
+
+
+def _seitenloch_werkzeug(s: dict, bb):
+    import FreeCAD as App
+    import Part
+
+    seite = s["seite"]
+    pos = float(s["pos_mm"])
+    z = float(s["z_mm"])
+    tiefe = float(s.get("tiefe_mm") or 0.0)
+    if (s.get("art") or "rund") == "rund":
+        b = h = float(s["d_mm"])
+    else:
+        b, h = float(s["b_mm"]), float(s["h_mm"])
+    ueber = 1.0
+    if seite in ("vorne", "hinten"):
+        laenge = bb.YLength
+        a0, a1 = bb.YMin, bb.YMax
+    else:
+        laenge = bb.XLength
+        a0, a1 = bb.XMin, bb.XMax
+    if seite in ("vorne", "links"):
+        von, bis = a0 - ueber, (a1 + ueber if tiefe <= 0 else a0 + tiefe)
+    else:
+        von, bis = (a0 - ueber if tiefe <= 0 else a1 - tiefe), a1 + ueber
+    rund = (s.get("art") or "rund") == "rund"
+    if seite in ("vorne", "hinten"):
+        if rund:
+            return Part.makeCylinder(b / 2.0, bis - von, App.Vector(pos, von, z), App.Vector(0, 1, 0))
+        return Part.makeBox(b, bis - von, h, App.Vector(pos - b / 2.0, von, z - h / 2.0))
+    if rund:
+        return Part.makeCylinder(b / 2.0, bis - von, App.Vector(von, pos, z), App.Vector(1, 0, 0))
+    return Part.makeBox(bis - von, b, h, App.Vector(von, pos - b / 2.0, z - h / 2.0))
+
+
+def _profil_koerper(params: dict):
+    import FreeCAD as App
+    import Part
+
+    dx, dy = float(params.get("DrehX") or 0.0), float(params.get("DrehY") or 0.0)
+    pts = [App.Vector(dx + float(r), dy, float(z)) for r, z in params["Profil"]]
+    flaeche = Part.Face(Part.makePolygon(pts + [pts[0]]))
+    koerper = flaeche.revolve(App.Vector(dx, dy, 0), App.Vector(0, 0, 1), 360)
+    if koerper.ShapeType != "Solid":
+        koerper = Part.makeSolid(koerper) if koerper.ShapeType == "Shell" else Part.Solid(koerper)
+    return koerper
 
 
 def _form_koerper(form: dict, z0: float, h0: float, schraege: float):
@@ -235,6 +371,8 @@ def _form_koerper(form: dict, z0: float, h0: float, schraege: float):
     import FreeCAD as App
     import Part
 
+    if form["typ"] == "text":
+        return _text_koerper(form, z0, h0)
     keil = float(form.get("keil_mm") or 0.0) if form["typ"] == "rechteck" else 0.0
     if keil:
         x, y, b, t = float(form["x"]), float(form["y"]), float(form["b"]), float(form["t"])
@@ -312,7 +450,9 @@ def _eigen_shape(params: dict):
             h_f = float(f["h_mm"]) if f.get("h_mm") not in (None, "") else hoehe - z_f
             k_f = float(f.get("keil_mm") or 0.0) if f["typ"] == "rechteck" else 0.0
             hoehe_gesamt = max(hoehe_gesamt, z_f + h_f + max(0.0, k_f))
-    plus = None
+    for _r, z_p in params.get("Profil") or []:
+        hoehe_gesamt = max(hoehe_gesamt, float(z_p))
+    plus = _profil_koerper(params) if params.get("Profil") else None
     minus = []
     for form in params["Formen"]:
         schraege = float(form.get("schraege_mm") or 0.0)
@@ -325,6 +465,7 @@ def _eigen_shape(params: dict):
                 # Die Aufweitung gilt bis zur Oberkante; das Werkzeug ragt 1 mm darüber hinaus
                 schraege = schraege * h0 / max(h0 - 1.0, 1e-6)
             minus.append(_form_koerper(form, z0, h0, schraege))
+            minus.extend(_senk_werkzeuge(form, hoehe_gesamt))
         else:
             z0 = float(form.get("z_mm") or 0.0)
             h0 = float(form["h_mm"]) if form.get("h_mm") not in (None, "") else hoehe - z0
@@ -338,6 +479,11 @@ def _eigen_shape(params: dict):
     plus = _form_kanten(plus, params["Formen"], hoehe_gesamt, boden)
     plus = _kante_bearbeiten(plus, True, int(params.get("KanteObenArt") or 0), float(params.get("KanteObenMm") or 0.0), "Obere Kante")
     plus = _kante_bearbeiten(plus, False, 1, float(params.get("KanteUntenMm") or 0.0), "Untere Fase")
+    box = _genaue_bbox(plus)
+    for seitenloch in params.get("Seitenloecher") or []:
+        plus = plus.cut(_seitenloch_werkzeug(seitenloch, box))
+    if params.get("Seitenloecher"):
+        plus = plus.removeSplitter()
     return plus
 
 
@@ -424,6 +570,7 @@ def baue_teil(teil: dict, out_dir: Path) -> dict:
     shapes, meta = _shapes_fuer(teil)
     dateien = []
     fehler = []
+    hinweise: list[str] = []
     soll = teil.get("soll_mm")
     haupt = True
     for name, shape in shapes.items():
@@ -449,11 +596,19 @@ def baue_teil(teil: dict, out_dir: Path) -> dict:
             dateien.append({"id": datei_id, "name": name, "ok": False, "solid": info, "fehler": bauraum or soll_fehler})
             continue
         export_stl(shape, stl)
+        if teil["rolle"] == "eigen":
+            from sidecar.druckpruefung_geom import druckhinweise
+
+            hinweise.extend("%s: %s" % (teil.get("name") or datei_id, h) for h in druckhinweise(shape))
         params = dict(teil["params"])
         formen_text = ""
         if teil["rolle"] == "eigen":
             # Das Tabellenblatt kennt nur Zahlen; die Formen stehen im Lesen-Text.
             formen_text = "\nFormen (mm, Draufsicht): " + json.dumps(params.pop("Formen", []), ensure_ascii=False)
+            for schluessel, titel in (("Seitenloecher", "Seitenlöcher"), ("Profil", "Drehprofil (Radius, Höhe)")):
+                eintrag = params.pop(schluessel, None)
+                if eintrag:
+                    formen_text += "\n%s: %s" % (titel, json.dumps(eintrag, ensure_ascii=False))
         if teil["rolle"] in ("ersatzteil", "kabel", "gehaeuse"):
             texte = {k: v for k, v in params.items() if not isinstance(v, (int, float))}
             for key in texte:
@@ -516,6 +671,7 @@ def baue_teil(teil: dict, out_dir: Path) -> dict:
         "anzahl_ist_vorschlag": bool(teil.get("anzahl_ist_vorschlag")),
         "ok": not fehler and all(d.get("ok") for d in dateien),
         "fehler": fehler,
+        "hinweise": hinweise,
         "dateien": dateien,
     }
 

@@ -328,6 +328,8 @@ def generiere(projekt: Projekt, out_dir: Path, freecad_pfad: str | None = None, 
     hinweise = list(auftrag["ansicht"].get("hinweise") or [])
     if auftrag["ansicht"].get("randstreifen"):
         hinweise.append(auftrag["ansicht"].get("randstreifen_hinweis") or "")
+    for teil in teile_ausgabe:
+        hinweise.extend(h for h in (teil.get("hinweise") or []) if h not in hinweise)
     hinweise.append("Masse in Gramm ist eine Schätzung über das CAD-Volumen, kein gewogenes Teil.")
     if any(t.get("anzahl_ist_vorschlag") for t in teile_ausgabe):
         hinweise.append("Die Anzahl der Rastclips ist ein Vorschlag, keine gemessene Empfehlung.")

@@ -163,6 +163,7 @@ test("Zeichnen: Vieleck-Punkte ziehen, einfügen und löschen", async ({ page })
 
   // Dreieck (10/10, 70/10, 10/50) per Klick, Enter schließt
   await page.getByTestId("werkzeug-polygon").click();
+  mm = await blattKoordinaten(blatt); // die Hilfezeile ändert mit dem Werkzeug ihre Höhe
   for (const [x, y] of [[10, 10], [70, 10], [10, 50]]) await page.mouse.click(mm(x, y).x, mm(x, y).y);
   await page.keyboard.press("Enter");
   await expect(page.locator(".formliste li")).toHaveCount(1);
@@ -170,6 +171,7 @@ test("Zeichnen: Vieleck-Punkte ziehen, einfügen und löschen", async ({ page })
 
   // Wählen und Punkt 2 nach (90/10) ziehen: Breite 80
   await page.getByTestId("werkzeug-wahl").click();
+  mm = await blattKoordinaten(blatt);
   await page.mouse.click(mm(20, 20).x, mm(20, 20).y);
   await expect(page.getByTestId("punkt-griffe")).toBeVisible();
   mm = await blattKoordinaten(blatt);

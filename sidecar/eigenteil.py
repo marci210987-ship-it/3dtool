@@ -16,7 +16,9 @@ from sidecar.paths import HAUSRASTER_SRC  # noqa: F401  (stellt sys.path sicher)
 
 MIN_MASS_MM = 0.4
 MAX_FORMEN = 200
-TYPEN = ("rechteck", "kreis", "polygon")
+TYPEN = ("rechteck", "kreis", "polygon", "text")
+SENK_ARTEN = ("keine", "senkung", "gegenbohrung", "sechskant")
+SEITEN = ("vorne", "hinten", "links", "rechts")
 
 
 @dataclass
@@ -37,6 +39,12 @@ class Eigenteil:
     kante_oben_art: str = "keine"  # keine | fase | rund
     kante_oben_mm: float = 0.0
     kante_unten_mm: float = 0.0
+    # Bohrungen und Schlitze von der Seite (Wand vorne/hinten/links/rechts)
+    seitenloecher: list = field(default_factory=list)
+    # Drehprofil: Punkte (Radius, Höhe), wird um die senkrechte Achse bei (dreh_x_mm, dreh_y_mm) gedreht
+    profil: list = field(default_factory=list)
+    dreh_x_mm: float = 0.0
+    dreh_y_mm: float = 0.0
 
     @staticmethod
     def from_dict(data: dict) -> "Eigenteil":
@@ -60,6 +68,10 @@ def eigen_params(teil: "Eigenteil") -> dict:
         "KanteObenArt": KANTEN_ARTEN.get(teil.kante_oben_art, 0),
         "KanteObenMm": float(teil.kante_oben_mm),
         "KanteUntenMm": float(teil.kante_unten_mm),
+        "Seitenloecher": teil.seitenloecher,
+        "Profil": teil.profil,
+        "DrehX": float(teil.dreh_x_mm),
+        "DrehY": float(teil.dreh_y_mm),
     }
 
 
@@ -90,6 +102,11 @@ def eigenteil_hoehe(teil: "Eigenteil") -> float:
         try:
             hoechste = max(hoechste, form_oberkante(form, float(teil.hoehe_mm)))
         except (TypeError, ValueError):
+            continue
+    for punkt in teil.profil or []:
+        try:
+            hoechste = max(hoechste, float(punkt[1]))
+        except (TypeError, ValueError, IndexError):
             continue
     return hoechste if hoechste > 0 else float(teil.hoehe_mm)
 
@@ -182,7 +199,23 @@ def form_bbox(form: dict) -> tuple[float, float, float, float]:
         xs = [_zahl(p[0], "x") for p in punkte]
         ys = [_zahl(p[1], "y") for p in punkte]
         return min(xs), min(ys), max(xs), max(ys)
+    if typ == "text":
+        from sidecar.pixelschrift import text_groesse
+
+        x = _zahl(form.get("x"), "x")
+        y = _zahl(form.get("y"), "y")
+        b, t = text_groesse(str(form.get("text") or ""), _zahl(form.get("schrift_mm"), "Schrifthöhe"))
+        return x, y, x + b, y + t
     raise ValueError("Unbekannte Form „%s“." % typ)
+
+
+def profil_bbox(teil: "Eigenteil") -> tuple[float, float, float, float] | None:
+    """x0, y0, x1, y1 des Drehteils (None ohne Profil)."""
+    if not teil.profil:
+        return None
+    rmax = max(float(p[0]) for p in teil.profil)
+    dx, dy = float(teil.dreh_x_mm), float(teil.dreh_y_mm)
+    return dx - rmax, dy - rmax, dx + rmax, dy + rmax
 
 
 def _flaeche_polygon(punkte) -> float:
@@ -216,6 +249,131 @@ def polygon_selbstschnitt(punkte) -> bool:
     return False
 
 
+def _senkung_pruefen(form: dict, marke: str, gesamt: float) -> list[str]:
+    """Senkung, Gegenbohrung oder Sechskant-Tasche an einem runden Loch."""
+    art = form.get("senk_art") or "keine"
+    if art not in SENK_ARTEN:
+        return ["%s: Unbekannte Senkungsart „%s“." % (marke, art)]
+    if art == "keine":
+        return []
+    if not form.get("loch"):
+        return ["%s: Senkung, Gegenbohrung und Sechskant gibt es nur an Löchern." % marke]
+    try:
+        d = 2 * float(form.get("r"))
+        gross = _zahl(form.get("senk_d_mm"), "Senkungsdurchmesser")
+        tief = _zahl(form.get("senk_t_mm") or 0, "Senkungstiefe")
+    except (TypeError, ValueError) as exc:
+        return ["%s: %s" % (marke, exc)]
+    if form.get("senk_seite") not in (None, "oben", "unten"):
+        return ["%s: Die Seite der Senkung muss oben oder unten sein." % marke]
+    fehler = []
+    if gross <= d + 0.2:
+        fehler.append("%s: Der Durchmesser der Senkung (%.1f mm) muss größer als das Loch (%.1f mm) sein." % (marke, gross, d))
+        return fehler
+    if art == "senkung":
+        tief = (gross - d) / 2.0  # 90° Senkwinkel
+    elif tief < MIN_MASS_MM:
+        fehler.append("%s: Die Tiefe der Senkung ist zu klein." % marke)
+    if tief >= gesamt - 0.4:
+        fehler.append("%s: Die Senkung (%.1f mm tief) lässt kein Material von der Teilhöhe %.1f mm übrig." % (marke, tief, gesamt))
+    return fehler
+
+
+def _text_pruefen(form: dict, marke: str) -> list[str]:
+    from sidecar.pixelschrift import MAX_ZEICHEN, MIN_PIXEL_MM, normalisiert, unbekannte_zeichen
+
+    text = str(form.get("text") or "")
+    if not text.strip():
+        return ["%s: Der Text ist leer." % marke]
+    if len(normalisiert(text)) > MAX_ZEICHEN:
+        return ["%s: Der Text ist zu lang (höchstens %d Zeichen)." % (marke, MAX_ZEICHEN)]
+    fehler = []
+    fremd = unbekannte_zeichen(text)
+    if fremd:
+        fehler.append("%s: Diese Zeichen gibt es in der Schrift nicht: %s" % (marke, " ".join(fremd)))
+    try:
+        schrift = _zahl(form.get("schrift_mm"), "Schrifthöhe")
+    except ValueError as exc:
+        return fehler + ["%s: %s" % (marke, exc)]
+    if schrift / 7.0 < MIN_PIXEL_MM - 1e-9:
+        fehler.append("%s: Die Schrift ist zu klein, mindestens %.1f mm Höhe (Pixel %.1f mm)." % (marke, MIN_PIXEL_MM * 7, MIN_PIXEL_MM))
+    if form.get("kante_art") not in (None, "keine") or form.get("schraege_mm") or form.get("keil_mm"):
+        fehler.append("%s: Text lässt sich nicht mit Kante, Schräge oder Keil kombinieren." % marke)
+    return fehler
+
+
+def _profil_pruefen(teil: "Eigenteil", name: str, bauraum_mm) -> list[str]:
+    if not teil.profil:
+        return []
+    marke = "%s, Drehprofil" % name
+    try:
+        punkte = [(_zahl(p[0], "Radius"), _zahl(p[1], "Höhe")) for p in teil.profil]
+        _zahl(teil.dreh_x_mm, "Mitte x")
+        _zahl(teil.dreh_y_mm, "Mitte y")
+    except (ValueError, TypeError, IndexError) as exc:
+        return ["%s: %s" % (marke, exc)]
+    if len(punkte) < 3:
+        return ["%s: Das Profil braucht mindestens 3 Punkte." % marke]
+    if len(punkte) > 60:
+        return ["%s: Zu viele Profilpunkte (höchstens 60)." % marke]
+    if any(r < 0 or z < 0 for r, z in punkte):
+        return ["%s: Radius und Höhe dürfen nicht negativ sein." % marke]
+    if polygon_selbstschnitt(punkte):
+        return ["%s: Das Profil überschneidet sich selbst." % marke]
+    if abs(_flaeche_polygon(punkte)) < 0.1:
+        return ["%s: Das Profil hat keine Fläche." % marke]
+    if max(r for r, _ in punkte) * 2 > min(bauraum_mm[0], bauraum_mm[1]) + 1e-6:
+        return ["%s: Der Durchmesser passt nicht in den Bauraum." % marke]
+    if max(z for _, z in punkte) > float(bauraum_mm[2]) + 1e-6:
+        return ["%s: Die Höhe liegt über dem Bauraum." % marke]
+    if max(r for r, _ in punkte) < MIN_MASS_MM:
+        return ["%s: Das Profil ist zu schmal." % marke]
+    if teil.dreh_x_mm - max(r for r, _ in punkte) < -1e-9 or teil.dreh_y_mm - max(r for r, _ in punkte) < -1e-9:
+        return ["%s: Das Drehteil ragt über den Nullpunkt hinaus; Mitte x und y größer als der größte Radius wählen." % marke]
+    return []
+
+
+def _seitenloecher_pruefen(teil: "Eigenteil", name: str, bbox, gesamt: float) -> list[str]:
+    fehler = []
+    if len(teil.seitenloecher or []) > 40:
+        return ["%s: Zu viele Seitenlöcher (höchstens 40)." % name]
+    x0, y0, x1, y1 = bbox
+    for i, s in enumerate(teil.seitenloecher or [], 1):
+        marke = "%s, Seitenloch %d" % (name, i)
+        try:
+            seite = s.get("seite")
+            art = s.get("art") or "rund"
+            pos = _zahl(s.get("pos_mm"), "Position")
+            z = _zahl(s.get("z_mm"), "Höhe")
+            tiefe = _zahl(s.get("tiefe_mm") or 0, "Tiefe")
+            if art == "rund":
+                b = h = _zahl(s.get("d_mm"), "Durchmesser")
+            elif art == "schlitz":
+                b, h = _zahl(s.get("b_mm"), "Breite"), _zahl(s.get("h_mm"), "Höhe des Schlitzes")
+            else:
+                fehler.append("%s: Unbekannte Art „%s“." % (marke, art))
+                continue
+        except (ValueError, TypeError) as exc:
+            fehler.append("%s: %s" % (marke, exc))
+            continue
+        if seite not in SEITEN:
+            fehler.append("%s: Unbekannte Seite „%s“." % (marke, seite))
+            continue
+        if b < MIN_MASS_MM or h < MIN_MASS_MM:
+            fehler.append("%s: Das Maß ist kleiner als %.1f mm." % (marke, MIN_MASS_MM))
+            continue
+        laenge_wand = (x1 - x0) if seite in ("vorne", "hinten") else (y1 - y0)
+        anfang = x0 if seite in ("vorne", "hinten") else y0
+        tief_max = (y1 - y0) if seite in ("vorne", "hinten") else (x1 - x0)
+        if pos - b / 2 < anfang - 1e-9 or pos + b / 2 > anfang + laenge_wand + 1e-9:
+            fehler.append("%s: Die Position liegt nicht an der Wand (%.1f bis %.1f mm)." % (marke, anfang, anfang + laenge_wand))
+        if z - h / 2 < -1e-9 or z + h / 2 > gesamt + 1e-9:
+            fehler.append("%s: Das Loch liegt nicht innerhalb der Teilhöhe (0 bis %.1f mm)." % (marke, gesamt))
+        if tiefe < 0 or tiefe > tief_max + 1e-9:
+            fehler.append("%s: Tiefe muss zwischen 0 (durchgehend) und %.1f mm liegen." % (marke, tief_max))
+    return fehler
+
+
 def eigenteil_pruefen(teil: Eigenteil, bauraum_mm=(256.0, 256.0, 256.0)) -> list[str]:
     """Liefert deutsche Fehlertexte. Leere Liste = in Ordnung."""
     fehler: list[str] = []
@@ -231,7 +389,7 @@ def eigenteil_pruefen(teil: Eigenteil, bauraum_mm=(256.0, 256.0, 256.0)) -> list
         fehler.append("%s: Boden muss kleiner als die Höhe sein." % name)
     if int(teil.anzahl) < 1:
         fehler.append("%s: Anzahl muss mindestens 1 sein." % name)
-    if not teil.formen:
+    if not teil.formen and not teil.profil:
         return fehler + ["%s: Es ist noch keine Form gezeichnet." % name]
     if teil.kante_oben_art not in KANTEN_ARTEN:
         fehler.append("%s: Unbekannte Kantenart „%s“." % (name, teil.kante_oben_art))
@@ -272,6 +430,9 @@ def eigenteil_pruefen(teil: Eigenteil, bauraum_mm=(256.0, 256.0, 256.0)) -> list
                 if _zahl(form.get("r"), "Radius") * 2 < MIN_MASS_MM:
                     fehler.append("%s: Kreis ist kleiner als %.1f mm." % (marke, MIN_MASS_MM))
                     continue
+                fehler.extend(_senkung_pruefen(form, marke, gesamt))
+            elif typ == "text":
+                fehler.extend(_text_pruefen(form, marke))
             else:
                 punkte = form.get("punkte") or []
                 if len(punkte) < 3:
@@ -284,6 +445,16 @@ def eigenteil_pruefen(teil: Eigenteil, bauraum_mm=(256.0, 256.0, 256.0)) -> list
                 if abs(_flaeche_polygon(koords)) < 0.1:
                     fehler.append("%s: Das Vieleck hat keine Fläche." % marke)
                     continue
+                eckenradius = _zahl(form.get("radius") or 0, "Eckenradius")
+                if eckenradius < 0:
+                    fehler.append("%s: Eckenradius darf nicht negativ sein." % marke)
+                    continue
+                if eckenradius > 0:
+                    if form.get("kante_art") not in (None, "keine"):
+                        fehler.append("%s: Abgerundete Ecken lassen sich nicht mit Fase oder Rundung der Kante kombinieren." % marke)
+                    kuerzeste = min(math.dist(koords[i], koords[(i + 1) % len(koords)]) for i in range(len(koords)))
+                    if eckenradius > kuerzeste / 2.0 + 1e-9:
+                        fehler.append("%s: Eckenradius darf höchstens die halbe kürzeste Seite (%.1f mm) betragen." % (marke, kuerzeste / 2.0))
             bx0, by0, bx1, by1 = form_bbox(form)
         except (ValueError, TypeError, IndexError) as exc:
             fehler.append("%s: %s" % (marke, exc))
@@ -310,8 +481,16 @@ def eigenteil_pruefen(teil: Eigenteil, bauraum_mm=(256.0, 256.0, 256.0)) -> list
             x0, y0, x1, y1 = min(x0, bx0), min(y0, by0), max(x1, bx1), max(y1, by1)
     if teil.kante_oben_art != "keine" and any(f.get("keil_mm") for f in teil.formen if isinstance(f, dict)):
         fehler.append("%s: Die obere Teilkante lässt sich nicht mit einem Keil kombinieren (die Oberseite ist schräg)." % name)
+    fehler.extend(_profil_pruefen(teil, name, bauraum_mm))
+    if teil.profil and not fehler:
+        additiv += 1
+        pb = profil_bbox(teil)
+        if pb:
+            x0, y0, x1, y1 = min(x0, pb[0]), min(y0, pb[1]), max(x1, pb[2]), max(y1, pb[3])
     if additiv == 0 and not fehler:
         fehler.append("%s: Es gibt nur Löcher, aber keine Form, die Material hinzufügt." % name)
+    if not fehler:
+        fehler.extend(_seitenloecher_pruefen(teil, name, (x0, y0, x1, y1), gesamt))
     if additiv and not fehler:
         if (x1 - x0) > bauraum_mm[0] + 1e-6 or (y1 - y0) > bauraum_mm[1] + 1e-6:
             fehler.append(
@@ -330,6 +509,9 @@ def eigenteil_sollgroesse(teil: Eigenteil) -> list[float] | None:
             continue
         bx0, by0, bx1, by1 = form_bbox(form)
         x0, y0, x1, y1 = min(x0, bx0), min(y0, by0), max(x1, bx1), max(y1, by1)
+    pb = profil_bbox(teil)
+    if pb:
+        x0, y0, x1, y1 = min(x0, pb[0]), min(y0, pb[1]), max(x1, pb[2]), max(y1, pb[3])
     if x0 == math.inf:
         return None
     return [round(x1 - x0, 3), round(y1 - y0, 3), round(eigenteil_hoehe(teil), 3)]

@@ -1,5 +1,11 @@
 # Änderungsprotokoll
 
+## Unveröffentlicht
+
+- Zeichnen: Vieleck-Punkte ziehen, einfügen und löschen; Langloch; Vieleck mit Eckenradius; Senkung, Gegenbohrung und Sechskant-Tasche an Löchern; Text (Pixelschrift); Gruppen mit Umschalt-Klick; Seitenlöcher; Drehteile aus einem Profil.
+- Export: Druckhinweise zu Überhängen und dünnen Stellen bei eigenen Teilen.
+- Nicht gedruckt geprüft; Maße und Toleranzen sind Modellwerte.
+
 ## 0.3.0
 
 - Der Windows-Installer bleibt als GitHub Release liegen: `CAD-Studio-0.3.0-Setup.exe` und `CAD-Studio-0.3.0.msi`.

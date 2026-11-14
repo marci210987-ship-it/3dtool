@@ -17,8 +17,36 @@ export interface FormOptionen {
 
 export type Form =
   | ({ typ: "rechteck"; x: number; y: number; b: number; t: number; loch: boolean; radius?: number; keil_mm?: number; winkel?: number } & FormOptionen)
-  | ({ typ: "kreis"; x: number; y: number; r: number; loch: boolean } & FormOptionen)
-  | ({ typ: "polygon"; punkte: Punkt[]; loch: boolean } & FormOptionen);
+  | ({ typ: "kreis"; x: number; y: number; r: number; loch: boolean } & FormOptionen & SenkOptionen)
+  | ({ typ: "polygon"; punkte: Punkt[]; loch: boolean; radius?: number } & FormOptionen)
+  | ({ typ: "text"; x: number; y: number; text: string; schrift_mm: number; loch: boolean } & FormOptionen);
+
+export type SenkArt = "keine" | "senkung" | "gegenbohrung" | "sechskant";
+
+/** Senkung, Gegenbohrung oder Sechskant-Tasche an einem runden Loch. */
+export interface SenkOptionen {
+  senk_art?: SenkArt;
+  /** Senkung/Gegenbohrung: Durchmesser; Sechskant: Schlüsselweite */
+  senk_d_mm?: number;
+  /** Gegenbohrung/Sechskant: Tiefe (die 90°-Senkung ergibt die Tiefe aus den Durchmessern) */
+  senk_t_mm?: number;
+  senk_seite?: "oben" | "unten";
+}
+
+export type Seite = "vorne" | "hinten" | "links" | "rechts";
+
+/** Bohrung oder Schlitz durch eine Seitenwand. pos_mm liegt entlang der Wand (x bei vorne/hinten, y bei links/rechts). */
+export interface Seitenloch {
+  seite: Seite;
+  art: "rund" | "schlitz";
+  pos_mm: number;
+  z_mm: number;
+  d_mm?: number;
+  b_mm?: number;
+  h_mm?: number;
+  /** 0 = durchgehend */
+  tiefe_mm?: number;
+}
 
 export interface Eigenteil {
   id: string;
@@ -35,6 +63,11 @@ export interface Eigenteil {
   kante_oben_art: KantenArt;
   kante_oben_mm: number;
   kante_unten_mm: number;
+  seitenloecher?: Seitenloch[];
+  /** Drehprofil (Radius, Höhe), wird um die senkrechte Achse bei (dreh_x_mm, dreh_y_mm) gedreht */
+  profil?: Punkt[];
+  dreh_x_mm?: number;
+  dreh_y_mm?: number;
 }
 
 export const MIN_MM = 0.4;
@@ -58,7 +91,7 @@ export function neueTeilId(vorhanden: Eigenteil[]): string {
 
 export function neuesTeil(vorhanden: Eigenteil[]): Eigenteil {
   const id = neueTeilId(vorhanden);
-  return { id, name: `Eigenes Teil ${id.slice(1)}`, hoehe_mm: 10, boden_mm: 0, anzahl: 1, formen: [], notiz: "", platziert: false, x_mm: 0, y_mm: 0, drehung: 0, kante_oben_art: "keine", kante_oben_mm: 0, kante_unten_mm: 0 };
+  return { id, name: `Eigenes Teil ${id.slice(1)}`, hoehe_mm: 10, boden_mm: 0, anzahl: 1, formen: [], notiz: "", platziert: false, x_mm: 0, y_mm: 0, drehung: 0, kante_oben_art: "keine", kante_oben_mm: 0, kante_unten_mm: 0, seitenloecher: [], profil: [], dreh_x_mm: 0, dreh_y_mm: 0 };
 }
 
 /** Mitte eines gedrehten Rechtecks (die Drehung geschieht um diese Mitte). */
@@ -80,9 +113,45 @@ export function formBox(form: Form): [number, number, number, number] {
     return [bereinigen(mx - hx), bereinigen(my - hy), bereinigen(mx + hx), bereinigen(my + hy)];
   }
   if (form.typ === "kreis") return [form.x - form.r, form.y - form.r, form.x + form.r, form.y + form.r];
+  if (form.typ === "text") {
+    const { b, t } = textMasse(form.text, form.schrift_mm);
+    return [form.x, form.y, form.x + b, form.y + t];
+  }
   const xs = form.punkte.map((p) => p[0]);
   const ys = form.punkte.map((p) => p[1]);
   return [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)];
+}
+
+/** Ä, Ö, Ü und ß werden in der Pixelschrift zu AE, OE, UE und SS (wie im Sidecar). */
+export function textNormal(text: string): string {
+  return text.toUpperCase().replace(/Ä/g, "AE").replace(/Ö/g, "OE").replace(/Ü/g, "UE").replace(/ß/g, "SS");
+}
+
+/** Breite und Höhe eines Textes in der 5×7-Pixelschrift (ein Pixel = Schrifthöhe / 7). */
+export function textMasse(text: string, schrift: number): { b: number; t: number } {
+  const n = textNormal(text).length;
+  const px = schrift / 7;
+  return { b: bereinigen(Math.max(0, 6 * n - 1) * px), t: bereinigen(7 * px) };
+}
+
+/** Langloch als Rechteck mit vollem Eckenradius: von Mitte A bis Mitte B, mit Breite w. */
+export function langlochAus(a: Punkt, b: Punkt, breite: number, loch: boolean): Form | null {
+  const laenge = Math.hypot(b[0] - a[0], b[1] - a[1]);
+  if (breite < MIN_MM || laenge < 1e-6) return null;
+  const mx = (a[0] + b[0]) / 2;
+  const my = (a[1] + b[1]) / 2;
+  const grad = (Math.atan2(b[1] - a[1], b[0] - a[0]) * 180) / Math.PI;
+  const winkel = bereinigen(((grad % 180) + 180) % 180);
+  return {
+    typ: "rechteck",
+    x: bereinigen(mx - (laenge + breite) / 2),
+    y: bereinigen(my - breite / 2),
+    b: bereinigen(laenge + breite),
+    t: bereinigen(breite),
+    radius: bereinigen(breite / 2),
+    ...(winkel ? { winkel } : {}),
+    loch,
+  };
 }
 
 /** Außenmaß der Formen, die Material hinzufügen (wie im Sidecar). */
@@ -107,13 +176,35 @@ export function gesamthoehe(teil: Pick<Eigenteil, "formen" | "hoehe_mm">): numbe
     if (f.loch) continue;
     hoechste = Math.max(hoechste, formOberkante(f, teil.hoehe_mm));
   }
+  for (const p of (teil as { profil?: Punkt[] }).profil ?? []) hoechste = Math.max(hoechste, p[1]);
   return hoechste > 0 ? bereinigen(hoechste) : teil.hoehe_mm;
 }
 
-export function aussenmass(formen: Form[]): { breite: number; tiefe: number } | null {
+/** Grundfläche des Drehprofils (Kreis um die Drehachse mit dem größten Radius) als Box. */
+export function profilBox(teil: Pick<Eigenteil, "profil" | "dreh_x_mm" | "dreh_y_mm">): [number, number, number, number] | null {
+  const profil = teil.profil ?? [];
+  if (!profil.length) return null;
+  const r = Math.max(...profil.map((p) => p[0]));
+  const dx = teil.dreh_x_mm ?? 0;
+  const dy = teil.dreh_y_mm ?? 0;
+  return [dx - r, dy - r, dx + r, dy + r];
+}
+
+/** Außenbox (x0, y0, x1, y1) aller Formen, die Material hinzufügen, und des Drehprofils. */
+export function aussenBox(teil: Pick<Eigenteil, "formen" | "profil" | "dreh_x_mm" | "dreh_y_mm">): [number, number, number, number] | null {
+  const boxen = teil.formen.filter((f) => !f.loch).map(formBox);
+  const pb = profilBox(teil);
+  if (pb) boxen.push(pb);
+  if (!boxen.length) return null;
+  return [Math.min(...boxen.map((b) => b[0])), Math.min(...boxen.map((b) => b[1])), Math.max(...boxen.map((b) => b[2])), Math.max(...boxen.map((b) => b[3]))];
+}
+
+export function aussenmass(formen: Form[], drehteil?: Pick<Eigenteil, "profil" | "dreh_x_mm" | "dreh_y_mm">): { breite: number; tiefe: number } | null {
   const hinzu = formen.filter((f) => !f.loch);
-  if (!hinzu.length) return null;
   const boxen = hinzu.map(formBox);
+  const pb = drehteil ? profilBox(drehteil) : null;
+  if (pb) boxen.push(pb);
+  if (!boxen.length) return null;
   const x0 = Math.min(...boxen.map((b) => b[0]));
   const y0 = Math.min(...boxen.map((b) => b[1]));
   const x1 = Math.max(...boxen.map((b) => b[2]));
@@ -203,12 +294,16 @@ export function teilVonServer(roh: Record<string, unknown>): Eigenteil {
     kante_oben_art: (["fase", "rund"].includes(String(roh.kante_oben_art)) ? roh.kante_oben_art : "keine") as KantenArt,
     kante_oben_mm: Number(roh.kante_oben_mm ?? 0),
     kante_unten_mm: Number(roh.kante_unten_mm ?? 0),
+    seitenloecher: ((roh.seitenloecher as Seitenloch[]) || []).map((l) => ({ ...l })),
+    profil: ((roh.profil as Punkt[]) || []).map((p) => [Number(p[0]), Number(p[1])] as Punkt),
+    dreh_x_mm: Number(roh.dreh_x_mm ?? 0),
+    dreh_y_mm: Number(roh.dreh_y_mm ?? 0),
   };
 }
 
 /** Belegte Fläche in der Schublade nach Drehung, in Millimetern (x, y, Breite, Tiefe). */
 export function rechteckMm(teil: Eigenteil): { x: number; y: number; b: number; t: number } | null {
-  const mass = aussenmass(teil.formen);
+  const mass = aussenmass(teil.formen, teil);
   if (!mass) return null;
   const gedreht = teil.drehung % 180 === 90;
   return { x: teil.x_mm, y: teil.y_mm, b: gedreht ? mass.tiefe : mass.breite, t: gedreht ? mass.breite : mass.tiefe };
@@ -273,6 +368,7 @@ function formMasse(form: Form, abstand: number, mitKanten: boolean): Massangabe[
     const [x0, y0, x1, y1] = formBox(form);
     return [{ text: `${zahlText(x1 - x0)} × ${zahlText(y1 - y0)}`, x: (x0 + x1) / 2, y: y1 + abstand }];
   }
+  if (form.typ !== "polygon") return [];
   return form.punkte.map((p, i) => {
     const q = form.punkte[(i + 1) % form.punkte.length];
     return { text: zahlText(Math.hypot(q[0] - p[0], q[1] - p[1])), x: (p[0] + q[0]) / 2, y: (p[1] + q[1]) / 2 };
@@ -514,6 +610,7 @@ function drehePunkt(p: Punkt, mitte: Punkt, grad: number): Punkt {
 
 /** Ob sich die Form drehen lässt: Rechtecke bleiben achsparallel und sind ausgenommen. */
 export function laesstSichDrehen(form: Form): boolean {
+  if (form.typ === "text") return false;
   return !(form.typ === "rechteck" && form.keil_mm);
 }
 
@@ -533,7 +630,7 @@ export function kreismuster(form: Form, mitte: Punkt, anzahl: number, gesamtWink
       kopien.push({ ...form, x, y });
     } else if (form.typ === "polygon") {
       kopien.push({ ...form, punkte: form.punkte.map((p) => drehePunkt(p, mitte, grad)) });
-    } else {
+    } else if (form.typ === "rechteck") {
       // Rechteck: Mitte auf den Kreis, Drehwinkel um denselben Betrag erhöhen
       const [cx, cy] = rechteckMitte(form);
       const [nx, ny] = drehePunkt([cx, cy], mitte, grad);
@@ -554,6 +651,11 @@ export function spiegeln(form: Form, achse: "x" | "y", pos: number, teilHoehe: n
   }
   if (form.typ === "polygon") {
     return { ...form, punkte: form.punkte.map(([x, y]) => (achse === "x" ? [sp(x), y] : [x, sp(y)]) as Punkt) };
+  }
+  if (form.typ === "text") {
+    // Die Schrift selbst bleibt lesbar; nur die Lage wird gespiegelt
+    const { b, t } = textMasse(form.text, form.schrift_mm);
+    return achse === "x" ? { ...form, x: sp(form.x + b) } : { ...form, y: sp(form.y + t) };
   }
   if (form.winkel && form.winkel % 180 !== 0) {
     // Gedrehtes Rechteck: Mitte spiegeln, Drehwinkel ändert das Vorzeichen
@@ -606,4 +708,33 @@ export function masseSetzen(form: Form, feld: MassFeld, text: string): Form | nu
   }
   if (form.typ === "kreis" && feld === "d") return { ...form, r: bereinigen(wert / 2) };
   return null;
+}
+
+/** Gemeinsame Box (x0, y0, x1, y1) der gewählten Formen. */
+export function gruppeBox(formen: Form[], indizes: number[]): [number, number, number, number] | null {
+  const boxen = indizes.filter((i) => formen[i]).map((i) => formBox(formen[i]));
+  if (!boxen.length) return null;
+  return [Math.min(...boxen.map((b) => b[0])), Math.min(...boxen.map((b) => b[1])), Math.max(...boxen.map((b) => b[2])), Math.max(...boxen.map((b) => b[3]))];
+}
+
+/** Verschiebt die gewählten Formen gemeinsam. */
+export function gruppeVerschieben(formen: Form[], indizes: number[], dx: number, dy: number): Form[] {
+  const menge = new Set(indizes);
+  return formen.map((f, i) => (menge.has(i) ? verschieben(f, dx, dy) : f));
+}
+
+/** Hängt verschobene Kopien der gewählten Formen an. Liefert die neue Liste und die Indizes der Kopien. */
+export function gruppeKopieren(formen: Form[], indizes: number[], dx: number, dy: number): { formen: Form[]; neu: number[] } {
+  const geordnet = [...indizes].filter((i) => formen[i]).sort((a, b) => a - b);
+  const kopien = geordnet.map((i) => verschieben(formen[i], dx, dy));
+  return { formen: [...formen, ...kopien], neu: kopien.map((_, k) => formen.length + k) };
+}
+
+/** Spiegelt die gewählten Formen an der Mittellinie ihrer gemeinsamen Box (achse "x": senkrechte Linie). */
+export function gruppeSpiegeln(formen: Form[], indizes: number[], achse: "x" | "y", teilHoehe: number): Form[] {
+  const box = gruppeBox(formen, indizes);
+  if (!box) return formen;
+  const pos = achse === "x" ? (box[0] + box[2]) / 2 : (box[1] + box[3]) / 2;
+  const menge = new Set(indizes);
+  return formen.map((f, i) => (menge.has(i) ? spiegeln(f, achse, pos, teilHoehe) : f));
 }

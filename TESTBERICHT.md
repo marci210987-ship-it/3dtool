@@ -177,3 +177,17 @@ FrohnLabs-Wortmarke auf dunkelblauer Kopfleiste, Bambu-Grün für Aktionen, hell
 | Playwright `tests/e2e/design.spec.ts` und `tests/e2e/schublade.spec.ts` | lokal bestanden. Sechs Ansichten bei 1440×900, die große Box zeigt „Große Box“ und „2×3“ |
 | Windows-Hardware | nicht ausgeführt |
 | GitHub Actions `windows.yml`, Commit `35c8798`, beide Jobs | bestanden, 14. November 2026. Lauf [43586530496](https://github.com/marci210987-ship-it/3dtool/actions/runs/43586530496). Jobs `tests` und `installer` grün. Artifacts: `cad-studio-windows-msi` 14 373 038 Byte, `cad-studio-windows-setup` 11 421 436 Byte. [Artifacts](https://github.com/marci210987-ship-it/3dtool/actions/runs/43586530496#artifacts). Der Installer wurde dabei nicht auf einem privaten Windows-PC gestartet. |
+
+## Erweiterungen im Zeichnen (14. November 2026)
+
+FreeCAD 1.1.4 auf Linux (`AppRun freecadcmd`), Chromium für Playwright. Windows-Hardware, Druck und GitHub Actions: nicht ausgeführt.
+
+| Prüfung | Ergebnis |
+|---|---|
+| `python3 -m unittest tests.test_erweitert` mit `FREECADCMD` | bestanden, 14 Tests. Volumen gegen Rechnung: erhabener und vertiefter Text, 90°-Senkung oben und unten, Gegenbohrung, Sechskant-Tasche, durchgehende, Sack- und Schlitz-Seitenlöcher, Drehprofil (Guldin), gerundetes Quadrat. Druckhinweise: Teil mit freitragender Decke und 0,5-mm-Rippe meldet beides, ein einfacher Klotz nichts |
+| Alle Python-Module (14) mit FreeCAD | 115 Tests bestanden |
+| `npm test`, `npm run build` | 69 Vitest-Tests bestanden, Produktionsbau ohne Typfehler |
+| Playwright (alle Spezifikationen) | 15 von 15 bestanden, darunter Langloch/Text/Senkung, Gruppen, Seitenloch/Drehteil, Export eines Drehteils mit Seitenloch |
+| Sichtprüfung | Bildschirmfoto: gerundetes Vieleck, Langloch mit Winkel, erhabener Text lesbar |
+
+Grenzen: Die Druckhinweise sind Faustregeln für eine 0,4-mm-Düse und keine Slicer-Simulation. Die Textvorschau im Blatt ist vereinfacht, der Export setzt die Pixelschrift. Gerundete Vielecke gehen nicht zusammen mit Kantenfase. Nichts davon ist gedruckt.

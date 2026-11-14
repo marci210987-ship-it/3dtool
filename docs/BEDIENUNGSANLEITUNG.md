@@ -103,7 +103,18 @@ Jedes Teil besteht aus Formen in der Draufsicht (Ursprung links unten, Millimete
 - **Fase unten** (mm): bricht die untere Außenkante, gegen den „Elefantenfuß“ beim Druck.
 - Obere und untere Kante zusammen dürfen höchstens die halbe Höhe betragen. Passt ein Wert geometrisch nicht, meldet der Export das und bleibt gesperrt.
 
-Grenzen: keine Gewinde, keine frei geformten Flächen, keine Texte. Ein Vieleck darf sich nicht selbst schneiden. Maße über 256 mm werden abgelehnt.
+### Erweiterte Formen (Stand: Tests mit FreeCAD, nicht gedruckt)
+
+- **Langloch:** Werkzeug „Langloch“, von der Mitte des einen Endes zur Mitte des anderen ziehen. Die Breite steht in der Leiste. Intern ein Rechteck mit vollem Eckenradius und Drehwinkel.
+- **Vieleck mit Rundung:** Beim gewählten Vieleck „Eckenradius“ setzen. Alle Ecken bekommen Kreisbögen. Der Radius darf höchstens die halbe kürzeste Seite sein. Nicht kombinierbar mit Fase oder Rundung der Kante.
+- **Senkung am runden Loch:** Beim gewählten Loch „Senkung“ wählen: 90°-Senkung, Gegenbohrung oder Sechskant-Tasche (Schlüsselweite), oben oder unten.
+- **Text:** Werkzeug „Text“, Inhalt, Höhe, erhaben (auf der Oberseite) oder vertieft. Es ist eine 5×7-Pixelschrift (Großbuchstaben, Ziffern, einige Zeichen; Ä Ö Ü ß werden zu AE OE UE SS). Ein Pixel (Höhe / 7) muss mindestens 0,4 mm groß sein.
+- **Gruppen:** Umschalt-Klick wählt mehrere Formen. Ziehen verschiebt alle, dazu „Daneben kopieren“, Spiegeln und Löschen.
+- **Seitenlöcher:** Bohrung oder Rechteck-Schlitz von einer der vier Wände, Position entlang der Wand, Höhe, Tiefe (0 = durch).
+- **Drehteil:** Profil aus Punkten (Radius, Höhe), das um eine senkrechte Achse gedreht wird (Vorlagen Knopf, Hülse, Rolle, Kegelstumpf). Formen und Löcher lassen sich zusätzlich zeichnen.
+- **Druckhinweise:** Beim Export meldet das Programm Überhänge (waagerechte Decken ab 10 mm Spannweite, Flächen steiler als 45°) und dünne Stellen unter 0,8 mm. Das sind Faustregeln für eine 0,4-mm-Düse, keine Slicer-Simulation, und sie verhindern den Export nicht.
+
+Grenzen: keine Gewinde, keine frei geformten Flächen, keine Schriftarten (nur die 5×7-Pixelschrift). Ein Vieleck darf sich nicht selbst schneiden. Maße über 256 mm werden abgelehnt.
 
 ## 5. Berechnen und speichern
 
