@@ -739,16 +739,42 @@ export function gruppeSpiegeln(formen: Form[], indizes: number[], achse: "x" | "
   return formen.map((f, i) => (menge.has(i) ? spiegeln(f, achse, pos, teilHoehe) : f));
 }
 
+/** Liegt der Punkt in der Fläche der Form (Rechteck auch gedreht und mit Eckenradius, Kreis, Vieleck)? Texte zählen nie. */
+export function formEnthaelt(form: Form, p: Punkt): boolean {
+  const eps = 1e-9;
+  if (form.typ === "text") return false;
+  if (form.typ === "kreis") return Math.hypot(p[0] - form.x, p[1] - form.y) <= form.r + eps;
+  if (form.typ === "rechteck") {
+    const [mx, my] = [form.x + form.b / 2, form.y + form.t / 2];
+    const w = (-(form.winkel ?? 0) * Math.PI) / 180;
+    const dx = p[0] - mx;
+    const dy = p[1] - my;
+    const lx = dx * Math.cos(w) - dy * Math.sin(w);
+    const ly = dx * Math.sin(w) + dy * Math.cos(w);
+    const r = form.radius ?? 0;
+    const qx = Math.abs(lx) - (form.b / 2 - r);
+    const qy = Math.abs(ly) - (form.t / 2 - r);
+    return Math.hypot(Math.max(qx, 0), Math.max(qy, 0)) + Math.min(Math.max(qx, qy), 0) - r <= eps;
+  }
+  // Vieleck: gerade-ungerade Regel (abgerundete Ecken zählen als eckig)
+  let innen = false;
+  const pk = form.punkte;
+  for (let i = 0, j = pk.length - 1; i < pk.length; j = i++) {
+    const [xi, yi] = pk[i];
+    const [xj, yj] = pk[j];
+    if (yi > p[1] !== yj > p[1] && p[0] < ((xj - xi) * (p[1] - yi)) / (yj - yi) + xi) innen = !innen;
+  }
+  return innen;
+}
+
 /**
- * Höhe der Fläche, auf der ein Text an Punkt p sitzt: Oberkante der Material-Formen (ohne andere Texte), die p enthalten,
- * sonst die höchste Oberkante ohne Texte. So schweben zwei erhabene Beschriftungen auf derselben Platte nicht übereinander.
+ * Höhe der Fläche, auf der ein Text oder Dom an Punkt p sitzt: Oberkante der Material-Formen (ohne Texte), die den Punkt wirklich
+ * enthalten (nicht nur ihre Umrissbox), sonst die höchste Oberkante ohne Texte. So schweben mehrere Beschriftungen auf derselben
+ * Platte nicht übereinander und ein Dom neben einer erhabenen Form nicht in der Luft.
  */
 export function traghoehe(teil: Pick<Eigenteil, "formen" | "hoehe_mm" | "profil" | "dreh_x_mm" | "dreh_y_mm">, p: Punkt): number {
   const traeger = teil.formen.filter((f) => !f.loch && f.typ !== "text");
-  const darunter = traeger.filter((f) => {
-    const [x0, y0, x1, y1] = formBox(f);
-    return p[0] >= x0 - 1e-9 && p[0] <= x1 + 1e-9 && p[1] >= y0 - 1e-9 && p[1] <= y1 + 1e-9;
-  });
+  const darunter = traeger.filter((f) => formEnthaelt(f, p));
   const oberkanten = (liste: Form[]) => liste.map((f) => formOberkante(f, teil.hoehe_mm));
   const profil = teil.profil ?? [];
   let hoehe = 0;

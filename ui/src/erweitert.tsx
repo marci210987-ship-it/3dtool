@@ -358,6 +358,9 @@ export function SchraubenPanel({ form, onChange }: { form: KreisForm; onChange: 
           if (zweck === "durchgang") {
             const k = kopfFelder(groesse, kopf, einst);
             Object.assign(patch, { senk_art: k.senk_art === "keine" ? undefined : k.senk_art, senk_d_mm: k.senk_d_mm, senk_t_mm: k.senk_t_mm, senk_seite: k.senk_seite });
+          } else {
+            // Kernloch und Einsatz haben keine Kopfsenkung: eine frühere Senkung oder Gegenbohrung wird entfernt
+            Object.assign(patch, { senk_art: undefined, senk_d_mm: undefined, senk_t_mm: undefined, senk_seite: undefined });
           }
           onChange(patch);
         }}

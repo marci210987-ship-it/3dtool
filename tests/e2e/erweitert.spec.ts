@@ -237,5 +237,9 @@ test("Schraubenloch voreinstellen und Schraubdom hinzufügen", async ({ page }) 
   await page.getByTestId("schr-anwenden").click();
   await expect(page.getByTestId("senk-art")).toHaveValue("senkung");
   await expect(page.getByTestId("senk-d")).toHaveValue("9.3"); // 9 + 0,3
+  // Wechsel auf Kernloch entfernt die Senkung wieder (sonst bliebe die Kopfsenkung im Teil)
+  await page.getByTestId("schr-zweck").selectOption("kern");
+  await page.getByTestId("schr-anwenden").click();
+  await expect(page.getByTestId("senk-art")).toHaveValue("keine");
   await expect(blatt).toBeVisible();
 });
