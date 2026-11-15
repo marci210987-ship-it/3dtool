@@ -144,6 +144,23 @@ test("3D-Ansicht zeigt die echte Geometrie beim Zeichnen", async ({ page }) => {
   await page.getByLabel("Standardhöhe (mm)").fill("25");
   await expect(info).toContainText("× 25 mm", { timeout: 60000 });
   await expect(page.getByTestId("ansicht3d-buehne").locator("canvas")).toBeVisible();
+  // Schnittebene: waagerecht in halber Höhe, die Position steht in Millimetern
+  await page.getByTestId("schnitt-achse").selectOption("z");
+  await expect(page.getByTestId("schnitt-mm")).toContainText("12.5 mm", { timeout: 15000 });
+  await page.getByTestId("schnitt-umkehren").click();
+  await page.getByTestId("schnitt-achse").selectOption("aus");
+  await expect(page.getByTestId("schnitt-pos")).toHaveCount(0);
+  // Messen: zwei Klicks auf das Modell in der Bildmitte
+  await page.getByTestId("messen-an").check();
+  const buehne = (await page.getByTestId("ansicht3d-buehne").boundingBox())!;
+  const mx = buehne.x + buehne.width / 2;
+  const my = buehne.y + buehne.height / 2;
+  await page.mouse.click(mx - 15, my);
+  await expect(page.getByTestId("messen-info")).toContainText("Punkt 1");
+  await page.mouse.click(mx + 15, my);
+  await expect(page.getByTestId("messen-info")).toContainText("Abstand");
+  await page.getByTestId("messen-loeschen").click();
+  await page.getByTestId("messen-an").uncheck();
   // Ungültige Eingabe: die Meldung steht statt eines Körpers
   await page.getByLabel("Standardhöhe (mm)").fill("0");
   await expect(page.getByTestId("ansicht3d-fehler")).toBeVisible({ timeout: 60000 });
