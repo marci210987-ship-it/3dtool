@@ -6,7 +6,7 @@ Der Druckerbezug ist ein Bambu Lab P2S mit 256 × 256 × 256 mm Bauraum. Das Ras
 
 ## Installer herunterladen
 
-Die Windows-Dateien liegen auf der [Releases-Seite](https://github.com/marci210987-ship-it/3dtool/releases): `CAD-Studio-0.4.0-Setup.exe` oder `CAD-Studio-0.4.0.msi`. FreeCAD 1.1.x muss separat installiert sein. Der Installer ist nicht code-signiert, Windows SmartScreen kann warnen. Ein Hardware-Test auf Marcels PC ist noch nicht ausgeführt.
+Die Windows-Dateien liegen auf der [Releases-Seite](https://github.com/marci210987-ship-it/3dtool/releases): `CAD-Studio-0.5.0-Setup.exe` oder `CAD-Studio-0.5.0.msi`. FreeCAD 1.1.x muss separat installiert sein. Der Installer ist nicht code-signiert, Windows SmartScreen kann warnen. Ein Hardware-Test auf Marcels PC ist noch nicht ausgeführt.
 
 ## Start
 
@@ -122,7 +122,20 @@ Unter dem Zeichenblatt, bei Ersatzteilen, Kabelmanagement und Gehäuse steht ein
 
 In der Wunschliste lässt sich je Boxsorte eine Seite (links, rechts, vorne, hinten) und eine Gruppe (A, B, C) wählen. Die Sorte wandert dann bevorzugt an diese Seite, Boxen derselben Gruppe liegen beieinander. Das Tool probiert mehrere Anordnungen und füllt den Rest mit möglichst wenigen, einheitlichen Boxen. Die Seite ist ein starker Wunsch, aber keine Pflicht: wenn der Platz fehlt, steht die Box anderswo.
 
-Grenzen: keine Gewinde, keine frei geformten Flächen, keine Schriftarten (nur die 5×7-Pixelschrift). Ein Vieleck darf sich nicht selbst schneiden. Maße über 256 mm werden abgelehnt.
+### Schnitt, Messen und Druckausrichtung (3D-Ansicht)
+
+- **Schnitt:** Unter der 3D-Ansicht schneidet „Schnitt“ das Modell waagerecht (Höhe) oder senkrecht (quer x, längs y) auf. Der Schieber stellt die Position in Millimetern ein, „Seite wechseln“ zeigt die andere Hälfte. Die Schnittfläche erscheint in Orange. So siehst du Wandstärken, Bohrungstiefen und Hohlräume.
+- **Messen:** Haken „Messen“ setzen und zwei Punkte am Modell anklicken (beide am selben Teil). Es erscheinen Abstand, Δx, Δy, Δz und die Neigung. Ecken in der Nähe werden gefangen. Wer dreht oder zoomt, setzt dabei keinen Punkt.
+- **Druckausrichtung:** Aufklappbar unter der Ansicht. Das Programm bewertet alle sechs Lagen des Teils nach Überhang (Flächen, die steiler als 45° von der Senkrechten nach unten zeigen), Auflagefläche auf dem Bett und Höhe und empfiehlt die beste. Eine andere Lage stellst du im Slicer ein (Bambu Studio: „Auf Fläche legen“). Das sind Faustregeln, keine Slicer-Simulation.
+- Aufgrund dieser Auswertung werden der Schraubdeckel des Gehäuses sowie Stopfen und Drehknopf (Ersatzteile) jetzt druckfertig gedreht exportiert. Kabelkanal, 90°-Ecke und Kabelauslass zeigen bei der Auswertung einen großen Überhang an der Stufe zwischen Buchse und Kanalboden; Das Modell ist nicht geändert: eine 45°-Schräge an der Stufe würde das Problem nicht lösen, weil der ganze Kanalboden 1,8 mm über dem Bett liegt. Beim Drucken „Stützen nur auf dem Druckbett“ einschalten; die Druckhinweise melden die Stelle.
+
+### Schraubenlöcher und Schraubdome
+
+- **Schraubenloch voreinstellen:** Beim gewählten runden Loch aufklappen, Schraube (M2 bis M5) und Zweck wählen: Durchgangsloch (ISO 273 mittel), Kernloch zum Gewindeschneiden oder Loch für einen Gewindeeinsatz zum Einschmelzen (Außendurchmesser minus Abzug; Datenblatt des Einsatzes prüfen). Ein einstellbarer Zuschlag gleicht aus, dass gedruckte Löcher kleiner werden. Beim Durchgangsloch gibt es Senkkopf und Zylinderkopf (Gegenbohrung) mit Kopfspiel.
+- **Schraubdom:** Unter den Eigenschaften „Schraubdom hinzufügen“: Zylinder mit Schraubenloch auf der Platte. Fußhöhe ist die Oberseite der Form darunter, das Loch beginnt dort und lässt die Platte heil.
+- Die Zuschläge (0,1 mm, Abzug 0,4 mm, Kopfspiel 0,3 mm) sind Vorgaben und nicht gedruckt geprüft. Nach dem Probedruck stellst du sie ein.
+
+Grenzen: keine modellierten Gewinde (nur Kernlöcher und Einsatzlöcher), keine frei geformten Flächen, keine Schriftarten (nur die 5×7-Pixelschrift). Ein Vieleck darf sich nicht selbst schneiden. Maße über 256 mm werden abgelehnt.
 
 ## 5. Berechnen und speichern
 

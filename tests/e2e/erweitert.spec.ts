@@ -144,6 +144,27 @@ test("3D-Ansicht zeigt die echte Geometrie beim Zeichnen", async ({ page }) => {
   await page.getByLabel("Standardhöhe (mm)").fill("25");
   await expect(info).toContainText("× 25 mm", { timeout: 60000 });
   await expect(page.getByTestId("ansicht3d-buehne").locator("canvas")).toBeVisible();
+  // Druckausrichtung: eine einfache Platte liegt wie gezeichnet am besten
+  await page.getByTestId("ausrichtung").locator("summary").click();
+  await expect(page.getByTestId("ausrichtung-kurz")).toContainText("gut");
+  await expect(page.getByTestId("ausrichtung-0")).toContainText("wie gezeichnet");
+  // Schnittebene: waagerecht in halber Höhe, die Position steht in Millimetern
+  await page.getByTestId("schnitt-achse").selectOption("z");
+  await expect(page.getByTestId("schnitt-mm")).toContainText("12.5 mm", { timeout: 15000 });
+  await page.getByTestId("schnitt-umkehren").click();
+  await page.getByTestId("schnitt-achse").selectOption("aus");
+  await expect(page.getByTestId("schnitt-pos")).toHaveCount(0);
+  // Messen: zwei Klicks auf das Modell in der Bildmitte
+  await page.getByTestId("messen-an").check();
+  const buehne = (await page.getByTestId("ansicht3d-buehne").boundingBox())!;
+  const mx = buehne.x + buehne.width / 2;
+  const my = buehne.y + buehne.height / 2;
+  await page.mouse.click(mx - 15, my);
+  await expect(page.getByTestId("messen-info")).toContainText("Punkt 1");
+  await page.mouse.click(mx + 15, my);
+  await expect(page.getByTestId("messen-info")).toContainText("Abstand");
+  await page.getByTestId("messen-loeschen").click();
+  await page.getByTestId("messen-an").uncheck();
   // Ungültige Eingabe: die Meldung steht statt eines Körpers
   await page.getByLabel("Standardhöhe (mm)").fill("0");
   await expect(page.getByTestId("ansicht3d-fehler")).toBeVisible({ timeout: 60000 });
@@ -192,4 +213,33 @@ test("Eine verspätete Planantwort überschreibt den neuen Stand nicht", async (
   await expect(page.getByTestId("erzeugen")).toBeEnabled({ timeout: 15000 });
   await page.waitForTimeout(3500); // die verspätete Antwort ist inzwischen da
   await expect(page.getByTestId("erzeugen")).toBeEnabled();
+});
+
+test("Schraubenloch voreinstellen und Schraubdom hinzufügen", async ({ page }) => {
+  await oeffnen(page);
+  await platte(page); // Platte 60 × 40 × 10 mm
+  const blatt = page.getByTestId("zeichenblatt");
+
+  // Dom: M3-Kernloch auf der Platte
+  await page.getByTestId("dom-panel").locator("summary").click();
+  await page.getByTestId("dom-zweck").selectOption("kern");
+  await expect(page.getByTestId("dom-masse")).toContainText("Fußhöhe 10 mm");
+  await expect(page.getByTestId("dom-masse")).toContainText("Außendurchmesser 5.8 mm");
+  await page.getByTestId("dom-hinzu").click();
+  await expect(page.locator(".formliste li")).toHaveCount(3);
+  await expect(page.getByTestId("teil-mass")).toContainText("× 18 mm"); // 10 + 8
+
+  // Das Loch des Doms ist gewählt: Schraube M4 mit Senkkopf voreinstellen
+  await page.getByTestId("schrauben-panel").locator("summary").click();
+  await page.getByTestId("schr-groesse").selectOption("M4");
+  await expect(page.getByTestId("schr-info")).toContainText("4.6 mm"); // 4,5 + 0,1
+  await page.getByTestId("schr-kopf").selectOption("senk");
+  await page.getByTestId("schr-anwenden").click();
+  await expect(page.getByTestId("senk-art")).toHaveValue("senkung");
+  await expect(page.getByTestId("senk-d")).toHaveValue("9.3"); // 9 + 0,3
+  // Wechsel auf Kernloch entfernt die Senkung wieder (sonst bliebe die Kopfsenkung im Teil)
+  await page.getByTestId("schr-zweck").selectOption("kern");
+  await page.getByTestId("schr-anwenden").click();
+  await expect(page.getByTestId("senk-art")).toHaveValue("keine");
+  await expect(blatt).toBeVisible();
 });

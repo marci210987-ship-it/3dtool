@@ -48,6 +48,8 @@ Erweiterungen (14.11.2026, Tests mit FreeCAD grün, nicht gedruckt): Langloch (`
 
 3D-Ansicht: `ui/src/ansicht3d.tsx` zeigt die echte Geometrie (FreeCAD-Netze über Befehl `vorschau`, `engine.vorschau_bauen` mit kurz offener FreeCAD-Sitzung, Worker `vorschau_netze`), im Zeichnen, bei Ersatzteilen, Kabeln und Gehäuse. Auto-Bestückung: Wünsche mit `seite` und `gruppe`, Strahlsuche und Verbesserung der Füllung durch Verzweigen und Beschneiden mit fester Knotenzahl (`autofill.py`, Konstanten oben; Tests `tests/test_autofill_optimierer.py`).
 
+Schnitt, Messen, Ausrichtung, Schrauben (15.11.2026): `ui/src/schnitt.ts` (Schnittebene und Messen, three.js-Clipping in `ansicht3d.tsx`), `ui/src/ausrichtung.ts` (sechs Lagen auf dem Netz bewerten), `ui/src/schrauben.ts` (Tabelle M2 bis M5, `lochDurchmesser`, `kopfFelder`, `schraubdom`), Panels `SchraubenPanel` und `DomPanel` in `erweitert.tsx`. Aus der Ausrichtung folgte: Gehäuse-Schraubdeckel, Stopfen und Knopf werden in `fc_worker._shapes_fuer` gedreht (`DRUCK_UMGEDREHT`, `_umdrehen`). Kabelkanal, Ecke und Auslass haben an der Stufe Buchse/Boden einen großen Überhang (nicht geändert, Entscheidung offen).
+
 Offen, nach Nutzen sortiert:
 1. Playwright-E2E für den Zeichen- und Auto-Fülle-Ablauf ergänzen und laufen lassen.
 2. Zeichnen: Skizzen mit Bedingungen, Text in echten Schriftarten, Gewinde. (Gruppen sind fertig; Vieleck-Punkte bearbeiten ist fertig: Griffe an Ecken und Kanten, Punktfelder, Entf; Hilfsfunktionen `punktVerschieben`, `punktEinfuegen`, `punktLoeschen`, `polygonSelbstschnitt` in `zeichnen.ts`.)

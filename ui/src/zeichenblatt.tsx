@@ -1,6 +1,6 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { Ansicht3D } from "./ansicht3d";
-import { ProfilPanel, SenkPanel, SeitenlochPanel, TextPanel } from "./erweitert";
+import { DomPanel, ProfilPanel, SchraubenPanel, SenkPanel, SeitenlochPanel, TextPanel } from "./erweitert";
 import { OptZahlfeld, Zahlfeld } from "./felder";
 import { dateiText, type ImportErgebnis, leseDxf, leseSvg, zuFormen } from "./import";
 import {
@@ -856,6 +856,13 @@ export function Zeichnen({
               <Zahlfeld label="Größe obere Kante (mm)" wert={teil.kante_oben_mm} testid="kante-mm" onChange={(v) => aendereTeil((t) => ({ ...t, kante_oben_mm: Math.max(0, v) }), "tippen")} />
             )}
             <Zahlfeld label="Fase unten (mm, gegen Elefantenfuß)" wert={teil.kante_unten_mm} testid="kante-unten" onChange={(v) => aendereTeil((t) => ({ ...t, kante_unten_mm: Math.max(0, v) }), "tippen")} />
+            <DomPanel
+              teil={teil}
+              onAdd={(neu) => {
+                formen([...teil.formen, ...neu]);
+                setAuswahl(teil.formen.length + neu.length - 1);
+              }}
+            />
             <SeitenlochPanel teil={teil} onChange={(liste) => aendereTeil((t) => ({ ...t, seitenloecher: liste }))} />
             <ProfilPanel teil={teil} onChange={(patch) => aendereTeil((t) => ({ ...t, ...patch }))} />
             <p className="leise" data-testid="teil-mass">
@@ -968,6 +975,7 @@ export function Zeichnen({
                     <Zahlfeld label="Radius" wert={gewaehlt.r} onChange={(v) => setzeFeld(auswahl, { r: v })} />
                   </>
                 )}
+                {gewaehlt.typ === "kreis" && gewaehlt.loch && <SchraubenPanel form={gewaehlt} onChange={(patch) => setzeFeld(auswahl, patch)} />}
                 {gewaehlt.typ === "kreis" && gewaehlt.loch && <SenkPanel form={gewaehlt} onChange={(patch) => setzeFeld(auswahl, patch)} />}
                 {gewaehlt.typ === "text" && <TextPanel form={gewaehlt} onChange={(patch) => setzeFeld(auswahl, patch)} />}
                 {gewaehlt.typ === "polygon" && auswahl !== null && (

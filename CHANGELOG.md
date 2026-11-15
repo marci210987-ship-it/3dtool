@@ -1,5 +1,14 @@
 # Änderungsprotokoll
 
+## 0.5.0
+
+- 3D-Ansicht: Schnittebene (waagerecht und senkrecht, mit Schieber und Seitenwechsel) und Messen zwischen zwei Punkten.
+- Druckausrichtung: Bewertung der sechs Lagen nach Überhang, Auflage und Höhe mit Empfehlung. Schraubdeckel des Gehäuses, Stopfen und Drehknopf werden druckfertig gedreht exportiert.
+- Zeichnen: Schraubenlöcher voreinstellen (Durchgang, Kernloch, Gewindeeinsatz, M2 bis M5, Senk- und Zylinderkopf) und Schraubdome.
+- Druckhinweise gelten jetzt auch für Ersatzteile, Kabelmanagement und Gehäuse. Kabelkanal, 90°-Ecke und Kabelauslass melden die 1,8 mm hohe Stufe zwischen Buchse und Boden (Stützen nur auf dem Druckbett einschalten); die Anleitung nennt das jetzt.
+- Nicht gedruckt geprüft.
+- Der Windows-Installer ist `CAD-Studio-0.5.0-Setup.exe` und `CAD-Studio-0.5.0.msi` auf der Releases-Seite. FreeCAD 1.1.x muss separat installiert sein. Der Installer ist nicht code-signiert, Windows SmartScreen kann warnen. Ein Hardware-Test auf Marcels PC ist noch nicht ausgeführt.
+
 ## 0.4.0
 
 - Zeichnen: Vieleck-Punkte ziehen, einfügen und löschen; Langloch; Vieleck mit Eckenradius; Senkung, Gegenbohrung und Sechskant-Tasche an Löchern; Text (Pixelschrift); Gruppen mit Umschalt-Klick; Seitenlöcher; Drehteile aus einem Profil.

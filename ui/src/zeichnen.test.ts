@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { abstandsvorschlag, masseSetzen, masswertText, aussenmass, fangpunkteVon, ausrichten, formMitte, gitter, kopieren, kreismuster, laesstSichDrehen, reihe, spiegeln, bezugsrahmen, einrasten, fangpunkte, formBox, formHoehen, formOberkante, gesamthoehe, hoehenanteil, massangaben, VORLAGEN, zahlText, kreisAus, neuesTeil, polygonAus, polygonSelbstschnitt, gruppeBox, gruppeKopieren, gruppeSpiegeln, gruppeVerschieben, langlochAus, traghoehe, textMasse, textNormal, aussenBox, punktEinfuegen, punktLoeschen, punktVerschieben, rechteckAus, rechteckMm, runden, teilVonServer, verschieben, verschiebenMitFang, type Form } from "./zeichnen";
+import { abstandsvorschlag, masseSetzen, masswertText, aussenmass, fangpunkteVon, ausrichten, formMitte, gitter, kopieren, kreismuster, laesstSichDrehen, reihe, spiegeln, bezugsrahmen, einrasten, fangpunkte, formBox, formHoehen, formOberkante, gesamthoehe, hoehenanteil, massangaben, VORLAGEN, zahlText, kreisAus, neuesTeil, polygonAus, polygonSelbstschnitt, gruppeBox, gruppeKopieren, gruppeSpiegeln, gruppeVerschieben, langlochAus, traghoehe, formEnthaelt, textMasse, textNormal, aussenBox, punktEinfuegen, punktLoeschen, punktVerschieben, rechteckAus, rechteckMm, runden, teilVonServer, verschieben, verschiebenMitFang, type Form } from "./zeichnen";
 
 describe("Zeichnen", () => {
   it("rastet auf das Raster ein", () => {
@@ -349,5 +349,30 @@ describe("Texthöhe", () => {
   it("Punkt außerhalb aller Formen nimmt die höchste Oberkante ohne Text", () => {
     const platte = rechteckAus([0, 0], [60, 40], false) as Form;
     expect(traghoehe({ formen: [platte], hoehe_mm: 8, profil: [], dreh_x_mm: 0, dreh_y_mm: 0 }, [100, 100])).toBe(8);
+  });
+});
+
+describe("Tragende Fläche genau bestimmen", () => {
+  const platte = { ...(rechteckAus([0, 0], [100, 100], false) as Form), h_mm: 4 } as Form;
+  const zylinder = { typ: "kreis", x: 30, y: 30, r: 20, loch: false, z_mm: 0, h_mm: 12 } as Form;
+  const teil = { formen: [platte, zylinder], hoehe_mm: 4, profil: [], dreh_x_mm: 0, dreh_y_mm: 0 };
+  it("Punkt in der Umrissbox des Zylinders, aber außerhalb des Kreises: Plattenhöhe", () => {
+    expect(formEnthaelt(zylinder, [49, 49])).toBe(false); // Abstand 26,9 mm > 20
+    expect(traghoehe(teil, [49, 49])).toBe(4);
+  });
+  it("Punkt im Kreis: die höhere Form trägt", () => {
+    expect(formEnthaelt(zylinder, [40, 30])).toBe(true);
+    expect(traghoehe(teil, [40, 30])).toBe(12);
+  });
+  it("Vieleck, gedrehtes und abgerundetes Rechteck", () => {
+    const dreieck: Form = { typ: "polygon", punkte: [[0, 0], [40, 0], [0, 40]], loch: false };
+    expect(formEnthaelt(dreieck, [10, 10])).toBe(true);
+    expect(formEnthaelt(dreieck, [30, 30])).toBe(false); // in der Umrissbox, hinter der Hypotenuse
+    const gedreht = { ...(rechteckAus([0, 0], [40, 10], false) as Form), winkel: 90 } as Form;
+    expect(formEnthaelt(gedreht, [20, 25])).toBe(true); // um die Mitte (20/5) gedreht: ragt nach oben und unten
+    expect(formEnthaelt(gedreht, [35, 5])).toBe(false);
+    const rund = { ...(rechteckAus([0, 0], [20, 20], false) as Form), radius: 8 } as Form;
+    expect(formEnthaelt(rund, [0.5, 0.5])).toBe(false); // Ecke abgerundet
+    expect(formEnthaelt(rund, [10, 10])).toBe(true);
   });
 });

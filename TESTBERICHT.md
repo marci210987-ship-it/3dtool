@@ -207,3 +207,18 @@ FreeCAD 1.1.4 auf Linux, Chromium mit Software-WebGL. Windows-Hardware, Druck un
 | Sichtprüfung | Bildschirmfotos der 3D-Ansicht für ein gezeichnetes Teil mit Drehknopf und für Gehäuse mit Deckel |
 
 Grenzen: Die 3D-Ansicht braucht FreeCAD und WebGL. Die Gewichte der Suche (Seite, Gruppe, Kontakt) sind Vorgaben und noch nicht an echten Schubladen abgestimmt. Die Verbesserung der Füllung hat eine feste Knotenzahl; bei sehr großen freien Flächen kann sie das Optimum verfehlen, ist aber nie schlechter als das Zeilenverfahren.
+
+## Schnitt, Messen, Druckausrichtung, Schrauben (15. November 2026)
+
+FreeCAD 1.1.4 auf Linux, Chromium mit Software-WebGL. Windows-Hardware, Druck und GitHub Actions für diesen Stand: nicht ausgeführt.
+
+| Prüfung | Ergebnis |
+|---|---|
+| Python (15 Module) mit FreeCAD | 129 Tests bestanden. Neu: Schraubdom auf Platte (Volumen gegen Rechnung, Loch endet an der Plattenoberfläche), Druckausrichtung von Gehäusedeckel, Stopfen und Knopf (Überhang unter 5 mm²) |
+| `npm test`, `npm run build` | 94 Vitest-Tests bestanden (Schnittebene je Achse, Messen und Fangen, Ausrichtung mit Quader und Pyramiden, Schraubentabelle und Dom), Build ohne Typfehler |
+| Playwright (alle) | 20 von 20 bestanden, neu: Schnitt, Messen, Ausrichtung und Schraubenpanels |
+| Sichtprüfung | Bildschirmfotos: aufgeschnittene Platte mit orangefarbener Schnittfläche, Dom mit Zylinderkopf |
+
+Fund aus der Druckausrichtung: Der Schraubdeckel des Gehäuses (7800 mm² Überhang in der exportierten Lage), der Stopfen (72 mm²) und der Drehknopf (28 mm²) waren in Einbaulage exportiert und werden jetzt gedreht. Kabelkanal (2770 mm²), 90°-Ecke (2037 mm²) und Kabelauslass (1068 mm²) haben an der Stufe zwischen Buchse und Kanalboden einen großen Überhang; das ist nicht geändert und braucht eine Entscheidung.
+
+Grenzen: Die Tabellenwerte der Schrauben sind Nennwerte beziehungsweise typische Werte (Einsatz-Außendurchmesser: Datenblatt prüfen), die Zuschläge sind Vorgaben. Die Druckausrichtung ist eine Faustregel auf dem Netz. Nichts davon ist gedruckt geprüft.
