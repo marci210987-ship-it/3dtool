@@ -186,6 +186,21 @@ class MitFreeCAD(unittest.TestCase):
         unterschied = self._volumen(plain) - self._volumen(mit)
         self.assertAlmostEqual(unterschied, math.pi * (9 - 4) * 2, delta=1.0)
 
+    def test_schraubdom_auf_platte(self):
+        # Wie ui/src/schrauben.ts: M3-Kernloch 2,6 mm (2,5 + 0,1), Wand 1,6 mm, Dom 8 mm hoch auf einer 4 mm Platte
+        platte = _rechteck(40, 30)
+        dom = {"typ": "kreis", "x": 20, "y": 15, "r": 2.9, "loch": False, "z_mm": 4, "h_mm": 8}
+        loch = {"typ": "kreis", "x": 20, "y": 15, "r": 1.3, "loch": True, "z_mm": 4}
+        teil = _teil([platte, dom, loch], hoehe_mm=4)
+        self.assertEqual(eigenteil_pruefen(teil), [])
+        solid, _ = self._export(teil)
+        erwartet = 40 * 30 * 4 + math.pi * (2.9 ** 2 - 1.3 ** 2) * 8
+        self.assertAlmostEqual(solid["volume_mm3"], erwartet, delta=1.5)
+        self.assertAlmostEqual(solid["bbox_mm"][2], 12.0, delta=0.1)
+        # Das Loch endet an der Plattenoberfläche: die Platte darunter ist heil
+        ohne_loch = _teil([platte, dom], hoehe_mm=4)
+        self.assertAlmostEqual(self._volumen(ohne_loch) - solid["volume_mm3"], math.pi * 1.3 ** 2 * 8, delta=1.5)
+
     def test_gerundetes_vieleck(self):
         quadrat = {"typ": "polygon", "punkte": [[0, 0], [30, 0], [30, 30], [0, 30]], "loch": False}
         v = self._volumen(_teil([dict(quadrat, radius=5)], hoehe_mm=10))

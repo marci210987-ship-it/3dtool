@@ -1,5 +1,12 @@
 # Änderungsprotokoll
 
+## Unveröffentlicht
+
+- 3D-Ansicht: Schnittebene (waagerecht und senkrecht, mit Schieber und Seitenwechsel) und Messen zwischen zwei Punkten.
+- Druckausrichtung: Bewertung der sechs Lagen nach Überhang, Auflage und Höhe mit Empfehlung. Schraubdeckel des Gehäuses, Stopfen und Drehknopf werden druckfertig gedreht exportiert.
+- Zeichnen: Schraubenlöcher voreinstellen (Durchgang, Kernloch, Gewindeeinsatz, M2 bis M5, Senk- und Zylinderkopf) und Schraubdome.
+- Nicht gedruckt geprüft.
+
 ## 0.4.0
 
 - Zeichnen: Vieleck-Punkte ziehen, einfügen und löschen; Langloch; Vieleck mit Eckenradius; Senkung, Gegenbohrung und Sechskant-Tasche an Löchern; Text (Pixelschrift); Gruppen mit Umschalt-Klick; Seitenlöcher; Drehteile aus einem Profil.

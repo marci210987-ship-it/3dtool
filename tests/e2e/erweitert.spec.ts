@@ -214,3 +214,28 @@ test("Eine verspätete Planantwort überschreibt den neuen Stand nicht", async (
   await page.waitForTimeout(3500); // die verspätete Antwort ist inzwischen da
   await expect(page.getByTestId("erzeugen")).toBeEnabled();
 });
+
+test("Schraubenloch voreinstellen und Schraubdom hinzufügen", async ({ page }) => {
+  await oeffnen(page);
+  await platte(page); // Platte 60 × 40 × 10 mm
+  const blatt = page.getByTestId("zeichenblatt");
+
+  // Dom: M3-Kernloch auf der Platte
+  await page.getByTestId("dom-panel").locator("summary").click();
+  await page.getByTestId("dom-zweck").selectOption("kern");
+  await expect(page.getByTestId("dom-masse")).toContainText("Fußhöhe 10 mm");
+  await expect(page.getByTestId("dom-masse")).toContainText("Außendurchmesser 5.8 mm");
+  await page.getByTestId("dom-hinzu").click();
+  await expect(page.locator(".formliste li")).toHaveCount(3);
+  await expect(page.getByTestId("teil-mass")).toContainText("× 18 mm"); // 10 + 8
+
+  // Das Loch des Doms ist gewählt: Schraube M4 mit Senkkopf voreinstellen
+  await page.getByTestId("schrauben-panel").locator("summary").click();
+  await page.getByTestId("schr-groesse").selectOption("M4");
+  await expect(page.getByTestId("schr-info")).toContainText("4.6 mm"); // 4,5 + 0,1
+  await page.getByTestId("schr-kopf").selectOption("senk");
+  await page.getByTestId("schr-anwenden").click();
+  await expect(page.getByTestId("senk-art")).toHaveValue("senkung");
+  await expect(page.getByTestId("senk-d")).toHaveValue("9.3"); // 9 + 0,3
+  await expect(blatt).toBeVisible();
+});

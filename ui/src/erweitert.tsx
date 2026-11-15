@@ -1,12 +1,27 @@
-/** Panels für Senkungen, Text, Seitenlöcher und Drehprofil im Zeichenblatt. */
+/** Panels für Senkungen, Schrauben, Text, Seitenlöcher und Drehprofil im Zeichenblatt. */
+
+import { useState } from "react";
 
 import { OptZahlfeld, Zahlfeld } from "./felder";
+import {
+  kopfFelder,
+  lochDurchmesser,
+  SCHRAUBEN_NAMEN,
+  schraubdom,
+  STANDARD,
+  zweckText,
+  type Einstellungen,
+  type Kopf,
+  type Schraube,
+  type Zweck,
+} from "./schrauben";
 import {
   aussenBox,
   bereinigen,
   gesamthoehe,
   polygonSelbstschnitt,
   textMasse,
+  traghoehe,
   type Eigenteil,
   type Form,
   type Punkt,
@@ -257,5 +272,130 @@ export function ProfilPanel({ teil, onChange }: { teil: Eigenteil; onChange: (pa
         Drehprofil entfernen
       </button>
     </div>
+  );
+}
+
+const ZWECKE: Array<[Zweck, string]> = [
+  ["durchgang", "Durchgangsloch (Schraube frei)"],
+  ["kern", "Kernloch (Gewinde schneiden)"],
+  ["einsatz", "Gewindeeinsatz (einschmelzen)"],
+];
+
+/** Gemeinsame Auswahl für Schraubenloch und Dom: Größe, Zweck, Zuschlag. */
+function SchraubenWahl({
+  groesse,
+  zweck,
+  einst,
+  onGroesse,
+  onZweck,
+  onEinst,
+  testPrefix,
+}: {
+  groesse: Schraube;
+  zweck: Zweck;
+  einst: Einstellungen;
+  onGroesse: (g: Schraube) => void;
+  onZweck: (z: Zweck) => void;
+  onEinst: (e: Einstellungen) => void;
+  testPrefix: string;
+}) {
+  const d = lochDurchmesser(groesse, zweck, einst);
+  return (
+    <>
+      <label>
+        Schraube
+        <select data-testid={`${testPrefix}-groesse`} value={groesse} onChange={(e) => onGroesse(e.target.value as Schraube)}>
+          {SCHRAUBEN_NAMEN.map((n) => (
+            <option key={n} value={n}>{n}</option>
+          ))}
+        </select>
+      </label>
+      <label>
+        Zweck
+        <select data-testid={`${testPrefix}-zweck`} value={zweck} onChange={(e) => onZweck(e.target.value as Zweck)}>
+          {ZWECKE.map(([wert, titel]) => (
+            <option key={wert} value={wert}>{titel}</option>
+          ))}
+        </select>
+      </label>
+      {zweck !== "einsatz" ? (
+        <Zahlfeld label="Zuschlag fürs Drucken (mm)" wert={einst.zuschlag} testid={`${testPrefix}-zuschlag`} onChange={(v) => onEinst({ ...einst, zuschlag: Math.max(0, v) })} />
+      ) : (
+        <Zahlfeld label="Abzug vom Einsatz-Außendurchmesser (mm)" wert={einst.einsatzAbzug} testid={`${testPrefix}-abzug`} onChange={(v) => onEinst({ ...einst, einsatzAbzug: Math.max(0, v) })} />
+      )}
+      <p className="leise" data-testid={`${testPrefix}-info`}>
+        Lochdurchmesser {d} mm. {zweckText(zweck)} Nicht gedruckt geprüft.
+      </p>
+    </>
+  );
+}
+
+/** Schraubenloch voreinstellen: setzt Durchmesser und bei Durchgangslöchern auf Wunsch Senk- oder Zylinderkopf. */
+export function SchraubenPanel({ form, onChange }: { form: KreisForm; onChange: (patch: Record<string, number | string | undefined>) => void }) {
+  const [groesse, setGroesse] = useState<Schraube>("M3");
+  const [zweck, setZweck] = useState<Zweck>("durchgang");
+  const [kopf, setKopf] = useState<Kopf>("ohne");
+  const [einst, setEinst] = useState<Einstellungen>(STANDARD);
+  return (
+    <details className="schrauben" data-testid="schrauben-panel">
+      <summary>Schraubenloch voreinstellen</summary>
+      <SchraubenWahl groesse={groesse} zweck={zweck} einst={einst} onGroesse={setGroesse} onZweck={setZweck} onEinst={setEinst} testPrefix="schr" />
+      {zweck === "durchgang" && (
+        <label>
+          Kopf
+          <select data-testid="schr-kopf" value={kopf} onChange={(e) => setKopf(e.target.value as Kopf)}>
+            <option value="ohne">ohne Versenkung</option>
+            <option value="senk">Senkkopf (90°)</option>
+            <option value="zylinder">Zylinderkopf (Gegenbohrung)</option>
+          </select>
+        </label>
+      )}
+      <button
+        type="button"
+        data-testid="schr-anwenden"
+        onClick={() => {
+          const patch: Record<string, number | string | undefined> = { r: Math.round((lochDurchmesser(groesse, zweck, einst) / 2) * 1000) / 1000 };
+          if (zweck === "durchgang") {
+            const k = kopfFelder(groesse, kopf, einst);
+            Object.assign(patch, { senk_art: k.senk_art === "keine" ? undefined : k.senk_art, senk_d_mm: k.senk_d_mm, senk_t_mm: k.senk_t_mm, senk_seite: k.senk_seite });
+          }
+          onChange(patch);
+        }}
+      >
+        Auf dieses Loch anwenden (jetzt Ø {Math.round(form.r * 2 * 100) / 100} mm)
+      </button>
+    </details>
+  );
+}
+
+/** Schraubdom: Zylinder mit Schraubenloch auf der Platte. */
+export function DomPanel({ teil, onAdd }: { teil: Eigenteil; onAdd: (formen: Form[]) => void }) {
+  const box = aussenBox(teil);
+  const [groesse, setGroesse] = useState<Schraube>("M3");
+  const [zweck, setZweck] = useState<Zweck>("kern");
+  const [einst, setEinst] = useState<Einstellungen>(STANDARD);
+  const [x, setX] = useState<number | null>(null);
+  const [y, setY] = useState<number | null>(null);
+  const [hoehe, setHoehe] = useState(8);
+  const [wand, setWand] = useState(1.6);
+  const [tiefe, setTiefe] = useState<number | undefined>(undefined);
+  const px = x ?? (box ? Math.round((box[0] + box[2]) / 2) : 10);
+  const py = y ?? (box ? Math.round((box[1] + box[3]) / 2) : 10);
+  const fuss = traghoehe(teil, [px, py]);
+  return (
+    <details className="dom" data-testid="dom-panel">
+      <summary>Schraubdom hinzufügen</summary>
+      <p className="leise">Ein Zylinder mit Schraubenloch, der auf der Platte steht. Fußhöhe ist die Oberseite der Form unter dem Dom.</p>
+      <SchraubenWahl groesse={groesse} zweck={zweck} einst={einst} onGroesse={setGroesse} onZweck={setZweck} onEinst={setEinst} testPrefix="dom" />
+      <Zahlfeld label="Mitte x (mm)" wert={px} testid="dom-x" onChange={setX} />
+      <Zahlfeld label="Mitte y (mm)" wert={py} testid="dom-y" onChange={setY} />
+      <Zahlfeld label="Höhe des Doms (mm)" wert={hoehe} testid="dom-hoehe" onChange={(v) => setHoehe(Math.max(1, v))} />
+      <Zahlfeld label="Wand um das Loch (mm)" wert={wand} testid="dom-wand" onChange={(v) => setWand(Math.max(0.8, v))} />
+      <OptZahlfeld label="Lochtiefe (mm, leer = ganze Domhöhe)" wert={tiefe} testid="dom-tiefe" onChange={setTiefe} />
+      <p className="leise" data-testid="dom-masse">Fußhöhe {fuss} mm, Außendurchmesser {Math.round((lochDurchmesser(groesse, zweck, einst) + 2 * wand) * 100) / 100} mm.</p>
+      <button type="button" data-testid="dom-hinzu" onClick={() => onAdd(schraubdom({ x: px, y: py, groesse, zweck, hoehe, fuss, wand, tiefe }, einst))}>
+        Dom hinzufügen
+      </button>
+    </details>
   );
 }
