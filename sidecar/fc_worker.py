@@ -36,6 +36,21 @@ def _genaue_bbox(shape):
         return shape.BoundBox
 
 
+# Ersatzteile, die in Einbaulage modelliert sind und zum Drucken auf den Kopf gestellt werden (die Auswertung der
+# Druckausrichtung zeigt dort in der Einbaulage Überhänge, umgedreht keine)
+DRUCK_UMGEDREHT = {"stopfen", "knopf"}
+
+
+def _umdrehen(shape, App):
+    """Um die x-Achse um 180° drehen; die Lage in y bleibt erhalten."""
+    gedreht = shape.copy()
+    gedreht.rotate(App.Vector(0, 0, 0), App.Vector(1, 0, 0), 180)
+    bb = _genaue_bbox(shape)
+    neu = _genaue_bbox(gedreht)
+    gedreht.translate(App.Vector(0, bb.YMin - neu.YMin, 0))
+    return gedreht
+
+
 def _drucklage(shape, App):
     bb = _genaue_bbox(shape)
     if abs(bb.ZMin) > 1e-4:
@@ -520,7 +535,10 @@ def _shapes_fuer(teil: dict):
     if rolle == "ersatzteil":
         from sidecar.ersatzteil_geom import baue_ersatzteil
 
-        return {"Ersatzteil": _drucklage(baue_ersatzteil(params), App)}, {"zentriert": False}
+        shape = baue_ersatzteil(params)
+        if str(params.get("art")) in DRUCK_UMGEDREHT:
+            shape = _umdrehen(shape, App)
+        return {"Ersatzteil": _drucklage(shape, App)}, {"zentriert": False}
     if rolle == "kabel":
         from sidecar.kabel_geom import baue_kabel
 
@@ -529,7 +547,12 @@ def _shapes_fuer(teil: dict):
         from sidecar.gehaeuse_geom import baue_gehaeuse
 
         name = "Deckel" if str(params.get("teil")) == "deckel" else "Gehäuse"
-        return {name: _drucklage(baue_gehaeuse(params), App)}, {"zentriert": False}
+        shape = baue_gehaeuse(params)
+        if name == "Deckel" and str(params.get("deckel")) != "schiebe":
+            # Der Schraubdeckel ist in Einbaulage modelliert (Rand nach unten). Zum Drucken liegt die glatte Oberseite
+            # auf dem Bett und der Rand zeigt nach oben, sonst hängt die ganze Platte über dem Rand.
+            shape = _umdrehen(shape, App)
+        return {name: _drucklage(shape, App)}, {"zentriert": False}
     if rolle == "besteck":
         from hausraster_phase3_geom import besteck_teile
 

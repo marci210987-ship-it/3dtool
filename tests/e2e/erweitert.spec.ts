@@ -144,6 +144,10 @@ test("3D-Ansicht zeigt die echte Geometrie beim Zeichnen", async ({ page }) => {
   await page.getByLabel("Standardhöhe (mm)").fill("25");
   await expect(info).toContainText("× 25 mm", { timeout: 60000 });
   await expect(page.getByTestId("ansicht3d-buehne").locator("canvas")).toBeVisible();
+  // Druckausrichtung: eine einfache Platte liegt wie gezeichnet am besten
+  await page.getByTestId("ausrichtung").locator("summary").click();
+  await expect(page.getByTestId("ausrichtung-kurz")).toContainText("gut");
+  await expect(page.getByTestId("ausrichtung-0")).toContainText("wie gezeichnet");
   // Schnittebene: waagerecht in halber Höhe, die Position steht in Millimetern
   await page.getByTestId("schnitt-achse").selectOption("z");
   await expect(page.getByTestId("schnitt-mm")).toContainText("12.5 mm", { timeout: 15000 });

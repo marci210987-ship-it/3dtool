@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { api } from "./api";
+import { empfehlung, type Empfehlung } from "./ausrichtung";
 import { bereichModell, fangen, messen, schnittEbene, schnittPosition, szeneZuModell, type Achse, type Messung, type Vek } from "./schnitt";
 
 export interface Netz {
@@ -338,6 +339,8 @@ export function Ansicht3D({
   }, []);
 
   const gesamt = netze.reduce((a, n) => a + n.volumen_mm3, 0);
+  // Druckausrichtung je Körper (rechnet auf dem Netz, nur nach neuer Geometrie)
+  const ausrichtungen: Empfehlung[] = useMemo(() => netze.map((n) => empfehlung(n)), [netze]);
   const messung: Messung | null = messPunkte.length === 2 ? messen(messPunkte[0].modell, messPunkte[1].modell) : null;
 
   return (
@@ -407,6 +410,45 @@ export function Ansicht3D({
           {netze.map((n) => `${n.name}: ${Math.round((n.bbox_mm[3] - n.bbox_mm[0]) * 10) / 10} × ${Math.round((n.bbox_mm[4] - n.bbox_mm[1]) * 10) / 10} × ${Math.round((n.bbox_mm[5] - n.bbox_mm[2]) * 10) / 10} mm`).join(" · ")}
           {" · "}Volumen {Math.round(gesamt / 100) / 10} cm³. Echte Geometrie wie beim Export; ziehen dreht, Rad zoomt, rechte Maustaste verschiebt.
         </p>
+      )}
+      {ausrichtungen.length > 0 && status !== "fehler" && (
+        <details className="ausrichtung" data-testid="ausrichtung">
+          <summary>
+            Druckausrichtung{" "}
+            <span className="leise" data-testid="ausrichtung-kurz">
+              {ausrichtungen.every((e) => e.bereitsBeste) ? "gezeichnete Lage ist gut" : "andere Lage wäre besser"}
+            </span>
+          </summary>
+          {ausrichtungen.map((e, i) => (
+            <div key={i} data-testid={`ausrichtung-${i}`}>
+              <p className="leise">
+                <strong>{netze[i].name}:</strong> {e.text}
+                {!e.bereitsBeste && " Im Slicer (Bambu Studio) die Fläche mit „Auf Fläche legen“ nach unten legen."}
+              </p>
+              <table className="lagentabelle" style={{ fontSize: 13 }}>
+                <thead>
+                  <tr>
+                    <th align="left">Lage</th>
+                    <th align="right">Überhang mm²</th>
+                    <th align="right">Auflage mm²</th>
+                    <th align="right">Höhe mm</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {e.lagen.map((l) => (
+                    <tr key={l.id} style={l.id === e.beste.id ? { fontWeight: 600 } : undefined}>
+                      <td>{l.name}{l.id === e.beste.id ? " ✓" : ""}</td>
+                      <td align="right">{l.ueberhang_mm2}</td>
+                      <td align="right">{l.auflage_mm2}</td>
+                      <td align="right">{l.hoehe_mm}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ))}
+          <p className="leise">Faustregel: Flächen, die steiler als 45° von der Senkrechten nach unten zeigen, brauchen Stützen. Das ist keine Slicer-Simulation.</p>
+        </details>
       )}
       {hinweise.map((h, i) => (
         <p key={i} className="hinweis" data-testid="ansicht3d-hinweis">

@@ -217,6 +217,47 @@ class MitFreeCAD(unittest.TestCase):
         self.assertFalse([h for h in r["hinweise"] if "Druckhinweis" in h])
 
 
+def _ueberhang_mm2(netz) -> float:
+    """Fläche der Dreiecke, die steiler als 45° nach unten zeigen und nicht auf dem Bett liegen (wie die Ausrichtung in der Oberfläche)."""
+    p, t = netz["punkte"], netz["dreiecke"]
+    summe = 0.0
+    for i in range(0, len(t), 3):
+        a, b, c = [(p[j * 3], p[j * 3 + 1], p[j * 3 + 2]) for j in t[i:i + 3]]
+        u = [b[k] - a[k] for k in range(3)]
+        v = [c[k] - a[k] for k in range(3)]
+        n = [u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0]]
+        laenge = math.sqrt(sum(x * x for x in n))
+        if laenge < 1e-9:
+            continue
+        if n[2] / laenge < -0.7072 and max(a[2], b[2], c[2]) > 0.05:
+            summe += laenge / 2
+    return summe
+
+
+@unittest.skipUnless(os.environ.get("FREECADCMD"), "FREECADCMD fehlt")
+class Druckausrichtung(unittest.TestCase):
+    """Teile, die in Einbaulage modelliert sind, werden für den Druck passend gedreht."""
+
+    def _netze(self, projekt):
+        from sidecar.engine import vorschau_bauen
+
+        modus = "gehaeuse" if projekt.nur_gehaeuse else "ersatz"
+        r = vorschau_bauen(projekt.to_dict(), None, os.environ["FREECADCMD"], modus)
+        self.assertTrue(r["ok"], r["fehler"])
+        return r["netze"]
+
+    def test_gehaeusedeckel_stopfen_und_knopf_haben_keinen_ueberhang(self):
+        from sidecar.ersatzteil import standard_parameter
+        from sidecar.gehaeuse import standard
+
+        for netz in self._netze(Projekt(nur_gehaeuse=True, gehaeuse=standard())):
+            if "Deckel" in netz["name"]:
+                self.assertLess(_ueberhang_mm2(netz), 5.0, netz["name"])
+        for art in ("stopfen", "knopf"):
+            projekt = Projekt(nur_ersatz=True, ersatzteile=[{"id": "ET1", "art": art, "name": art, "parameter": standard_parameter(art)}])
+            self.assertLess(_ueberhang_mm2(self._netze(projekt)[0]), 5.0, art)
+
+
 @unittest.skipUnless(os.environ.get("FREECADCMD"), "FREECADCMD fehlt")
 class Vorschau(unittest.TestCase):
     def test_netze_fuer_eigenes_teil_und_wiederverwendung(self):
@@ -251,6 +292,17 @@ class Vorschau(unittest.TestCase):
         r = vorschau_bauen(g, None, os.environ["FREECADCMD"])
         self.assertTrue(r["ok"], r["fehler"])
         self.assertEqual(len(r["netze"]), 2)  # Korpus und Deckel
+        # Druckfertig: Der Schraubdeckel liegt mit der glatten Oberseite auf dem Bett (keine freitragende Platte)
+        deckel = next(n for n in r["netze"] if "Deckel" in n["name"])
+        punkte, dreiecke = deckel["punkte"], deckel["dreiecke"]
+        flaeche_unten = 0.0
+        for i in range(0, len(dreiecke), 3):
+            a, b, c = [(punkte[j * 3], punkte[j * 3 + 1], punkte[j * 3 + 2]) for j in dreiecke[i:i + 3]]
+            if max(a[2], b[2], c[2]) < 0.05:
+                flaeche_unten += abs((b[0] - a[0]) * (c[1] - a[1]) - (c[0] - a[0]) * (b[1] - a[1])) / 2
+        breite = deckel["bbox_mm"][3] - deckel["bbox_mm"][0]
+        tiefe = deckel["bbox_mm"][4] - deckel["bbox_mm"][1]
+        self.assertGreater(flaeche_unten, 0.9 * breite * tiefe, "Die Deckelplatte liegt nicht auf dem Bett")
 
 
 if __name__ == "__main__":
