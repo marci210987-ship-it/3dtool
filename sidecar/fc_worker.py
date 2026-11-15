@@ -622,7 +622,7 @@ def baue_teil(teil: dict, out_dir: Path) -> dict:
             dateien.append({"id": datei_id, "name": name, "ok": False, "solid": info, "fehler": bauraum or soll_fehler})
             continue
         export_stl(shape, stl)
-        if teil["rolle"] == "eigen":
+        if teil["rolle"] in ("eigen", "ersatzteil", "kabel", "gehaeuse"):
             from sidecar.druckpruefung_geom import druckhinweise
 
             hinweise.extend("%s: %s" % (teil.get("name") or datei_id, h) for h in druckhinweise(shape))
@@ -791,7 +791,7 @@ def vorschau_netze(anfrage: dict) -> dict:
                     "volumen_mm3": round(shape.Volume, 1),
                 }
             )
-            if teil.get("rolle") == "eigen":
+            if teil.get("rolle") in ("eigen", "ersatzteil", "kabel", "gehaeuse"):
                 hinweise.extend("%s: %s" % (teil.get("name") or teil.get("id"), h) for h in druckhinweise(shape))
     return {"netze": netze, "hinweise": hinweise}
 

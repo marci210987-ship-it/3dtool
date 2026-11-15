@@ -48,7 +48,7 @@ KATALOG = [
         "id": "kanal",
         "name": "Kabelkanal",
         "text": "Gerades Stück mit Buchse am Anfang und Stecker am Ende. Längere Stücke werden für das 256-mm-Bett geteilt.",
-        "druck": "Öffnung nach oben auf das Bett legen. Keine Stützen. Einen Deckel flach daneben legen. Das Spiel ist die Lücke im Modell, nicht am Druck geprüft.",
+        "druck": "Öffnung nach oben auf das Bett legen. Auf dem Bett liegt nur die Buchse, der übrige Boden liegt 1,8 mm höher: im Slicer „Stützen nur auf dem Druckbett“ einschalten. Einen Deckel flach daneben legen. Das Spiel ist die Lücke im Modell, nicht am Druck geprüft.",
         "standard": {**PROFIL_STANDARD, "laenge_mm": 120.0, "deckel": "nein"},
         "felder": [
             *PROFIL_FELDER,
@@ -63,7 +63,7 @@ KATALOG = [
         "id": "ecke",
         "name": "90°-Ecke",
         "text": "Winkel mit derselben Buchse und demselben Stecker wie der gerade Kanal.",
-        "druck": "Flach drucken, Öffnung nach oben. Beide Schenkel liegen auf dem Bett.",
+        "druck": "Öffnung nach oben. Auf dem Bett liegt nur die Buchse, die Schenkel liegen 1,8 mm höher: im Slicer „Stützen nur auf dem Druckbett“ einschalten.",
         "standard": {**PROFIL_STANDARD, "schenkel_mm": 50.0},
         "felder": [
             *PROFIL_FELDER,
@@ -100,7 +100,7 @@ KATALOG = [
         "id": "auslass",
         "name": "Kabelauslass",
         "text": "Kurzes Kanalstück mit einem Loch im Boden, damit ein Kabel nach unten austreten kann.",
-        "druck": "Öffnung nach oben. Das Loch liegt auf dem Bett, der Rand bleibt stehen.",
+        "druck": "Öffnung nach oben. Auf dem Bett liegt nur die Buchse, der übrige Boden liegt 1,8 mm höher: im Slicer „Stützen nur auf dem Druckbett“ einschalten. Das Loch liegt im Boden.",
         "standard": {**PROFIL_STANDARD, "laenge_mm": 50.0, "auslass_mm": 10.0},
         "felder": [
             *PROFIL_FELDER,
