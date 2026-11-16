@@ -222,3 +222,30 @@ FreeCAD 1.1.4 auf Linux, Chromium mit Software-WebGL. Windows-Hardware, Druck un
 Fund aus der Druckausrichtung: Der Schraubdeckel des Gehäuses (7800 mm² Überhang in der exportierten Lage), der Stopfen (72 mm²) und der Drehknopf (28 mm²) waren in Einbaulage exportiert und werden jetzt gedreht. Kabelkanal (2770 mm²), 90°-Ecke (2037 mm²) und Kabelauslass (1068 mm²) haben an der Stufe zwischen Buchse und Kanalboden einen großen Überhang; das ist nicht geändert und braucht eine Entscheidung.
 
 Grenzen: Die Tabellenwerte der Schrauben sind Nennwerte beziehungsweise typische Werte (Einsatz-Außendurchmesser: Datenblatt prüfen), die Zuschläge sind Vorgaben. Die Druckausrichtung ist eine Faustregel auf dem Netz. Nichts davon ist gedruckt geprüft.
+
+## Nachtrag: intelligente Zeichen- und Lochfunktionen, 16.11.2026
+
+Lokal auf Windows geprüft, Python 3.14, FreeCADCmd unter `C:\Program Files\FreeCAD 1.1\bin\freecadcmd.exe`, Chromium über die im Lockfile festgelegte Playwright-Version. Kein neuer Installer gebaut oder installiert; kein Drucktest.
+
+| Prüfung | Ergebnis |
+|---|---|
+| `npm test -- --silent` | 120/120 Tests bestanden (14 Dateien). Vor Änderung: 97/97. Neu: 21 Rechentests und zwei UI-Tests. |
+| `npm run build` | TypeScript und Vite-Produktionsbuild erfolgreich. Bestehender Hinweis auf einen JS-Chunk über 500 kB. |
+| Python-Vollsuite mit FreeCAD | 131 Fälle durchlaufen, 130 bestanden, einer übersprungen (Registry-Leerlaufprüfung ist nur für Nicht-Windows gedacht). Enthält neue Projektdatei-/Exportvertragsfälle. |
+| `python -m unittest tests.test_positionierung` mit FreeCAD, nach Ergänzung des echten Exportfalls | 3/3 bestanden. Positionsmetadaten und Altdateien bleiben kompatibel; versetzte Platte mit konzentrischen Löchern als STL/FCStd exportiert, geschlossenes Netz und Körper geprüft, Volumen mit analytischem Soll verglichen. |
+| `npx playwright test` mit FreeCAD | 22/22 bestanden. Bestehendes Zeichnen, Polygonbearbeitung, Gruppen/Muster, echte 3D-Netze, Schubladen-, STL-/FCStd-Export und neue Positionierungsabläufe. |
+| Neue Browserfälle | Versetzte Grundform und Größenänderung, konzentrischer Materialkreis, Durchmesser, gebundener Randabstand, sichtbarer Fangpunkt und Abschalten; Layout ohne horizontalen Überlauf bei 390, 768 und 1400 px. |
+
+Python-Vollsuite:
+
+```powershell
+$env:FREECADCMD = 'C:\Program Files\FreeCAD 1.1\bin\freecadcmd.exe'
+$env:PYTHONUTF8 = '1'
+python -m unittest tests.test_layout tests.test_stlcheck tests.test_detect tests.test_projekt tests.test_server tests.test_eigenteil tests.test_ersatzteil tests.test_kabel tests.test_gehaeuse tests.test_erweitert tests.test_autofill_optimierer tests.test_positionierung tests.test_abnahme tests.test_sonder tests.test_vorlagen tests.test_einbetten
+```
+
+Der erste Vollsuite-Lauf enthielt zwei neue Python-Fälle; der dritte, echte Exportfall wurde anschließend separat mit dem ganzen Positionierungsmodul ausgeführt. Insgesamt sind damit 132 unterschiedliche Python-Fälle abgedeckt, davon einer plattformbedingt übersprungen. Testbedingte Änderungen der eingecheckten Beispieldateien wurden zurückgesetzt.
+
+Während der Entwicklung behoben: doppelter React-Schlüssel der Kontext- und Musterpanels, Testselektoren nach Umstellung von Radius auf Durchmesser sowie horizontaler Überlauf durch die 3D-Canvas beim Verkleinern. Der finale Stand hat keine fehlgeschlagenen lokalen Tests. Die vorhandenen jsdom-WebGL- und Python-ResourceWarnings sind keine neuen Funktionsfehler; reale 3D-Prüfungen erfolgen im Browser/FreeCAD. `npm ci` meldete bereits vor der Umsetzung sechs Abhängigkeitsbefunde; das Lockfile wurde nicht verändert.
+
+Bedienung, Datenmodell und funktionale Grenzen: [POSITIONIERUNG.md](docs/POSITIONIERUNG.md). Beziehungen werden im Zeicheneditor nachgeführt, nicht bei externer JSON- oder FCStd-Bearbeitung. Zentrieren/Randabstände verwenden den achsparallelen Rahmen freier Materialformen, keine Flächenschwerpunkte oder kürzesten Konturabstände. Reine Drehprofile liefern keinen Rahmen für diese Aktionen. Materialunion vor Lochabzug bleibt erhalten; Verteilung verwendet Mittelpunktabstände.

@@ -6,6 +6,9 @@ export type KantenArt = "keine" | "fase" | "rund";
 
 /** Optionen, die jede Form haben kann. */
 export interface FormOptionen {
+  /** Optionale stabile ID und Positionsbezüge, abwärtskompatibel in Projektdateien. */
+  form_id?: string;
+  position?: import("./positionierung").Position;
   z_mm?: number;
   h_mm?: number;
   /** Fase oder Rundung am Oberrand der Form bzw. am Lochrand */
@@ -487,29 +490,32 @@ export interface FangErgebnis {
 /** Punkte einer Form, an denen andere einrasten: Ecken, Kantenmitten, Mitte, Vieleck-Ecken. */
 export function fangpunkteVon(form: Form): Punkt[] {
   const [x0, y0, x1, y1] = formBox(form);
-  const xm = (x0 + x1) / 2;
-  const ym = (y0 + y1) / 2;
-  const punkte: Punkt[] = [
-    [x0, y0], [xm, y0], [x1, y0],
-    [x0, ym], [xm, ym], [x1, ym],
-    [x0, y1], [xm, y1], [x1, y1],
-  ];
-  if (form.typ === "polygon") punkte.push(...form.punkte.map((p) => [p[0], p[1]] as Punkt));
-  if (form.typ === "rechteck" && (form.winkel ?? 0) % 180 !== 0) {
-    const [mx, my] = rechteckMitte(form);
-    for (const [dx, dy] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) {
-      punkte.push(drehePunkt([mx + (dx * form.b) / 2, my + (dy * form.t) / 2], [mx, my], form.winkel ?? 0));
-    }
-  }
-  return punkte;
+  const mitte = formMitte(form);
+  if (form.typ === "kreis") return [mitte, [form.x - form.r, form.y], [form.x + form.r, form.y], [form.x, form.y - form.r], [form.x, form.y + form.r]];
+  let ecken: Punkt[];
+  if (form.typ === "polygon") ecken = form.punkte;
+  else if (form.typ === "rechteck") {
+    ecken = [[form.x, form.y], [form.x + form.b, form.y], [form.x + form.b, form.y + form.t], [form.x, form.y + form.t]];
+    ecken = ecken.map(p => drehePunkt(p, mitte, form.winkel ?? 0));
+  } else ecken = [[x0, y0], [x1, y0], [x1, y1], [x0, y1]];
+  return [mitte, ...ecken, ...ecken.map((p, i) => {
+    const q = ecken[(i + 1) % ecken.length];
+    return [bereinigen((p[0] + q[0]) / 2), bereinigen((p[1] + q[1]) / 2)] as Punkt;
+  })];
 }
 
 export function fangpunkte(formen: Form[], ausser: number | null = null): Punkt[] {
-  return formen.flatMap((f, i) => (i === ausser ? [] : fangpunkteVon(f)));
+  const punkte = formen.flatMap((f, i) => (i === ausser ? [] : fangpunkteVon(f)));
+  const rahmen = aussenBox({ formen: formen.filter((_, i) => i !== ausser) });
+  if (rahmen) punkte.push([(rahmen[0] + rahmen[2]) / 2, (rahmen[1] + rahmen[3]) / 2]);
+  return punkte;
 }
 
 /** Rastet einen Punkt je Achse an der nächsten Fluchtlinie der Fangpunkte ein (innerhalb der Schwelle). */
 export function einrasten(p: Punkt, punkte: Punkt[], schwelle: number): FangErgebnis {
+  const nah = punkte.filter(q => Math.hypot(q[0] - p[0], q[1] - p[1]) <= schwelle)
+    .sort((a, b) => Math.hypot(a[0] - p[0], a[1] - p[1]) - Math.hypot(b[0] - p[0], b[1] - p[1]))[0];
+  if (nah) return { punkt: [...nah], fangX: nah[0], fangY: nah[1] };
   let bestX: number | undefined;
   let bestY: number | undefined;
   for (const [fx, fy] of punkte) {

@@ -6,8 +6,6 @@ import { dateiText, type ImportErgebnis, leseDxf, leseSvg, zuFormen } from "./im
 import {
   aussenmass,
   bereinigen,
-  ausrichten,
-  type AusrichtModus,
   bezugsrahmen,
   einrasten,
   Eigenteil,
@@ -54,6 +52,9 @@ import {
   verschiebenMitFang,
   verschieben,
 } from "./zeichnen";
+
+import { DurchmesserFeld, PositionPanel } from "./position-panel";
+import { gleichmaessigVerteilen, positionenAufloesen, positionLoesen } from "./positionierung";
 
 type Werkzeug = "wahl" | "rechteck" | "kreis" | "langloch" | "polygon" | "text";
 
@@ -226,10 +227,10 @@ export function Zeichnen({
   }
 
   function formen(neu: Form[], art: "einmal" | "zug" | "tippen" = "einmal") {
-    aendereTeil((t) => ({ ...t, formen: neu }), art);
+    aendereTeil((t) => ({ ...t, formen: positionenAufloesen(neu) }), art);
   }
 
-  const fangSchwelle = Math.max(raster, W / 55);
+  const fangSchwelle = 8 / (Math.abs(svgRef.current?.getScreenCTM?.()?.a ?? 0) || 4);
 
   function welt(e: { clientX: number; clientY: number }, mitFang = true): Punkt {
     const svg = svgRef.current;
@@ -242,8 +243,8 @@ export function Zeichnen({
     const p = pt.matrixTransform(m.inverse());
     const gerastet: Punkt = [Math.max(0, runden(p.x, raster)), Math.max(0, runden(H - p.y, raster))];
     if (!mitFang || !fangAn || !teil) return gerastet;
-    const ziel = einrasten(gerastet, fangpunkte(teil.formen, ziehen ? ziehen.index : null), fangSchwelle);
-    return ziel.punkt;
+    const ziel = einrasten([Math.max(0, p.x), Math.max(0, H - p.y)], fangpunkte(teil.formen, ziehen ? ziehen.index : null), fangSchwelle);
+    return [ziel.fangX ?? gerastet[0], ziel.fangY ?? gerastet[1]];
   }
 
   useEffect(() => {
@@ -312,6 +313,10 @@ export function Zeichnen({
   function bewegt(e: React.PointerEvent<SVGSVGElement>) {
     const p = welt(e, !ziehen);
     setZeiger(p);
+    if (!ziehen && punktZug === null) {
+      const f = fangAn ? einrasten(p, fangpunkte(teil?.formen ?? []), fangSchwelle) : null;
+      setFangLinien({ x: f?.fangX, y: f?.fangY });
+    }
     if (entwurf) {
       setEntwurf({ ...entwurf, b: p });
       const f = fangAn ? einrasten(p, fangpunkte(teil?.formen ?? []), fangSchwelle) : null;
@@ -325,7 +330,7 @@ export function Zeichnen({
       const q = welt(e, false);
       const ziel = fangAn ? einrasten(q, fangpunkte(teil.formen, auswahl), fangSchwelle) : { punkt: q, fangX: undefined, fangY: undefined };
       setFangLinien({ x: ziel.fangX, y: ziel.fangY });
-      formen(teil.formen.map((f, i) => (i === auswahl ? punktVerschieben(f, punktZug, ziel.punkt) : f)), "zug");
+      formen(teil.formen.map((f, i) => (i === auswahl ? positionLoesen(punktVerschieben(f, punktZug, ziel.punkt)) : f)), "zug");
     }
     if (ziehen && teil) {
       let dx = p[0] - ziehen.start[0];
@@ -339,9 +344,9 @@ export function Zeichnen({
       }
       if (ziehen.gruppe) {
         const original = new Map(ziehen.gruppe.map((g) => [g.index, g.original]));
-        formen(teil.formen.map((f, i) => (original.has(i) ? verschieben(original.get(i)!, dx, dy) : f)), "zug");
+        formen(teil.formen.map((f, i) => (original.has(i) ? positionLoesen(verschieben(original.get(i)!, dx, dy), [...(dx ? ["x" as const] : []), ...(dy ? ["y" as const] : [])]) : f)), "zug");
       } else {
-        const neu = verschieben(ziehen.original, dx, dy);
+        const neu = positionLoesen(verschieben(ziehen.original, dx, dy), [...(dx ? ["x" as const] : []), ...(dy ? ["y" as const] : [])]);
         formen(teil.formen.map((f, i) => (i === ziehen.index ? neu : f)), "zug");
       }
     }
@@ -448,7 +453,7 @@ export function Zeichnen({
 
   function setzeFeld(index: number, patch: Record<string, number | boolean | string | undefined>) {
     if (!teil) return;
-    formen(teil.formen.map((f, i) => (i === index ? ({ ...f, ...patch } as Form) : f)), "tippen");
+    formen(teil.formen.map((f, i) => (i === index ? ({ ...positionLoesen(f, [...("x" in patch ? ["x" as const] : []), ...("y" in patch ? ["y" as const] : [])]), ...patch } as Form) : f)), "tippen");
   }
 
   const maß = teil ? aussenmass(teil.formen, teil) : null;
@@ -613,7 +618,7 @@ export function Zeichnen({
                 Neue Form ist ein Loch
               </label>
               <label className="check">
-                <input type="checkbox" data-testid="fang-an" checked={fangAn} onChange={(e) => setFangAn(e.target.checked)} />
+                <input type="checkbox" data-testid="fang-an" checked={fangAn} onChange={(e) => { setFangAn(e.target.checked); setFangLinien({}); }} />
                 Einrasten
               </label>
               <label className="check">
@@ -695,6 +700,7 @@ export function Zeichnen({
               onPointerDown={runter}
               onPointerMove={bewegt}
               onPointerUp={hoch}
+              onPointerLeave={() => { if (!ziehen && !entwurf) setFangLinien({}); }}
               onKeyDown={taste}
               style={{ touchAction: "none", width: "100%", maxHeight: 560, background: "#fff", border: "1px solid #e4ddd0", borderRadius: 12 }}
             >
@@ -761,8 +767,9 @@ export function Zeichnen({
                     )}
                   </g>
                 )}
-                {(fangLinien.x !== undefined || fangLinien.y !== undefined) && (
+                {fangAn && (fangLinien.x !== undefined || fangLinien.y !== undefined) && (
                   <g stroke="#d4572b" strokeWidth={0.35} strokeDasharray="1.5 1" pointerEvents="none" data-testid="fanglinien">
+                    {fangLinien.x !== undefined && fangLinien.y !== undefined && fangpunkte(teil.formen).some(([x, y]) => x === fangLinien.x && y === fangLinien.y) && <circle data-testid="fangpunkt-aktiv" cx={fangLinien.x} cy={fangLinien.y} r={W / 100} fill="white" strokeWidth={0.6} strokeDasharray="none" />}
                     {fangLinien.x !== undefined && <line x1={fangLinien.x} y1={0} x2={fangLinien.x} y2={H} />}
                     {fangLinien.y !== undefined && <line x1={0} y1={fangLinien.y} x2={W} y2={fangLinien.y} />}
                   </g>
@@ -939,12 +946,14 @@ export function Zeichnen({
                   >
                     Daneben kopieren
                   </button>
-                  <button type="button" data-testid="gruppe-spiegel-x" onClick={() => formen(gruppeSpiegeln(teil.formen, gruppe, "x", teil.hoehe_mm))}>
+                  <button type="button" data-testid="gruppe-spiegel-x" onClick={() => formen(gruppeSpiegeln(teil.formen, gruppe, "x", teil.hoehe_mm).map((f, i) => gruppe.includes(i) ? positionLoesen(f, ["x"]) : f))}>
                     Spiegeln ↔
                   </button>
-                  <button type="button" data-testid="gruppe-spiegel-y" onClick={() => formen(gruppeSpiegeln(teil.formen, gruppe, "y", teil.hoehe_mm))}>
+                  <button type="button" data-testid="gruppe-spiegel-y" onClick={() => formen(gruppeSpiegeln(teil.formen, gruppe, "y", teil.hoehe_mm).map((f, i) => gruppe.includes(i) ? positionLoesen(f, ["y"]) : f))}>
                     Spiegeln ↕
                   </button>
+                  <button type="button" disabled={gruppe.length < 3} data-testid="verteilen-x" onClick={() => formen(gleichmaessigVerteilen(teil.formen, gruppe, "x"))}>Gleichmäßig verteilen ↔</button>
+                  <button type="button" disabled={gruppe.length < 3} data-testid="verteilen-y" onClick={() => formen(gleichmaessigVerteilen(teil.formen, gruppe, "y"))}>Gleichmäßig verteilen ↕</button>
                   <button type="button" data-testid="gruppe-loeschen" onClick={() => { const weg = new Set(gruppe); formen(teil.formen.filter((_, i) => !weg.has(i))); setMehr([]); }}>
                     Löschen
                   </button>
@@ -955,6 +964,7 @@ export function Zeichnen({
             )}
             {gewaehlt && auswahl !== null && (
               <div className="formular">
+                <PositionPanel key={`position-${teil.id}-${auswahl}`} formen={teil.formen} index={auswahl} onChange={formen} />
                 <label className="check">
                   <input type="checkbox" checked={gewaehlt.loch} onChange={(e) => setzeFeld(auswahl, { loch: e.target.checked })} />
                   Loch (schneidet Material weg)
@@ -972,7 +982,7 @@ export function Zeichnen({
                   <>
                     <Zahlfeld label="Mitte x" wert={gewaehlt.x} onChange={(v) => setzeFeld(auswahl, { x: v })} />
                     <Zahlfeld label="Mitte y" wert={gewaehlt.y} onChange={(v) => setzeFeld(auswahl, { y: v })} />
-                    <Zahlfeld label="Radius" wert={gewaehlt.r} onChange={(v) => setzeFeld(auswahl, { r: v })} />
+                    <DurchmesserFeld wert={bereinigen(gewaehlt.r * 2)} onChange={(v) => setzeFeld(auswahl, { r: bereinigen(v / 2) })} />
                   </>
                 )}
                 {gewaehlt.typ === "kreis" && gewaehlt.loch && <SchraubenPanel form={gewaehlt} onChange={(patch) => setzeFeld(auswahl, patch)} />}
@@ -987,8 +997,8 @@ export function Zeichnen({
                     {polygonSelbstschnitt(gewaehlt.punkte) && <p style={{ color: "#b3434b" }} data-testid="polygon-selbstschnitt">Das Vieleck überschneidet sich selbst. Der Export lehnt es ab.</p>}
                     {punktAuswahl !== null && punktAuswahl < gewaehlt.punkte.length && (
                       <>
-                        <Zahlfeld label={`Punkt ${punktAuswahl + 1} x`} wert={gewaehlt.punkte[punktAuswahl][0]} testid="punkt-x" onChange={(v) => formen(teil!.formen.map((g, i) => (i === auswahl ? punktVerschieben(g, punktAuswahl, [v, gewaehlt.punkte[punktAuswahl][1]]) : g)), "tippen")} />
-                        <Zahlfeld label={`Punkt ${punktAuswahl + 1} y`} wert={gewaehlt.punkte[punktAuswahl][1]} testid="punkt-y" onChange={(v) => formen(teil!.formen.map((g, i) => (i === auswahl ? punktVerschieben(g, punktAuswahl, [gewaehlt.punkte[punktAuswahl][0], v]) : g)), "tippen")} />
+                        <Zahlfeld label={`Punkt ${punktAuswahl + 1} x`} wert={gewaehlt.punkte[punktAuswahl][0]} testid="punkt-x" onChange={(v) => formen(teil!.formen.map((g, i) => (i === auswahl ? positionLoesen(punktVerschieben(g, punktAuswahl, [v, gewaehlt.punkte[punktAuswahl][1]])) : g)), "tippen")} />
+                        <Zahlfeld label={`Punkt ${punktAuswahl + 1} y`} wert={gewaehlt.punkte[punktAuswahl][1]} testid="punkt-y" onChange={(v) => formen(teil!.formen.map((g, i) => (i === auswahl ? positionLoesen(punktVerschieben(g, punktAuswahl, [gewaehlt.punkte[punktAuswahl][0], v])) : g)), "tippen")} />
                         <button type="button" disabled={gewaehlt.punkte.length <= 3} onClick={() => { formen(teil!.formen.map((g, i) => (i === auswahl ? punktLoeschen(g, punktAuswahl) : g))); setPunktAuswahl(null); }} data-testid="punkt-loeschen">Punkt löschen</button>
                       </>
                     )}
@@ -1038,31 +1048,6 @@ export function Zeichnen({
                     onChange={(v) => setzeFeld(auswahl, { keil_mm: v })}
                   />
                 )}
-                <div className="ausrichten" data-testid="ausrichten">
-                  <span className="leise">Ausrichten am Außenmaß der übrigen Formen</span>
-                  <div className="knopfzeile">
-                    {(
-                      [
-                        ["mitte-x", "Mitte ↔"],
-                        ["mitte-y", "Mitte ↕"],
-                        ["links", "Links"],
-                        ["rechts", "Rechts"],
-                        ["unten", "Unten"],
-                        ["oben", "Oben"],
-                      ] as Array<[AusrichtModus, string]>
-                    ).map(([modus, titel]) => (
-                      <button
-                        key={modus}
-                        type="button"
-                        data-testid={`ausrichten-${modus}`}
-                        disabled={!bezugsrahmen(teil.formen, auswahl)}
-                        onClick={() => formen(teil.formen.map((f, i) => (i === auswahl ? ausrichten(f, modus, bezugsrahmen(teil.formen, auswahl)) : f)))}
-                      >
-                        {titel}
-                      </button>
-                    ))}
-                  </div>
-                </div>
                 <MusterPanel
                   key={`${teil.id}-${auswahl}`}
                   form={gewaehlt}
@@ -1075,7 +1060,7 @@ export function Zeichnen({
                     formen([...teil.formen, ...neu]);
                     setAuswahl(teil.formen.length + neu.length - 1);
                   }}
-                  onErsetzen={(neu) => formen(teil.formen.map((f, i) => (i === auswahl ? neu : f)))}
+                  onErsetzen={(neu) => formen(teil.formen.map((f, i) => (i === auswahl ? positionLoesen(neu) : f)))}
                 />
                 <label>
                   {gewaehlt.loch ? "Lochrand" : "Oberrand dieser Form"}

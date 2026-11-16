@@ -236,11 +236,11 @@ describe("Zeichnen: Maße per Eingabe ändern", () => {
     expect(d.value).toBe("6");
     await benutzer.clear(d);
     await benutzer.type(d, "10{Enter}");
-    expect((screen.getByText("Radius").closest("label")!.querySelector("input") as HTMLInputElement).value).toBe("5");
+    expect((screen.getByTestId("form-durchmesser") as HTMLInputElement).value).toBe("10");
     // Rückgängig nimmt die Änderung zurück
     await benutzer.click(screen.getByTestId("rueckgaengig"));
     await benutzer.click(screen.getAllByRole("button", { name: /Kreis/ }).find((b) => b.closest(".formliste"))!);
-    expect((screen.getByText("Radius").closest("label")!.querySelector("input") as HTMLInputElement).value).toBe("3");
+    expect((screen.getByTestId("form-durchmesser") as HTMLInputElement).value).toBe("6");
   });
 });
 

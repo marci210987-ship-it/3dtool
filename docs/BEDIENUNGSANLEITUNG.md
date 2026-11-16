@@ -213,3 +213,7 @@ Drucken: Gehäuse mit der Öffnung nach oben, Deckel flach. Die Vorschau vor dem
 - Die Gewichtsangabe ist aus dem CAD-Volumen geschätzt.
 - Lebensmittel, Spülmaschine und Wärme sind nicht geprüft.
 - Die Ursprungsplatten ohne den Zusatz QS1 sind fehlerhaft und werden nicht verwendet.
+
+## Löcher und Formen intelligent positionieren
+
+Im Zeichenblatt eine Form wählen. Im Bereich **Positionieren** stehen Bauteilmitte, getrennte Zentrierung, Randabstände und **Mittelpunkt übernehmen** bereit. Kreise können mit frei wählbarem Durchmesser und Materialmodus konzentrisch ergänzt werden. Mit Umschalt-Klick mindestens drei Formen wählen, um sie gleichmäßig zu verteilen. Bindungen folgen Größenänderungen; manuelle Positionseingaben lösen die geänderte Achse. Details und Grenzen: [POSITIONIERUNG.md](POSITIONIERUNG.md).

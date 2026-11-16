@@ -276,7 +276,7 @@ input, select {
 
 .zeichnen {
   display: grid;
-  grid-template-columns: 210px 1fr 290px;
+  grid-template-columns: 210px minmax(0, 1fr) 290px;
   gap: 1rem;
   align-items: start;
 }
@@ -314,3 +314,14 @@ input, select {
   header { flex-wrap: wrap; }
   .wortmarke { height: 28px; }
 }
+
+/* Kontextaktionen bleiben im vorhandenen responsiven Eigenschaftenbereich. */
+.position-panel { display: grid; gap: .65rem; padding: .9rem; border: 1px solid var(--linie, #cbd4d9); border-radius: .65rem; min-width: 0; }
+.position-panel .knopfzeile { flex-wrap: wrap; }
+.position-panel input, .position-panel select { max-width: 100%; min-width: 0; }
+.position-panel p { margin: 0; }
+
+.zeichnen > *, .zeichnen .formular > *, .zeichnen label { min-width: 0; }
+.zeichnen .formular { grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr)); }
+.zeichnen input:not([type="checkbox"]), .zeichnen select { min-width: 0; max-width: 100%; }
+.zeichnen canvas { display: block; max-width: 100%; }
