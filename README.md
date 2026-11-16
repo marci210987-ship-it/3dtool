@@ -133,3 +133,9 @@ Diese Schritte sind die Anleitung für den ersten Start. Sie sind kein bereits d
 ## Was noch nicht da ist
 
 Freiformflächen, Gewinde, Schriftarten (es gibt nur eine Pixelschrift) und 3D-Skizzen gibt es nicht. Randstreifen sind einfache, glatte Füllplatten ohne Verbinder. Das Spiel an Deckel, Kabeln und Stopfen ist die Lücke im Modell und nicht an einem gedruckten Teil geprüft. Der Windows-Installer wird in GitHub Actions gebaut, dort auf dem Runner gestartet und danach als Release abgelegt. Auf einem echten Windows-PC eines Benutzers wurde er noch nicht geprüft.
+
+## Intelligentes Positionieren im Zeichenblatt
+
+Formen und Löcher lassen sich pro Achse oder vollständig zentrieren, mit Randabstand ausrichten und an andere Mittelpunkte binden. Runde Formen haben eine Durchmessereingabe und können konzentrisch als Material oder Loch ergänzt werden. Beziehungen bleiben bei Größenänderungen erhalten; manuelle Positionsänderungen lösen die betroffene Achse. Mehrfachauswahlen können gleichmäßig verteilt werden. Einrasten zeigt echte Fangpunkte an.
+
+Bedienung, Datenmodell und Grenzen: [docs/POSITIONIERUNG.md](docs/POSITIONIERUNG.md).

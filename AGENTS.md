@@ -57,4 +57,7 @@ Offen, nach Nutzen sortiert:
 4. Windows-Installer auf einem echten PC starten und FreeCAD-Anbindung prüfen.
 
 ## Zusammenarbeit
-Im selben Checkout schreibt nur ein Agent. Vor Arbeitsbeginn `git status` und `git pull --ff-only`. Branch: `cursor/cad-studio-phase-b-5939` (PR #1), `main` enthält nur ein leeres README. Kein Merge, Force-Push oder Löschen ohne ausdrückliche Zustimmung des Nutzers.
+Im selben Checkout schreibt nur ein Agent. Vor Arbeitsbeginn `git status` und `git pull --ff-only`. `main` enthält die Anwendung (Stand 16.11.2026); Erweiterungen auf einem eigenen `codex/`-Branch bearbeiten. Die frühere Phase-B-Branchangabe ist historisch. Kein Merge, Force-Push oder Löschen ohne ausdrückliche Zustimmung des Nutzers.
+
+## Parametrische Positionierung (16.11.2026)
+`ui/src/positionierung.ts`: optionale `form_id` und `position.x/y` an Formen. Alle Formänderungen im Zeichenblatt über `positionenAufloesen` führen. IDs sind innerhalb eines Teils stabil; Kopien bekommen eigene IDs/freie Positionen. Manuelle Positionseingaben lösen die betroffene Achse. Kontext-UI: `position-panel.tsx`. Bezug für Bauteilmitte/Randabstand ist der achsparallele Rahmen freier Materialformen; keine Konturabstände und kein Drehprofilrahmen. Der Sidecar speichert Metadaten unverändert, Export/Vorschau nutzen bereits aufgelöste Koordinaten. Details: `docs/POSITIONIERUNG.md`. Python-Test zusätzlich: `python -m unittest tests.test_positionierung` (FreeCAD-Test optional über `FREECADCMD`).
