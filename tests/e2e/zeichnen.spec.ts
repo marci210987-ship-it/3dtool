@@ -30,6 +30,9 @@ async function eigeneTeileOeffnen(page: Page) {
   await expect(page.getByTestId("zeichnen")).toBeVisible();
 }
 
+// Die Abläufe wechseln bewusst das Projekt und bestätigen den Schutz ungespeicherter Änderungen.
+test.beforeEach(async ({ page }) => { page.on("dialog", (dialog) => dialog.accept()); });
+
 test("Zeichnen: Rechteck und Loch ziehen, Maß per Eingabe ändern, Rückgängig", async ({ page }) => {
   await eigeneTeileOeffnen(page);
   const blatt = page.getByTestId("zeichenblatt");

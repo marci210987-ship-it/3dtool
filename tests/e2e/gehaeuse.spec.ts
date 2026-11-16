@@ -1,5 +1,8 @@
 import { expect, test } from "@playwright/test";
 
+// Projektwechsel und Neuladen bestätigen den Schutz ungespeicherter Änderungen.
+test.beforeEach(async ({ page }) => { page.on("dialog", (dialog) => dialog.accept()); });
+
 test("Elektronikgehäuse: Wand ablehnen und zurück zur Schublade", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByText("in Vorbereitung")).toHaveCount(0);

@@ -46,10 +46,14 @@ class Eigenteil:
     dreh_x_mm: float = 0.0
     dreh_y_mm: float = 0.0
 
+    bedingungen: list = field(default_factory=list)
+
     @staticmethod
     def from_dict(data: dict) -> "Eigenteil":
         known = {f.name for f in Eigenteil.__dataclass_fields__.values()}  # type: ignore
         raw = {k: v for k, v in data.items() if k in known}
+        from sidecar.bedingungen import anwenden
+        raw["formen"] = anwenden(raw.get("formen") or [], raw.get("bedingungen") or [])
         return Eigenteil(**raw)
 
     def to_dict(self) -> dict:

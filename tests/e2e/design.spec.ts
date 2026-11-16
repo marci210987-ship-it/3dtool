@@ -5,6 +5,9 @@ const BILDER = path.join("test-results", "design");
 
 test.use({ viewport: { width: 1440, height: 900 } });
 
+// Die Abläufe wechseln bewusst das Projekt und bestätigen den Schutz ungespeicherter Änderungen.
+test.beforeEach(async ({ page }) => { page.on("dialog", (dialog) => dialog.accept()); });
+
 test("Oberfläche in den sechs Bereichen", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByRole("button", { name: "CAD Studio" })).toBeVisible();

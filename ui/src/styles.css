@@ -314,3 +314,12 @@ input, select {
   header { flex-wrap: wrap; }
   .wortmarke { height: 28px; }
 }
+
+.druckprofile { padding: 0 0 1.5rem; border-bottom: 1px solid var(--linie); margin-bottom: 1.5rem; }
+.druckprofile > label { max-width: 32rem; }
+.bedingungen-panel { margin: 1rem 0; min-width: 0; }
+.bedingungen-panel label { margin: 0.6rem 0; }
+.bedingungen-panel select { max-width: 100%; }
+.ansicht3d fieldset { display: flex; flex-wrap: wrap; gap: 0.6rem 1rem; margin: 0.75rem 0; }
+
+.fortsetzen { padding: 1rem 1.6rem 0; }

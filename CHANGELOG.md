@@ -1,5 +1,15 @@
 # Änderungsprotokoll
 
+## Unveröffentlicht
+
+- Lokale Wiederherstellungskopie und Schutz ungespeicherter Änderungen.
+- Abbrechbare Exportaufträge mit sichtbarem Status und aufklappbaren Fehlerdetails.
+- Vollständige 3D-Teilevorschau mit Sichtbarkeitsschaltern, Zwischenspeicher und Überspringen überholter Anfragen.
+- Gespeicherte Druck-/Materialprofile und Loch/Stift-Kalibrierprojekt mit fünf Spielmaßen.
+- Dauerhafte Skizzenbedingungen für Rechtecke und Kreise (mittig, Abstand, gleiche Größe, parallel).
+- Stückliste berücksichtigt den Projektbauraum anstelle fest vorgegebener 256 mm.
+- Regressionstests für Wiederherstellung, Bedingungen, Vorschau, Abbruch und Bauraum.
+
 ## 0.5.0
 
 - 3D-Ansicht: Schnittebene (waagerecht und senkrecht, mit Schieber und Seitenwechsel) und Messen zwischen zwei Punkten.

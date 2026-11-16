@@ -133,3 +133,38 @@ Diese Schritte sind die Anleitung für den ersten Start. Sie sind kein bereits d
 ## Was noch nicht da ist
 
 Freiformflächen, Gewinde, Schriftarten (es gibt nur eine Pixelschrift) und 3D-Skizzen gibt es nicht. Randstreifen sind einfache, glatte Füllplatten ohne Verbinder. Das Spiel an Deckel, Kabeln und Stopfen ist die Lücke im Modell und nicht an einem gedruckten Teil geprüft. Der Windows-Installer wird in GitHub Actions gebaut, dort auf dem Runner gestartet und danach als Release abgelegt. Auf einem echten Windows-PC eines Benutzers wurde er noch nicht geprüft.
+
+## Sicherung, Druckprofile und Skizzenbedingungen
+
+Ungespeicherte Änderungen werden nach einer kurzen Eingabepause als separate lokale
+Wiederherstellungskopie gespeichert. Nach einem Neustart lässt sich diese Kopie
+wiederherstellen oder verwerfen. Sie ersetzt **Speichern** nicht und überschreibt keine
+Projektdatei. Beim Schließen und beim Wechsel zu einem anderen Projekt erscheint eine
+Warnung, wenn Änderungen noch nicht manuell gespeichert sind. Die Kopie liegt im lokalen
+Speicher der Oberfläche; ein Löschen der Anwendungs-/Browserdaten entfernt sie ebenfalls.
+
+Unter **Einstellungen → Druckprofile und Passungskalibrierung** lassen sich Material,
+Bauraum und Spielmaße speichern und auf das aktuelle Projekt anwenden. Das Kalibrierprojekt
+erzeugt fünf Lochplatten mit Stiften (Spiel je Seite: 0,10 bis 0,50 mm). Die Zuordnung
+steht im Teilnamen und damit in der Stückliste. Ein Loch/Stift-Test ist ein Ausgangspunkt;
+Deckel, Stopfen und Kabelverbinder müssen zusätzlich in ihrer konkreten Geometrie gedruckt
+und geprüft werden. Ein Profil gilt erst durch die eigene Kennzeichnung als druckgeprüft.
+
+Im Zeichenblatt halten **Skizzenbedingungen** Rechtecke und Kreise dauerhaft mittig,
+in einem festen X-/Y-Abstand oder gleich groß. Zwei Rechtecke lassen sich außerdem
+parallel halten. Zuerst die Bezugsform, dann die abhängige Form wählen. Bei Änderungen
+folgt die abhängige Form dem Bezug. Kreisbezüge und mehrere Bedingungen für dieselbe
+Eigenschaft werden abgewiesen. Das Löschen einer Form entfernt ihre Beziehungen;
+Rückgängig stellt beides wieder her. Bedingungen werden im Projekt und in Vorlagen
+mitgespeichert. Freie Polygonkanten und ein allgemeiner CAD-Bedingungslöser sind nicht enthalten.
+
+Die echte 3D-Vorschau zeigt alle Auftragsteile ohne die frühere Acht-Teile-Grenze.
+Jeder Körper lässt sich ausblenden. Die Anzeige nennt den berechneten Umfang; die
+Körper liegen zur Inspektion nebeneinander. Unveränderte Teile werden im Speicher
+zwischengespeichert, überholte wartende Anfragen werden übersprungen. Eine bereits
+laufende Einzelteilberechnung kann noch fertiglaufen.
+
+Ein laufender Export lässt sich mit **Export abbrechen** beenden. Dabei wird nur der
+FreeCAD-Prozess dieses Auftrags beendet. Bereits geschriebene Dateien können im
+Exportordner bleiben und gelten nicht als vollständiger, geprüfter Export. Fehler zeigen
+zuerst eine Kurzmeldung, weitere Angaben stehen unter **Technische Details**.

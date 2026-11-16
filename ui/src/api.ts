@@ -21,12 +21,14 @@ async function kopf(): Promise<Record<string, string>> {
   return { "Content-Type": "application/json", "X-CADStudio-Token": wert };
 }
 
-export async function api<T = unknown>(cmd: string, body: Record<string, unknown> = {}): Promise<{ ok: boolean; fehler?: string; result?: T; job?: string; out_dir?: string; projekt?: unknown; pfad?: string }> {
+export async function api<T = unknown>(cmd: string, body: Record<string, unknown> = {}, signal?: AbortSignal): Promise<{ ok: boolean; fehler?: string; result?: T; job?: string; out_dir?: string; projekt?: unknown; pfad?: string }> {
   const antwort = await fetch(`${BASIS}/api`, {
     method: "POST",
     headers: await kopf(),
     body: JSON.stringify({ cmd, ...body }),
+    signal,
   });
+  if (!antwort.ok) throw new Error(`Dienstfehler (HTTP ${antwort.status}).`);
   return antwort.json();
 }
 
@@ -47,6 +49,7 @@ export function dateiUrl(pfad: string): string {
 
 export async function jobStatus(id: string): Promise<Record<string, unknown>> {
   const antwort = await fetch(`${BASIS}/api/job?id=${encodeURIComponent(id)}`, { headers: await kopf() });
+  if (!antwort.ok) throw new Error(`Dienstfehler (HTTP ${antwort.status}).`);
   return antwort.json();
 }
 
@@ -77,14 +80,14 @@ export interface ProjektDatei {
 
 export function leereSchublade(vorgaben: Partial<Schublade> = {}): Schublade {
   return {
-    innenbreite_mm: 480,
-    innentiefe_mm: 420,
+    innenbreite_mm: vorgaben.innenbreite_mm ?? 480,
+    innentiefe_mm: vorgaben.innentiefe_mm ?? 420,
     nutzhoehe_mm: vorgaben.nutzhoehe_mm ?? 80,
     spiel_mm: vorgaben.spiel_mm ?? 1,
-    rand_links_mm: 0,
-    rand_rechts_mm: 0,
-    rand_vorne_mm: 0,
-    rand_hinten_mm: 0,
+    rand_links_mm: vorgaben.rand_links_mm ?? 0,
+    rand_rechts_mm: vorgaben.rand_rechts_mm ?? 0,
+    rand_vorne_mm: vorgaben.rand_vorne_mm ?? 0,
+    rand_hinten_mm: vorgaben.rand_hinten_mm ?? 0,
     verbinder_spiel_mm: vorgaben.verbinder_spiel_mm ?? 0.2,
     wandstaerke_mm: vorgaben.wandstaerke_mm ?? 1.2,
     boden_platte_mm: vorgaben.boden_platte_mm ?? 0.8,

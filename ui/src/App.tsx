@@ -1,5 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { bedingungenAnwenden } from "./bedingungen";
+import { ExportFehler } from "./exportfehler";
+import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { api, dateiUrl, gesundheit, jobStatus, leereSchublade, Schublade } from "./api";
+import { useSicherung } from "./sicherung";
+import { Druckprofile } from "./druckprofile";
 import { Ansicht3D } from "./ansicht3d";
 import { Editor } from "./editor";
 import { ErsatzArt, Ersatzteil, ErsatzteilAnsicht } from "./ersatzteile";
@@ -101,6 +105,7 @@ export function App() {
   const [plan, setPlan] = useState<Plan | null>(null);
   // Antworten von „plane“ können außer der Reihe eintreffen: nur die jüngste Anfrage darf den Plan setzen
   const planNr = useRef(0);
+  const projektBegonnen = useRef(false);
   async function planAbrufen(projektDaten: Record<string, unknown>) {
     const nr = ++planNr.current;
     const antwort = await api<Plan>("plane", { projekt: projektDaten });
@@ -115,11 +120,16 @@ export function App() {
   const [jobText, setJobText] = useState("");
   const [ergebnis, setErgebnis] = useState<Ergebnis | null>(null);
   const [rechnet, setRechnet] = useState(false);
+  const [jobId, setJobId] = useState<string | null>(null);
+  const [abbruch, setAbbruch] = useState(false);
 
   const projekt = useMemo(
     () => anProjekt(name, schublade, boxen, eigene, nurEigene, ersatzteile, nurErsatz, kabel, nurKabel, gehaeuse, nurGehaeuse),
     [name, schublade, boxen, eigene, nurEigene, ersatzteile, nurErsatz, kabel, nurKabel, gehaeuse, nurGehaeuse],
   );
+
+  const sicherung = useSicherung(projekt, speicherpfad, ansicht !== "start" && ansicht !== "einstellungen");
+  useEffect(() => { setErgebnis(null); }, [projekt]);
 
   useEffect(() => {
     let aktiv = true;
@@ -137,6 +147,7 @@ export function App() {
     api<Record<string, unknown>>("settings_get").then((r) => {
       if (r.result) {
         setEinstellungen(r.result);
+        if (projektBegonnen.current) return;
         setSchublade((alt) =>
           leereSchublade({
             ...alt,
@@ -145,6 +156,7 @@ export function App() {
             wandstaerke_mm: Number(r.result?.wandstaerke_mm ?? alt.wandstaerke_mm),
             material: String(r.result?.material ?? alt.material),
             nutzhoehe_mm: Number(r.result?.nutzhoehe_mm ?? alt.nutzhoehe_mm),
+            bauraum_mm: (r.result?.bauraum_mm as number[]) ?? alt.bauraum_mm,
           }),
         );
       }
@@ -239,80 +251,90 @@ export function App() {
   }
 
   async function speichern() {
-    const antwort = await api("save", { path: speicherpfad, projekt });
-    if (!antwort.ok) {
-      setMeldung(antwort.fehler || "Speichern fehlgeschlagen.");
-      return;
-    }
-    setSpeicherpfad(antwort.pfad || speicherpfad);
-    setMeldung(`Gespeichert: ${antwort.pfad}`);
-    const liste = await api<Array<{ pfad: string; name: string }>>("recent");
-    setRecent(liste.result || []);
+    try {
+      const antwort = await api("save", { path: speicherpfad, projekt });
+      if (!antwort.ok) {
+        setMeldung(antwort.fehler || "Speichern fehlgeschlagen.");
+        return;
+      }
+      sicherung.gespeichert(projekt);
+      setSpeicherpfad(antwort.pfad || speicherpfad);
+      setMeldung(`Gespeichert: ${antwort.pfad}`);
+      const liste = await api<Array<{ pfad: string; name: string }>>("recent").catch(() => null);
+      if (liste) setRecent(liste.result || []);
+    } catch { setMeldung("Speichern fehlgeschlagen. Der lokale Dienst antwortet nicht."); }
   }
 
   async function oeffnen(pfad: string) {
-    const antwort = await api("load", { path: pfad });
-    if (!antwort.ok || !antwort.projekt) {
-      setMeldung(antwort.fehler || "Projekt ließ sich nicht öffnen.");
-      return;
-    }
-    await uebernehmen(antwort.projekt as Record<string, unknown>, antwort.pfad || pfad);
+    if (!sicherung.wechseln()) return;
+    try {
+      const antwort = await api("load", { path: pfad });
+      if (!antwort.ok || !antwort.projekt) {
+        setMeldung(antwort.fehler || "Projekt ließ sich nicht öffnen.");
+        return;
+      }
+      await uebernehmen(antwort.projekt as Record<string, unknown>, antwort.pfad || pfad);
+    } catch { setMeldung("Projekt konnte nicht geladen werden. Bitte Dienst prüfen."); }
   }
 
-  async function uebernehmen(roh: Record<string, unknown>, pfad: string) {
+  async function uebernehmen(roh: Record<string, unknown>, pfad: string, wiederherstellung = false) {
+    // Erst vollständig lesen und Bedingungen lösen, damit ein defekter Import nicht das offene Projekt ersetzt.
     const geladenName = String(roh.name || "Schublade");
-    const geladenSchublade = roh.schublade as Schublade;
+    const geladenSchublade = leereSchublade(roh.schublade as Partial<Schublade>);
     const geladenBoxen = ((roh.boxen as Array<Record<string, unknown>>) || []).map(boxVonServer);
+    const geladeneEigene = ((roh.eigene as Array<Record<string, unknown>>) || []).map((t) => bedingungenAnwenden(teilVonServer(t)));
+    const geladenNurEigene = Boolean(roh.nur_eigene);
+    const geladeneErsatz = ((roh.ersatzteile as Ersatzteil[]) || []).map((e) => ({ ...e, parameter: { ...(e.parameter || {}) } }));
+    const geladenNurErsatz = Boolean(roh.nur_ersatz);
+    const geladenesKabel = ((roh.kabel as Kabelteil[]) || []).map((e) => ({ ...e, parameter: { ...(e.parameter || {}) } }));
+    const geladenNurKabel = Boolean(roh.nur_kabel);
+    const geladenesGehaeuse = (roh.gehaeuse as GehaeuseDaten) || { oeffnungen: [] };
+    const geladenNurGehaeuse = Boolean(roh.nur_gehaeuse);
+    const normalisiert = anProjekt(geladenName, geladenSchublade, geladenBoxen, geladeneEigene, geladenNurEigene, geladeneErsatz, geladenNurErsatz, geladenesKabel, geladenNurKabel, geladenesGehaeuse, geladenNurGehaeuse);
+
+    projektBegonnen.current = true;
     setName(geladenName);
     setSchublade(geladenSchublade);
     setBoxen(geladenBoxen);
-    const geladeneEigene = ((roh.eigene as Array<Record<string, unknown>>) || []).map(teilVonServer);
-    const geladenNurEigene = Boolean(roh.nur_eigene);
     setEigene(geladeneEigene);
     setNurEigene(geladenNurEigene);
-    const geladeneErsatz = ((roh.ersatzteile as Ersatzteil[]) || []).map((e) => ({ ...e, parameter: { ...(e.parameter || {}) } }));
-    const geladenNurErsatz = Boolean(roh.nur_ersatz);
     setErsatzteile(geladeneErsatz);
     setNurErsatz(geladenNurErsatz);
     setErsatzAktiv(geladeneErsatz[0]?.id ?? null);
-    const geladenesKabel = ((roh.kabel as Kabelteil[]) || []).map((e) => ({ ...e, parameter: { ...(e.parameter || {}) } }));
-    const geladenNurKabel = Boolean(roh.nur_kabel);
     setKabel(geladenesKabel);
     setNurKabel(geladenNurKabel);
     setKabelAktiv(geladenesKabel[0]?.id ?? null);
-    const geladenesGehaeuse = (roh.gehaeuse as GehaeuseDaten) || { oeffnungen: [] };
-    const geladenNurGehaeuse = Boolean(roh.nur_gehaeuse);
     setGehaeuse({ ...geladenesGehaeuse, oeffnungen: geladenesGehaeuse.oeffnungen || [] });
     setNurGehaeuse(geladenNurGehaeuse);
     setSpeicherpfad(pfad);
     setErgebnis(null);
+    setPlan(null);
     setSchritt(geladenNurEigene ? 4 : 1);
     setAnsicht(geladenNurGehaeuse ? "gehaeuse" : geladenNurKabel ? "kabel" : geladenNurErsatz ? "ersatz" : "arbeit");
     setMeldung("");
-    const { antwort, aktuell } = await planAbrufen(
-      anProjekt(
-        geladenName,
-        geladenSchublade,
-        geladenBoxen,
-        geladeneEigene,
-        geladenNurEigene,
-        geladeneErsatz,
-        geladenNurErsatz,
-        geladenesKabel,
-        geladenNurKabel,
-        geladenesGehaeuse,
-        geladenNurGehaeuse,
-      ),
-    );
-    if (aktuell && antwort.result) setPlan(antwort.result);
+    if (!wiederherstellung) {
+      sicherung.gespeichert(normalisiert);
+      sicherung.verwerfen();
+    }
+    try {
+      const { antwort, aktuell } = await planAbrufen(normalisiert);
+      if (aktuell && antwort.result) setPlan(antwort.result);
+    } catch {
+      setMeldung("Projekt geöffnet. Für die Planprüfung bitte den lokalen Dienst starten.");
+    }
   }
 
   async function dateiOeffnen(file: File) {
-    const text = await file.text();
-    const roh = JSON.parse(text);
-    // Die Dateiauswahl liefert keinen Speicherort. Der alte Pfad würde sonst überschrieben.
-    await uebernehmen(roh, "");
-    setMeldung("Projekt gelesen. Speichern legt eine neue Datei an.");
+    if (!sicherung.wechseln()) return;
+    try {
+      const text = await file.text();
+      const roh = JSON.parse(text);
+      if (roh?.format !== "cadstudio.projekt" || roh.version !== 1 || !roh.schublade || !Array.isArray(roh.boxen)) throw new Error("Ungültiges Projektformat.");
+      // Die Dateiauswahl liefert keinen Speicherort. Der alte Pfad würde sonst überschrieben.
+      await uebernehmen(roh, "");
+
+      setMeldung("Projekt gelesen. Speichern legt eine neue Datei an.");
+    } catch { setMeldung("Die Datei ließ sich nicht als CAD-Studio-Projekt öffnen."); }
   }
 
   useEffect(() => {
@@ -382,30 +404,70 @@ export function App() {
       return;
     }
     setRechnet(true);
+    setAbbruch(false);
     setErgebnis(null);
-    setJobText("FreeCAD startet …");
-    const antwort = await api("generate", {
-      projekt,
-      freecad_pfad: String(einstellungen.freecad_pfad || ""),
-    });
-    if (!antwort.ok || !antwort.job) {
-      setRechnet(false);
-      setErgebnis({ ok: false, fehler: [antwort.fehler || "Der Auftrag wurde nicht gestartet."] });
-      return;
-    }
-    const job = antwort.job;
-    for (;;) {
-      await new Promise((r) => setTimeout(r, 800));
-      const stand = await jobStatus(job);
-      const fort = (stand.fortschritt || {}) as { teil?: string; schritt?: number; gesamt?: number };
-      if (fort.teil) setJobText(`Teil ${fort.schritt} von ${fort.gesamt}: ${fort.teil}`);
-      if (stand.status === "fertig" || stand.status === "fehler") {
-        setErgebnis((stand.ergebnis as Ergebnis) || { ok: false, fehler: ["Keine Rückmeldung."] });
+    try {
+      setJobText("FreeCAD startet …");
+      const antwort = await api("generate", {
+        projekt,
+        freecad_pfad: String(einstellungen.freecad_pfad || ""),
+      });
+      if (!antwort.ok || !antwort.job) {
         setRechnet(false);
+        setErgebnis({ ok: false, fehler: [antwort.fehler || "Der Auftrag wurde nicht gestartet."] });
         return;
       }
+      const job = antwort.job;
+      setJobId(job);
+      for (;;) {
+        await new Promise((r) => setTimeout(r, 800));
+        const stand = await jobStatus(job);
+        const fort = (stand.fortschritt || {}) as { teil?: string; schritt?: number; gesamt?: number };
+        if (fort.teil) setJobText(`Teil ${fort.schritt} von ${fort.gesamt}: ${fort.teil}`);
+        if (stand.status === "fertig" || stand.status === "fehler" || stand.status === "abgebrochen") {
+          setJobId(null);
+          setErgebnis((stand.ergebnis as Ergebnis) || { ok: false, fehler: ["Keine Rückmeldung."] });
+          setRechnet(false);
+          return;
+        }
+      }
+    } catch {
+      setErgebnis({ ok: false, fehler: ["Die Verbindung zum Exportdienst wurde unterbrochen. Der Auftrag kann im Hintergrund noch laufen."] });
+    } finally {
+      setRechnet(false);
     }
   }
+
+  async function exportAbbrechen() {
+    if (!jobId) return;
+    setAbbruch(true);
+    try {
+      await api("cancel", { job: jobId });
+      setJobText("Export wird abgebrochen …");
+      // Auch nach einer unterbrochenen Statusabfrage bleibt der Abbruch erreichbar.
+      if (!rechnet) setJobId(null);
+    } catch {
+      setAbbruch(false);
+      setMeldung("Abbruch konnte nicht übermittelt werden. Bitte Verbindung zum Dienst prüfen.");
+    }
+  }
+
+  const profilePanel = (<Druckprofile werte={einstellungen} onChange={setEinstellungen}
+        onAnwenden={(p) => {
+          const neu = { ...schublade, material: p.material, bauraum_mm: p.bauraum_mm, spiel_mm: p.schubladenspiel_mm, verbinder_spiel_mm: p.spiel_mm };
+          setSchublade(neu);
+          void planAbrufen({ ...projekt, schublade: neu }).then(({ antwort, aktuell }) => { if (aktuell && antwort.result) setPlan(antwort.result); }).catch(() => setMeldung("Profil übernommen; Plan konnte nicht aktualisiert werden. Bitte Dienst prüfen."));
+          setKabel((liste) => liste.map((t) => ({ ...t, parameter: { ...t.parameter, spiel_mm: p.spiel_mm } })));
+          setGehaeuse((g) => ({ ...g, spiel_mm: p.spiel_mm }));
+          setMeldung(`Druckprofil „${p.name}“ übernommen.`);
+        }}
+        onKalibrieren={(teile) => {
+          if (!sicherung.wechseln()) return;
+          setEigene(teile); setBoxen([]); setNurEigene(true); setNurErsatz(false); setNurKabel(false); setNurGehaeuse(false);
+          setName("Passungskalibrierung"); setSpeicherpfad(""); setErgebnis(null); setPlan(null); setSchritt(4); setAnsicht("arbeit");
+          void planAbrufen(anProjekt("Passungskalibrierung", schublade, [], teile, true)).then(({ antwort, aktuell }) => { if (aktuell && antwort.result) setPlan(antwort.result); });
+        }} />
+  );
 
   return (
     <div className="app" data-modus={nurGehaeuse ? "gehaeuse" : nurKabel ? "kabel" : nurErsatz ? "ersatz" : nurEigene ? "zeichnen" : "schublade"}>
@@ -419,15 +481,40 @@ export function App() {
           Einstellungen
         </button>
       </header>
+      {sicherung.rettung && (
+        <section className="hinweis" aria-label="Projekt wiederherstellen">
+          <strong>Ungespeichertes Projekt gefunden: {String(sicherung.rettung.projekt.name)}</strong>
+          <p>Gesichert am {new Date(sicherung.rettung.zeit).toLocaleString("de-DE")}.</p>
+          <button type="button" onClick={async () => {
+            const r = sicherung.rettung!;
+            try {
+              await uebernehmen(r.projekt, r.pfad, true);
+              sicherung.verwerfen();
+            } catch { setMeldung("Die Sicherung konnte nicht gelesen werden. Die Kopie wurde aufbewahrt."); }
+          }}>Wiederherstellen</button>
+          <button type="button" onClick={sicherung.verwerfen}>Sicherung verwerfen</button>
+        </section>
+      )}
+      {meldung && ansicht !== "arbeit" && <p role="status" className="meldung">{meldung}</p>}
+      {sicherung.hinweis && <p role="status" className="leise">{sicherung.hinweis}</p>}
+      {sicherung.schmutzig && <p className="leise">Ungespeicherte Änderungen</p>}
+      {jobId && <div role="status" className="hinweis">
+        <p>{jobText}</p>
+        <button type="button" disabled={abbruch} onClick={exportAbbrechen}>{abbruch ? "Abbruch angefordert …" : "Export abbrechen"}</button>
+      </div>}
       {dienst === false && (
         <div className="alarm" role="alert">
           Der lokale Dienst antwortet nicht. Zum Starten werden Python 3 und der Sidecar gebraucht (Port 47321). FreeCAD 1.1 wird zusätzlich für die Konstruktion gebraucht und nicht mitgeliefert.
         </div>
       )}
+
+      {ansicht === "start" && projektBegonnen.current && <div className="fortsetzen"><button type="button" onClick={() => setAnsicht(nurGehaeuse ? "gehaeuse" : nurKabel ? "kabel" : nurErsatz ? "ersatz" : "arbeit")}>Aktuelles Projekt fortsetzen</button></div>}
       {ansicht === "start" && (
         <Start
           recent={recent}
           onNeu={() => {
+            if (!sicherung.wechseln()) return;
+            projektBegonnen.current = true;
             setName("Schublade");
             setSchublade(leereSchublade({
               spiel_mm: Number(einstellungen.schubladenspiel_mm ?? 1),
@@ -450,6 +537,8 @@ export function App() {
           }}
           onOeffnen={oeffnen}
           onBereich={async (id) => {
+            if (!sicherung.wechseln()) return;
+            projektBegonnen.current = true;
             if (id === "schublade") {
               setNurEigene(false);
               setNurErsatz(false);
@@ -552,7 +641,7 @@ export function App() {
           }}
           onErzeugen={erzeugen}
           ergebnis={ergebnis}
-          rechnet={rechnet}
+          rechnet={rechnet || jobId !== null}
           jobText={jobText}
           speicherpfad={speicherpfad}
           onSpeicherpfad={setSpeicherpfad}
@@ -594,7 +683,7 @@ export function App() {
           }}
           onErzeugen={erzeugen}
           ergebnis={ergebnis}
-          rechnet={rechnet}
+          rechnet={rechnet || jobId !== null}
           jobText={jobText}
           speicherpfad={speicherpfad}
           onSpeicherpfad={setSpeicherpfad}
@@ -634,7 +723,7 @@ export function App() {
           }}
           onErzeugen={erzeugen}
           ergebnis={ergebnis}
-          rechnet={rechnet}
+          rechnet={rechnet || jobId !== null}
           jobText={jobText}
           speicherpfad={speicherpfad}
           onSpeicherpfad={setSpeicherpfad}
@@ -645,6 +734,7 @@ export function App() {
       )}
       {ansicht === "einstellungen" && (
         <Einstellungen
+          profile={profilePanel}
           werte={einstellungen}
           freecad={freecad}
           onChange={setEinstellungen}
@@ -858,10 +948,11 @@ export function App() {
                   ))}
                 </div>
               )}
-              <button type="button" className="primaer" data-testid="erzeugen" disabled={!plan?.ok || rechnet} onClick={erzeugen}>
+              <button type="button" className="primaer" data-testid="erzeugen" disabled={!plan?.ok || rechnet || jobId !== null} onClick={erzeugen}>
                 {rechnet ? "Berechnet …" : "Alle Teile berechnen"}
               </button>
               {jobText && rechnet && <p data-testid="fortschritt">{jobText}</p>}
+              {!nurEigene && <Ansicht3D projekt={projekt} freecadPfad={String(einstellungen.freecad_pfad || "")} titel="Echte 3D-Geometrie aller Schubladenteile" />}
               {ergebnis && <ErgebnisAnsicht ergebnis={ergebnis} schublade={schublade} boxen={boxen} plan={nurEigene ? null : plan} />}
               <div className="speichern">
                 <label>
@@ -936,12 +1027,14 @@ function Start({
 }
 
 function Einstellungen({
+  profile,
   werte,
   freecad,
   onChange,
   onSave,
   onPruefen,
 }: {
+  profile: ReactNode;
   werte: Record<string, unknown>;
   freecad: Record<string, unknown> | null;
   onChange: (werte: Record<string, unknown>) => void;
@@ -955,6 +1048,7 @@ function Einstellungen({
   return (
     <main>
       <h1>Einstellungen</h1>
+      {profile}
       <div className="formular">
         <label>
           Pfad zu FreeCADCmd
@@ -1012,12 +1106,7 @@ function ErgebnisAnsicht({
 }) {
   if (!ergebnis.ok) {
     return (
-      <div className="alarm" role="alert" data-testid="export-fehler">
-        <strong>Nicht exportiert.</strong>
-        {(ergebnis.fehler || ["Die Prüfung ist fehlgeschlagen."]).map((f) => (
-          <p key={f}>{f}</p>
-        ))}
-      </div>
+      <ExportFehler fehler={ergebnis.fehler} />
     );
   }
   const dateien = (ergebnis.teile || []).flatMap((teil) =>

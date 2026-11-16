@@ -1,3 +1,4 @@
+import { ExportFehler } from "./exportfehler";
 import { useEffect, useRef } from "react";
 import * as THREE from "three";
 import { STLLoader } from "three/examples/jsm/loaders/STLLoader.js";
@@ -228,11 +229,7 @@ export function GehaeuseAnsicht({
         </>
       )}
       {ergebnis && !ergebnis.ok && (
-        <div className="alarm" role="alert">
-          {(ergebnis.fehler || ["Nicht exportiert."]).map((f) => (
-            <p key={f}>{f}</p>
-          ))}
-        </div>
+        <ExportFehler fehler={ergebnis.fehler} />
       )}
       <div className="speichern">
         <label>

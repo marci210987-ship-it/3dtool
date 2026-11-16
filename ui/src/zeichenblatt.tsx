@@ -1,4 +1,5 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { BedingungenPanel, bedingungenAnwenden, bedingungenBereinigen } from "./bedingungen";
 import { Ansicht3D } from "./ansicht3d";
 import { DomPanel, ProfilPanel, SchraubenPanel, SenkPanel, SeitenlochPanel, TextPanel } from "./erweitert";
 import { OptZahlfeld, Zahlfeld } from "./felder";
@@ -166,7 +167,7 @@ export function Zeichnen({
       if (jetzt - letzteEingabe.current > 800) merke();
       letzteEingabe.current = jetzt;
     }
-    onChangeProp(neu);
+    onChangeProp(neu.map((t) => bedingungenAnwenden(bedingungenBereinigen(t))));
   }
 
   function rueckgaengig() {
@@ -856,6 +857,7 @@ export function Zeichnen({
               <Zahlfeld label="Größe obere Kante (mm)" wert={teil.kante_oben_mm} testid="kante-mm" onChange={(v) => aendereTeil((t) => ({ ...t, kante_oben_mm: Math.max(0, v) }), "tippen")} />
             )}
             <Zahlfeld label="Fase unten (mm, gegen Elefantenfuß)" wert={teil.kante_unten_mm} testid="kante-unten" onChange={(v) => aendereTeil((t) => ({ ...t, kante_unten_mm: Math.max(0, v) }), "tippen")} />
+            <BedingungenPanel teil={teil} onChange={(neu) => aendereTeil(() => neu)} />
             <DomPanel
               teil={teil}
               onAdd={(neu) => {

@@ -35,6 +35,9 @@ async function platte(page: Page) {
   await expect(page.locator(".formliste li")).toHaveCount(1);
 }
 
+// Projektwechsel und Neuladen bestätigen den Schutz ungespeicherter Änderungen.
+test.beforeEach(async ({ page }) => { page.on("dialog", (dialog) => dialog.accept()); });
+
 test("Langloch, Text und Senkung zeichnen", async ({ page }) => {
   await oeffnen(page);
   await platte(page);
