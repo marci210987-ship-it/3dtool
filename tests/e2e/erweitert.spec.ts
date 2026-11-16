@@ -157,14 +157,17 @@ test("3D-Ansicht zeigt die echte Geometrie beim Zeichnen", async ({ page }) => {
   await page.getByTestId("schnitt-umkehren").click();
   await page.getByTestId("schnitt-achse").selectOption("aus");
   await expect(page.getByTestId("schnitt-pos")).toHaveCount(0);
-  // Messen: zwei Klicks auf das Modell in der Bildmitte
+  // Die Messwerkzeuge liegen unterhalb der Bühne. Nach dem Aktivieren kann die
+  // Bühne aus dem Fenster gescrollt sein: Locator-Klicks scrollen sie wieder ins Bild.
   await page.getByTestId("messen-an").check();
-  const buehne = (await page.getByTestId("ansicht3d-buehne").boundingBox())!;
-  const mx = buehne.x + buehne.width / 2;
-  const my = buehne.y + buehne.height / 2;
-  await page.mouse.click(mx - 15, my);
+  const canvas = page.getByTestId("ansicht3d-buehne").locator("canvas");
+  await canvas.scrollIntoViewIfNeeded();
+  const buehne = (await canvas.boundingBox())!;
+  const mx = buehne.width / 2;
+  const my = buehne.height / 2;
+  await canvas.click({ position: { x: mx - 15, y: my } });
   await expect(page.getByTestId("messen-info")).toContainText("Punkt 1");
-  await page.mouse.click(mx + 15, my);
+  await canvas.click({ position: { x: mx + 15, y: my } });
   await expect(page.getByTestId("messen-info")).toContainText("Abstand");
   await page.getByTestId("messen-loeschen").click();
   await page.getByTestId("messen-an").uncheck();
