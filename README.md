@@ -74,7 +74,7 @@ npm run dev
 
 Die Oberfläche liegt dann auf `http://localhost:1420`. Unter Windows startet die installierte Anwendung den Dienst selbst.
 
-Der Workflow `.github/workflows/windows.yml` baut auf `windows-latest` MSI und NSIS und lädt beide Pakete 14 Tage als Actions-Artifacts hoch, zum Prüfen eines Pull Requests. Die dauerhafte Datei liegt auf der [Releases-Seite](https://github.com/marci210987-ship-it/3dtool/releases). Ein Start auf einem Windows-Rechner ist damit nicht geprüft.
+Der Workflow `.github/workflows/windows.yml` baut auf `windows-latest` MSI und NSIS und lädt beide Pakete 14 Tage als Actions-Artifacts hoch, zum Prüfen eines Pull Requests. Die dauerhafte Datei liegt auf der [Releases-Seite](https://github.com/marci210987-ship-it/3dtool/releases). Der Start der installierten App und des mitgelieferten Dienstes ist auf dem Windows-Runner geprüft. Ein Test auf einem Benutzer-PC steht aus.
 
 ## Bedienung
 
@@ -111,18 +111,18 @@ Der Prüfbericht steht in [TESTBERICHT.md](TESTBERICHT.md).
 
 Die Installer liegen auf der [Releases-Seite](https://github.com/marci210987-ship-it/3dtool/releases) und laufen nicht ab.
 
-- `CAD-Studio-0.5.0-Setup.exe` ist der einfachere Weg.
-- `CAD-Studio-0.5.0.msi` ist dasselbe Programm als MSI.
+- `CAD-Studio-0.6.0-Setup.exe` ist der einfachere Weg.
+- `CAD-Studio-0.6.0.msi` ist dasselbe Programm als MSI.
 
 FreeCAD 1.1.x muss separat installiert sein. Der Installer ist nicht code-signiert, Windows SmartScreen kann warnen. Ein Hardware-Test auf Marcels PC ist noch nicht ausgeführt.
 
-Ein Release entsteht nach dem Merge, wenn der Tag `v0.5.0` auf `main` zeigt. Derselbe Lauf lässt sich unter **Actions → Release → Run workflow** mit der Eingabe `v0.5.0` starten. Der Lauf installiert das Setup still und prüft `/health`, bevor die Dateien am Release hängen. Vorher gibt es die Dateien nicht.
+Ein Release entsteht nach dem Merge, wenn der Tag `v0.6.0` auf `main` zeigt. Derselbe Lauf lässt sich unter **Actions → Release → Run workflow** mit der Eingabe `v0.6.0` starten. Der Lauf installiert das Setup still und prüft `/health`, bevor die Dateien am Release hängen. Vorher gibt es die Dateien nicht.
 
 ## Installer auf dem eigenen Windows-PC prüfen
 
 Diese Schritte sind die Anleitung für den ersten Start. Sie sind kein bereits durchgeführter Test auf Windows-Hardware.
 
-1. Auf der [Releases-Seite](https://github.com/marci210987-ship-it/3dtool/releases) `CAD-Studio-0.5.0-Setup.exe` oder `CAD-Studio-0.5.0.msi` herunterladen.
+1. Auf der [Releases-Seite](https://github.com/marci210987-ship-it/3dtool/releases) `CAD-Studio-0.6.0-Setup.exe` oder `CAD-Studio-0.6.0.msi` herunterladen.
 2. Das Setup ist der einfachere Weg. Windows SmartScreen kann warnen, weil das Paket nicht signiert ist.
 3. Python ist nicht nötig, der Installer bringt es mit. Fehlt der Dienst trotzdem („Der lokale Dienst antwortet nicht“), steht die Ausgabe in `%APPDATA%\CADStudio\dienst.log`.
 4. [FreeCAD 1.1.x](https://github.com/FreeCAD/FreeCAD/releases/tag/1.1.4) für Windows installieren, zum Beispiel 1.1.4. CAD Studio enthält FreeCAD nicht. Versionen außerhalb von 1.1.x werden abgelehnt.

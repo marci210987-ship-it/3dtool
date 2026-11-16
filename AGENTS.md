@@ -50,11 +50,13 @@ Erweiterungen (14.11.2026, Tests mit FreeCAD grün, nicht gedruckt): Langloch (`
 
 Schnitt, Messen, Ausrichtung, Schrauben (15.11.2026): `ui/src/schnitt.ts` (Schnittebene und Messen, three.js-Clipping in `ansicht3d.tsx`), `ui/src/ausrichtung.ts` (sechs Lagen auf dem Netz bewerten), `ui/src/schrauben.ts` (Tabelle M2 bis M5, `lochDurchmesser`, `kopfFelder`, `schraubdom`), Panels `SchraubenPanel` und `DomPanel` in `erweitert.tsx`. Aus der Ausrichtung folgte: Gehäuse-Schraubdeckel, Stopfen und Knopf werden in `fc_worker._shapes_fuer` gedreht (`DRUCK_UMGEDREHT`, `_umdrehen`). Kabelkanal, Ecke und Auslass haben an der Stufe Buchse/Boden einen großen Überhang (nicht geändert, Entscheidung offen).
 
+Stand 16.11.2026: Wiederherstellungskopie, Schließ-/Wechselschutz, Exportabbruch, vollständige Teilevorschau mit Zwischenspeicher, Druckprofile und Kalibrierprojekt sind umgesetzt. Gerichtete Skizzenbedingungen für Rechtecke/Kreise (mittig, Abstand, gleiche Größe, parallele Rechtecke) werden in Projekten und Vorlagen gespeichert. Windows-CI: 106 Frontend-Tests, 132 Python-Tests (einer übersprungen), alle 24 Bedienungstests sowie Installer und App-Start erfolgreich. Der Messtest verwendet Canvas-Locator-Klicks, damit Scrollen keine Klicks außerhalb des Fensters verursacht.
+
 Offen, nach Nutzen sortiert:
-1. Playwright-E2E für den Zeichen- und Auto-Fülle-Ablauf ergänzen und laufen lassen.
-2. Zeichnen: Skizzen mit Bedingungen, Text in echten Schriftarten, Gewinde. (Gruppen sind fertig; Vieleck-Punkte bearbeiten ist fertig: Griffe an Ecken und Kanten, Punktfelder, Entf; Hilfsfunktionen `punktVerschieben`, `punktEinfuegen`, `punktLoeschen`, `polygonSelbstschnitt` in `zeichnen.ts`.)
+1. Windows-Installer auf einem echten Benutzer-PC starten und FreeCAD-Anbindung prüfen.
+2. Zeichnen: allgemeine Skizzenbedingungen über die gerichteten Beziehungen hinaus, Text in echten Schriftarten, Gewinde. (Gruppen sind fertig; Vieleck-Punkte bearbeiten ist fertig: Griffe an Ecken und Kanten, Punktfelder, Entf; Hilfsfunktionen `punktVerschieben`, `punktEinfuegen`, `punktLoeschen`, `polygonSelbstschnitt` in `zeichnen.ts`.)
 3. Auto-Bestückung: Gewichte der Strahlsuche an echten Schubladen abstimmen, Boxen verschiedener Höhe berücksichtigen.
-4. Windows-Installer auf einem echten PC starten und FreeCAD-Anbindung prüfen.
+4. Druckpassungen für Deckel, Verbinder und Kabelteile auf echter Hardware kalibrieren.
 
 ## Zusammenarbeit
-Im selben Checkout schreibt nur ein Agent. Vor Arbeitsbeginn `git status` und `git pull --ff-only`. Branch: `cursor/cad-studio-phase-b-5939` (PR #1), `main` enthält nur ein leeres README. Kein Merge, Force-Push oder Löschen ohne ausdrückliche Zustimmung des Nutzers.
+Im selben Checkout schreibt nur ein Agent. Vor Arbeitsbeginn `git status` und `git pull --ff-only`. Der vollständige Anwendungsstand liegt auf `main`; Änderungen werden in einem eigenen Branch über einen Pull Request integriert. Kein Merge, Force-Push oder Löschen ohne ausdrückliche Zustimmung des Nutzers.
