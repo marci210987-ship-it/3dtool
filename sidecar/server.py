@@ -28,6 +28,7 @@ from sidecar.paths import app_home
 
 JOBS: dict[str, dict] = {}
 JOBS_LOCK = threading.Lock()
+ABBRUECHE: dict[str, threading.Event] = {}
 ERLAUBTE_DATEIEN: set[Path] = set()
 ERLAUBTE_URSPRUNGE = {
     "http://localhost:1420",
@@ -119,22 +120,31 @@ def _job_starten(projekt_dict: dict, out_dir: str, freecad_pfad: str | None) -> 
     job_id = uuid.uuid4().hex[:12]
     status = app_home() / "jobs" / ("%s.json" % job_id)
     status.parent.mkdir(parents=True, exist_ok=True)
+    abbrechen = threading.Event()
     with JOBS_LOCK:
+        ABBRUECHE[job_id] = abbrechen
         JOBS[job_id] = {"status": "laeuft", "schritt": 0, "gesamt": 0, "teil": "", "ergebnis": None}
 
     def lauf():
         try:
             projekt = Projekt.from_dict(projekt_dict)
-            ergebnis = generiere(projekt, Path(out_dir), freecad_pfad=freecad_pfad or None, status_file=status)
-            _registrieren(ergebnis)
+            ergebnis = generiere(projekt, Path(out_dir), freecad_pfad=freecad_pfad or None, status_file=status, abbrechen=abbrechen)
             with JOBS_LOCK:
-                JOBS[job_id] = {"status": "fertig" if ergebnis.get("ok") else "fehler", "ergebnis": ergebnis}
+                if abbrechen.is_set():
+                    JOBS[job_id] = {"status": "abgebrochen", "ergebnis": {"ok": False, "fehler": ["Export abgebrochen. Bereits geschriebene Dateien sind kein vollständiger Export."], "teile": []}}
+                else:
+                    _registrieren(ergebnis)
+                    JOBS[job_id] = {"status": "fertig" if ergebnis.get("ok") else "fehler", "ergebnis": ergebnis}
         except Exception as exc:
             with JOBS_LOCK:
                 JOBS[job_id] = {
-                    "status": "fehler",
-                    "ergebnis": {"ok": False, "fehler": [str(exc)], "teile": []},
+                    "status": "abgebrochen" if abbrechen.is_set() else "fehler",
+                    "ergebnis": {"ok": False, "fehler": ["Export abgebrochen." if abbrechen.is_set() else str(exc)], "teile": []},
                 }
+
+        finally:
+            with JOBS_LOCK:
+                ABBRUECHE.pop(job_id, None)
 
     threading.Thread(target=lauf, daemon=True).start()
     return job_id
@@ -228,6 +238,14 @@ class Handler(BaseHTTPRequestHandler):
             return
         cmd = anfrage.get("cmd")
         try:
+            if cmd == "cancel":
+                job_id = str(anfrage.get("job") or "")
+                with JOBS_LOCK:
+                    event = ABBRUECHE.get(job_id) if JOBS.get(job_id, {}).get("status") == "laeuft" else None
+                    if event:
+                        event.set()
+                _json(self, 200, {"ok": True, "abgebrochen": event is not None})
+                return
             if cmd == "detect":
                 _json(self, 200, {"ok": True, "result": detect(anfrage.get("user_path") or None, probe=bool(anfrage.get("probe", True)))})
                 return
@@ -326,7 +344,7 @@ class Handler(BaseHTTPRequestHandler):
             if cmd == "vorschau":
                 from sidecar.engine import vorschau_bauen
 
-                antwort = vorschau_bauen(anfrage.get("projekt") or {}, anfrage.get("teil_ids") or None, anfrage.get("freecad_pfad") or None, anfrage.get("modus") or None)
+                antwort = vorschau_bauen(anfrage.get("projekt") or {}, anfrage.get("teil_ids") or None, anfrage.get("freecad_pfad") or None, anfrage.get("modus") or None, str(anfrage.get("kanal") or "")[:80], int(anfrage.get("folge") or 0))
                 _json(self, 200, {"ok": antwort["ok"], "fehler": "; ".join(antwort.get("fehler") or []), "result": antwort})
                 return
             if cmd == "save":

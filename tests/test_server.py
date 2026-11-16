@@ -33,6 +33,7 @@ class ServerTest(unittest.TestCase):
 
     def tearDown(self):
         self.httpd.shutdown()
+        self.httpd.server_close()
         self.tmp.cleanup()
 
     def _rufen(self, methode: str, pfad: str, koerper=None, ursprung: str | None = None, token: str | None = None):
@@ -57,6 +58,26 @@ class ServerTest(unittest.TestCase):
             except json.JSONDecodeError:
                 inhalt = {"roh": roh}
             return fehler.code, inhalt
+
+    def test_abbruch_braucht_token_und_lokalen_ursprung(self):
+        event = threading.Event()
+        with self.server.JOBS_LOCK:
+            self.server.JOBS["test-cancel"] = {"status": "laeuft"}
+            self.server.ABBRUECHE["test-cancel"] = event
+        try:
+            payload = {"cmd": "cancel", "job": "test-cancel"}
+            self.assertEqual(self._rufen("POST", "/api", payload)[0], 403)
+            self.assertFalse(event.is_set())
+            self.assertEqual(self._rufen("POST", "/api", payload, ursprung="https://evil.example", token="a" * 32)[0], 403)
+            self.assertFalse(event.is_set())
+            code, result = self._rufen("POST", "/api", payload, ursprung="http://localhost:1420", token="a" * 32)
+            self.assertEqual(code, 200)
+            self.assertTrue(result["abgebrochen"])
+            self.assertTrue(event.is_set())
+        finally:
+            with self.server.JOBS_LOCK:
+                self.server.JOBS.pop("test-cancel", None)
+                self.server.ABBRUECHE.pop("test-cancel", None)
 
     def test_fremde_website_darf_nicht_speichern(self):
         code, _inhalt = self._rufen(

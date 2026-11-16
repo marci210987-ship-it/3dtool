@@ -20,6 +20,8 @@ interface VorschauAntwort {
   netze: Netz[];
   hinweise: string[];
   ohne_freecad?: boolean;
+  teile_gesamt?: number;
+  teile_gezeigt?: number;
 }
 
 type Blick = "iso" | "vorne" | "oben" | "seite";
@@ -83,6 +85,9 @@ export function Ansicht3D({
   const messModusRef = useRef(false);
   messModusRef.current = messModus;
   const zaehler = useRef(0);
+  const kanal = useRef(crypto.randomUUID());
+  const [versteckt, setVersteckt] = useState<string[]>([]);
+  const [umfang, setUmfang] = useState("");
   const schluessel = JSON.stringify([projekt, teilIds, freecadPfad, modus]);
 
   // Bühne einmal aufbauen
@@ -262,7 +267,7 @@ export function Ansicht3D({
       const strahl = new THREE.Raycaster();
       strahl.setFromCamera(mausPos, s.camera);
       const treffer = strahl
-        .intersectObjects(s.gruppe.children, true)
+        .intersectObjects(s.gruppe.children.filter((o) => o.visible), true)
         .filter((t) => (t.object as THREE.Mesh).isMesh && (t.object as THREE.Mesh).material instanceof THREE.MeshStandardMaterial)
         .filter((t) => s.ebene.distanceToPoint(t.point) >= 0)[0];
       if (!treffer || !treffer.face) return;
@@ -290,14 +295,16 @@ export function Ansicht3D({
   useEffect(() => {
     if (!offen) return;
     const nr = ++zaehler.current;
+    const controller = new AbortController();
     setStatus("rechnet");
     const timer = window.setTimeout(async () => {
       try {
-        const antwort = await api<VorschauAntwort>("vorschau", { projekt, teil_ids: teilIds ?? [], freecad_pfad: freecadPfad ?? "", modus: modus ?? "" });
+        const antwort = await api<VorschauAntwort>("vorschau", { projekt, teil_ids: teilIds ?? [], freecad_pfad: freecadPfad ?? "", modus: modus ?? "", kanal: kanal.current, folge: nr }, controller.signal);
         if (nr !== zaehler.current) return;
         const r = antwort.result;
         if (antwort.ok && r) {
           setNetze(r.netze);
+          setUmfang(`${r.teile_gezeigt ?? r.netze.length} von ${r.teile_gesamt ?? r.netze.length} Teilen berechnet`);
           setFehler([]);
           setHinweise(r.hinweise || []);
           setStatus("fertig");
@@ -314,7 +321,7 @@ export function Ansicht3D({
         setStatus("fehler");
       }
     }, 700);
-    return () => window.clearTimeout(timer);
+    return () => { window.clearTimeout(timer); ++zaehler.current; controller.abort(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [schluessel, offen]);
 
@@ -337,6 +344,17 @@ export function Ansicht3D({
     s.controls.update();
     s.zeichnen();
   }, []);
+
+  useEffect(() => {
+    const s = szene.current;
+    if (!s) return;
+    s.gruppe.children.forEach((obj) => {
+      const index = obj.userData.teil;
+      if (typeof index === "number") obj.visible = !versteckt.includes(`${netze[index]?.teil}:${netze[index]?.name}`);
+    });
+    setMessPunkte([]);
+    s.zeichnen();
+  }, [versteckt, netze, offen]);
 
   const gesamt = netze.reduce((a, n) => a + n.volumen_mm3, 0);
   // Druckausrichtung je Körper (rechnet auf dem Netz, nur nach neuer Geometrie)
@@ -398,6 +416,9 @@ export function Ansicht3D({
               : "Zwei Punkte am Modell anklicken. Ecken werden gefangen, wenn sie nahe sind."}
         </p>
       )}
+      {netze.length > 0 && <fieldset><legend>Teile einblenden · {umfang}</legend>
+        {netze.map((n, i) => <label key={i} className="check"><input type="checkbox" checked={!versteckt.includes(`${n.teil}:${n.name}`)} onChange={(e) => setVersteckt((alt) => e.target.checked ? alt.filter((x) => x !== `${n.teil}:${n.name}`) : [...alt, `${n.teil}:${n.name}`])} />{n.name}</label>)}
+      </fieldset>}
       {fehler.length > 0 && (
         <ul className="fehlerliste" data-testid="ansicht3d-fehler" style={{ color: "#b3434b" }}>
           {fehler.map((f, i) => (

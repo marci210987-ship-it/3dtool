@@ -8,6 +8,9 @@ sowie das erneute Laden der FCStd-Datei bestanden haben.
 from __future__ import annotations
 
 import json
+import copy
+import hashlib
+from collections import OrderedDict
 import os
 import socket
 import subprocess
@@ -200,7 +203,7 @@ def freecad_befehl(user_path: str | None = None) -> tuple[list[str] | None, dict
     return freecad_command(Path(info["pfad"])), info
 
 
-def generiere(projekt: Projekt, out_dir: Path, freecad_pfad: str | None = None, status_file: Path | None = None) -> dict:
+def generiere(projekt: Projekt, out_dir: Path, freecad_pfad: str | None = None, status_file: Path | None = None, abbrechen: threading.Event | None = None) -> dict:
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     auftrag = auftrag_bauen(projekt)
@@ -214,7 +217,9 @@ def generiere(projekt: Projekt, out_dir: Path, freecad_pfad: str | None = None, 
         (out_dir / "manifest.json").write_text(json.dumps(ergebnis, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
         return ergebnis
     for teil in auftrag["teile"]:
-        if teil.get("passt_in_bauraum") is False:
+        soll = teil.get("soll_mm")
+        zu_gross = soll and any(float(mass) > float(grenze) + 1e-6 for mass, grenze in zip(soll, projekt.schublade.bauraum_mm))
+        if teil.get("passt_in_bauraum") is False or zu_gross:
             ergebnis = {
                 "ok": False,
                 "fehler": ["%s passt nicht in den Bauraum des Druckers." % teil["name"]],
@@ -235,7 +240,21 @@ def generiere(projekt: Projekt, out_dir: Path, freecad_pfad: str | None = None, 
         return ergebnis
 
     session = FreeCADSession(befehl)
+    fertig = threading.Event()
+    def bewachen():
+        while not fertig.wait(0.1):
+            if abbrechen is not None and abbrechen.is_set():
+                if session.proc and session.proc.poll() is None:
+                    try:
+                        session.proc.kill()
+                    except OSError:
+                        pass  # Der Worker kann gerade von selbst beendet worden sein.
+                    return
+    if abbrechen is not None:
+        threading.Thread(target=bewachen, daemon=True).start()
     try:
+        if abbrechen is not None and abbrechen.is_set():
+            raise RuntimeError("Export abgebrochen.")
         version = session.start()
         if not str(version.get("freecad", "")).startswith("1.1"):
             return {
@@ -253,8 +272,11 @@ def generiere(projekt: Projekt, out_dir: Path, freecad_pfad: str | None = None, 
             timeout=3600,
         )
     finally:
+        fertig.set()
         session.close()
 
+    if abbrechen is not None and abbrechen.is_set():
+        raise RuntimeError("Export abgebrochen. Bereits geschriebene Dateien sind kein vollständiger Export.")
     if not roh.get("ok"):
         ergebnis = {"ok": False, "fehler": [roh.get("fehler") or "FreeCAD-Auftrag fehlgeschlagen"], "teile": [], "freecad": info}
         (out_dir / "manifest.json").write_text(json.dumps(ergebnis, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
@@ -266,6 +288,8 @@ def generiere(projekt: Projekt, out_dir: Path, freecad_pfad: str | None = None, 
     if not gebaut.get("ok"):
         fehler.append("Mindestens ein Körper wurde nicht gültig erzeugt.")
     for teil in gebaut.get("teile") or []:
+        if abbrechen is not None and abbrechen.is_set():
+            raise RuntimeError("Export abgebrochen.")
         if not teil.get("ok"):
             fehler.extend(teil.get("fehler") or ["%s fehlgeschlagen" % teil.get("id")])
             if teil.get("trace"):
@@ -277,6 +301,9 @@ def generiere(projekt: Projekt, out_dir: Path, freecad_pfad: str | None = None, 
             if stl and Path(stl).is_file():
                 pruefung = pruefe_stl(stl, soll_groesse=tuple(datei["soll_mm"]) if datei.get("soll_mm") else None)
                 datei["mesh_unabhaengig"] = {k: pruefung[k] for k in ("ok", "wasserdicht", "mannigfaltig", "bbox_mm", "volumen_mm3", "fehler", "dreiecke")}
+                if any(mass > grenze + 0.01 for mass, grenze in zip(pruefung["bbox_mm"], projekt.schublade.bauraum_mm)):
+                    datei["ok"] = False
+                    fehler.append("%s passt nicht in den eingestellten Bauraum." % datei.get("id"))
                 if not pruefung["ok"]:
                     fehler.append("%s: %s" % (datei.get("id"), pruefung.get("fehler") or "unabhängige Mesh-Prüfung fehlgeschlagen"))
                     datei["ok"] = False
@@ -313,7 +340,7 @@ def generiere(projekt: Projekt, out_dir: Path, freecad_pfad: str | None = None, 
                     "Hoehe_mm": None if bbox[2] is None else round(bbox[2], 2),
                     "Material": projekt.schublade.material,
                     "Masse_geschaetzt_g": masse if masse is not None else "",
-                    "Bauraum": "ja" if (bbox[0] or 0) <= 256 and (bbox[1] or 0) <= 256 and (bbox[2] or 0) <= 256 else "nein",
+                    "Bauraum": "ja" if all((mass or 0) <= grenze for mass, grenze in zip(bbox, projekt.schublade.bauraum_mm)) else "nein",
                     "STL": datei.get("stl") or "",
                     "FCStd": datei.get("fcstd") or "",
                     "Pruefung": "bestanden" if datei.get("ok") else "fehlgeschlagen",
@@ -459,6 +486,9 @@ def lade_und_merke(pfad: str) -> dict:
 _VORSCHAU = {"sitzung": None, "pfad": None, "timer": None}
 _VORSCHAU_SPERRE = threading.Lock()
 _VORSCHAU_LEERLAUF_S = 300.0
+_VORSCHAU_CACHE = OrderedDict()
+_VORSCHAU_ANFRAGEN = {}
+_VORSCHAU_ANFRAGEN_SPERRE = threading.Lock()
 
 
 def _vorschau_schliessen() -> None:
@@ -479,8 +509,13 @@ def _vorschau_schliessen_ohne_sperre() -> None:
             pass
 
 
-def vorschau_bauen(projekt_dict: dict, teil_ids: list[str] | None = None, freecad_pfad: str | None = None, modus: str | None = None) -> dict:
+def vorschau_bauen(projekt_dict: dict, teil_ids: list[str] | None = None, freecad_pfad: str | None = None, modus: str | None = None, kanal: str = "", folge: int = 0) -> dict:
     """Dreiecksnetze der Teile für die 3D-Ansicht. Prüft zuerst wie der Export; ohne FreeCAD gibt es eine Meldung."""
+    if kanal:
+        with _VORSCHAU_ANFRAGEN_SPERRE:
+            if len(_VORSCHAU_ANFRAGEN) > 128:
+                _VORSCHAU_ANFRAGEN.clear()
+            _VORSCHAU_ANFRAGEN[kanal] = max(folge, _VORSCHAU_ANFRAGEN.get(kanal, 0))
     projekt = Projekt.from_dict(projekt_dict)
     if teil_ids:
         # Nur gezeichnete Teile: ein Teil allein, ohne Schublade, Platten und Montageplan
@@ -494,10 +529,13 @@ def vorschau_bauen(projekt_dict: dict, teil_ids: list[str] | None = None, freeca
     auftrag = auftrag_bauen(projekt)
     if not auftrag.get("ok"):
         return {"ok": False, "fehler": auftrag.get("fehler") or ["Ungültige Eingabe."], "netze": [], "hinweise": []}
-    teile = [t for t in auftrag["teile"] if t["rolle"] in ("eigen", "ersatzteil", "kabel", "gehaeuse")][:8]
+    teile = auftrag["teile"]
     if not teile:
         return {"ok": False, "fehler": ["Es gibt nichts zu zeigen."], "netze": [], "hinweise": []}
+    freecad_pfad = freecad_pfad or settings_laden().get("freecad_pfad") or None
     with _VORSCHAU_SPERRE:
+        if kanal and folge < _VORSCHAU_ANFRAGEN.get(kanal, 0):
+            return {"ok": False, "fehler": ["Durch eine neuere Vorschau ersetzt."], "netze": [], "hinweise": []}
         sitzung = _VORSCHAU.get("sitzung")
         if sitzung is not None and (sitzung.proc is None or sitzung.proc.poll() is not None or _VORSCHAU.get("pfad") != (freecad_pfad or "")):
             _vorschau_schliessen_ohne_sperre()
@@ -507,10 +545,32 @@ def vorschau_bauen(projekt_dict: dict, teil_ids: list[str] | None = None, freeca
             if not befehl:
                 return {"ok": False, "fehler": [info.get("hinweis") or "FreeCAD wurde nicht gefunden."], "netze": [], "hinweise": [], "ohne_freecad": True}
             sitzung = FreeCADSession(befehl)
-            sitzung.start()
+            try:
+                sitzung.start()
+            except Exception:
+                sitzung.close()
+                raise
             _VORSCHAU["sitzung"], _VORSCHAU["pfad"] = sitzung, freecad_pfad or ""
         try:
-            antwort = sitzung.request({"cmd": "vorschau", "teile": teile}, timeout=300)
+            netze, hinweise = [], []
+            for teil in teile:
+                if kanal and folge < _VORSCHAU_ANFRAGEN.get(kanal, 0):
+                    return {"ok": False, "fehler": ["Durch eine neuere Vorschau ersetzt."], "netze": [], "hinweise": []}
+                key = hashlib.sha256(json.dumps([freecad_pfad, teil], sort_keys=True).encode()).hexdigest()
+                if key in _VORSCHAU_CACHE:
+                    result = copy.deepcopy(_VORSCHAU_CACHE[key])
+                    _VORSCHAU_CACHE.move_to_end(key)
+                else:
+                    antwort = sitzung.request({"cmd": "vorschau", "teile": [teil]}, timeout=300)
+                    if not antwort.get("ok"):
+                        return {"ok": False, "fehler": [str(antwort.get("fehler") or "Geometriefehler.").splitlines()[0]], "netze": [], "hinweise": []}
+                    result = antwort["result"]
+                    _VORSCHAU_CACHE[key] = copy.deepcopy(result)
+                    while len(_VORSCHAU_CACHE) > 24:
+                        _VORSCHAU_CACHE.popitem(last=False)
+                netze.extend(result["netze"])
+                hinweise.extend(result.get("hinweise") or [])
+            antwort = {"ok": True, "result": {"netze": netze, "hinweise": hinweise, "teile_gesamt": len(teile), "teile_gezeigt": len(teile)}}
         except Exception as exc:
             _vorschau_schliessen_ohne_sperre()
             return {"ok": False, "fehler": ["Vorschau abgebrochen: %s" % exc], "netze": [], "hinweise": []}

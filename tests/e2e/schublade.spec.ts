@@ -9,6 +9,9 @@ const BILDER = path.join("test-results", "bilder");
 const MIT_FREECAD = Boolean(process.env.FREECADCMD);
 fs.mkdirSync(BILDER, { recursive: true });
 
+// Projektwechsel und Neuladen bestätigen den Schutz ungespeicherter Änderungen.
+test.beforeEach(async ({ page }) => { page.on("dialog", (dialog) => dialog.accept()); });
+
 test("Schublade anlegen, prüfen, speichern, neu öffnen, erzeugen", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByText("Schubladen-Konfigurator")).toBeVisible();

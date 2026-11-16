@@ -6,6 +6,7 @@ export type KantenArt = "keine" | "fase" | "rund";
 
 /** Optionen, die jede Form haben kann. */
 export interface FormOptionen {
+  fid?: string;
   z_mm?: number;
   h_mm?: number;
   /** Fase oder Rundung am Oberrand der Form bzw. am Lochrand */
@@ -49,6 +50,7 @@ export interface Seitenloch {
 }
 
 export interface Eigenteil {
+  bedingungen?: import("./bedingungen").Bedingung[];
   id: string;
   name: string;
   hoehe_mm: number;
@@ -280,6 +282,7 @@ export function polygonAus(punkte: Punkt[], loch: boolean): Form | null {
 /** Wie der Sidecar: ein Eigenteil aus dem Projekt wird mit Standardwerten ergänzt. */
 export function teilVonServer(roh: Record<string, unknown>): Eigenteil {
   return {
+    bedingungen: (roh.bedingungen as import("./bedingungen").Bedingung[]) || [],
     id: String(roh.id),
     name: String(roh.name || roh.id),
     hoehe_mm: Number(roh.hoehe_mm ?? 10),

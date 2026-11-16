@@ -1,5 +1,19 @@
 # Änderungsprotokoll
 
+## 0.6.0
+
+- Lokale Wiederherstellungskopie und Schutz ungespeicherter Änderungen.
+- Abbrechbare Exportaufträge mit sichtbarem Status und aufklappbaren Fehlerdetails.
+- Vollständige 3D-Teilevorschau mit Sichtbarkeitsschaltern, Zwischenspeicher und Überspringen überholter Anfragen.
+- Gespeicherte Druck-/Materialprofile und Loch/Stift-Kalibrierprojekt mit fünf Spielmaßen.
+- Dauerhafte Skizzenbedingungen für Rechtecke und Kreise (mittig, Abstand, gleiche Größe, parallel).
+- Stückliste berücksichtigt den Projektbauraum anstelle fest vorgegebener 256 mm.
+- Regressionstests für Wiederherstellung, Bedingungen, Vorschau, Abbruch und Bauraum.
+
+- 3D-Messtest nach Scrollen korrigiert; zusätzlicher Regressionstest ohne lokale FreeCAD-Installation.
+- Windows-Prüfung: 106 Frontend-Tests, 132 Python-Tests (einer übersprungen), alle 24 Bedienungstests sowie Installer und App-Start erfolgreich.
+- Der Windows-Installer ist `CAD-Studio-0.6.0-Setup.exe` und `CAD-Studio-0.6.0.msi` auf der Releases-Seite. FreeCAD 1.1.x muss separat installiert sein. Der Installer ist nicht code-signiert, Windows SmartScreen kann warnen. Ein Hardware-Test auf Marcels PC ist noch nicht ausgeführt. Physische Druckpassungen sind weiterhin nicht bestätigt.
+
 ## 0.5.0
 
 - 3D-Ansicht: Schnittebene (waagerecht und senkrecht, mit Schieber und Seitenwechsel) und Messen zwischen zwei Punkten.

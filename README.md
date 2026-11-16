@@ -74,7 +74,7 @@ npm run dev
 
 Die Oberfläche liegt dann auf `http://localhost:1420`. Unter Windows startet die installierte Anwendung den Dienst selbst.
 
-Der Workflow `.github/workflows/windows.yml` baut auf `windows-latest` MSI und NSIS und lädt beide Pakete 14 Tage als Actions-Artifacts hoch, zum Prüfen eines Pull Requests. Die dauerhafte Datei liegt auf der [Releases-Seite](https://github.com/marci210987-ship-it/3dtool/releases). Ein Start auf einem Windows-Rechner ist damit nicht geprüft.
+Der Workflow `.github/workflows/windows.yml` baut auf `windows-latest` MSI und NSIS und lädt beide Pakete 14 Tage als Actions-Artifacts hoch, zum Prüfen eines Pull Requests. Die dauerhafte Datei liegt auf der [Releases-Seite](https://github.com/marci210987-ship-it/3dtool/releases). Der Start der installierten App und des mitgelieferten Dienstes ist auf dem Windows-Runner geprüft. Ein Test auf einem Benutzer-PC steht aus.
 
 ## Bedienung
 
@@ -111,18 +111,18 @@ Der Prüfbericht steht in [TESTBERICHT.md](TESTBERICHT.md).
 
 Die Installer liegen auf der [Releases-Seite](https://github.com/marci210987-ship-it/3dtool/releases) und laufen nicht ab.
 
-- `CAD-Studio-0.5.0-Setup.exe` ist der einfachere Weg.
-- `CAD-Studio-0.5.0.msi` ist dasselbe Programm als MSI.
+- `CAD-Studio-0.6.0-Setup.exe` ist der einfachere Weg.
+- `CAD-Studio-0.6.0.msi` ist dasselbe Programm als MSI.
 
 FreeCAD 1.1.x muss separat installiert sein. Der Installer ist nicht code-signiert, Windows SmartScreen kann warnen. Ein Hardware-Test auf Marcels PC ist noch nicht ausgeführt.
 
-Ein Release entsteht nach dem Merge, wenn der Tag `v0.5.0` auf `main` zeigt. Derselbe Lauf lässt sich unter **Actions → Release → Run workflow** mit der Eingabe `v0.5.0` starten. Der Lauf installiert das Setup still und prüft `/health`, bevor die Dateien am Release hängen. Vorher gibt es die Dateien nicht.
+Ein Release entsteht nach dem Merge, wenn der Tag `v0.6.0` auf `main` zeigt. Derselbe Lauf lässt sich unter **Actions → Release → Run workflow** mit der Eingabe `v0.6.0` starten. Der Lauf installiert das Setup still und prüft `/health`, bevor die Dateien am Release hängen. Vorher gibt es die Dateien nicht.
 
 ## Installer auf dem eigenen Windows-PC prüfen
 
 Diese Schritte sind die Anleitung für den ersten Start. Sie sind kein bereits durchgeführter Test auf Windows-Hardware.
 
-1. Auf der [Releases-Seite](https://github.com/marci210987-ship-it/3dtool/releases) `CAD-Studio-0.5.0-Setup.exe` oder `CAD-Studio-0.5.0.msi` herunterladen.
+1. Auf der [Releases-Seite](https://github.com/marci210987-ship-it/3dtool/releases) `CAD-Studio-0.6.0-Setup.exe` oder `CAD-Studio-0.6.0.msi` herunterladen.
 2. Das Setup ist der einfachere Weg. Windows SmartScreen kann warnen, weil das Paket nicht signiert ist.
 3. Python ist nicht nötig, der Installer bringt es mit. Fehlt der Dienst trotzdem („Der lokale Dienst antwortet nicht“), steht die Ausgabe in `%APPDATA%\CADStudio\dienst.log`.
 4. [FreeCAD 1.1.x](https://github.com/FreeCAD/FreeCAD/releases/tag/1.1.4) für Windows installieren, zum Beispiel 1.1.4. CAD Studio enthält FreeCAD nicht. Versionen außerhalb von 1.1.x werden abgelehnt.
@@ -133,3 +133,38 @@ Diese Schritte sind die Anleitung für den ersten Start. Sie sind kein bereits d
 ## Was noch nicht da ist
 
 Freiformflächen, Gewinde, Schriftarten (es gibt nur eine Pixelschrift) und 3D-Skizzen gibt es nicht. Randstreifen sind einfache, glatte Füllplatten ohne Verbinder. Das Spiel an Deckel, Kabeln und Stopfen ist die Lücke im Modell und nicht an einem gedruckten Teil geprüft. Der Windows-Installer wird in GitHub Actions gebaut, dort auf dem Runner gestartet und danach als Release abgelegt. Auf einem echten Windows-PC eines Benutzers wurde er noch nicht geprüft.
+
+## Sicherung, Druckprofile und Skizzenbedingungen
+
+Ungespeicherte Änderungen werden nach einer kurzen Eingabepause als separate lokale
+Wiederherstellungskopie gespeichert. Nach einem Neustart lässt sich diese Kopie
+wiederherstellen oder verwerfen. Sie ersetzt **Speichern** nicht und überschreibt keine
+Projektdatei. Beim Schließen und beim Wechsel zu einem anderen Projekt erscheint eine
+Warnung, wenn Änderungen noch nicht manuell gespeichert sind. Die Kopie liegt im lokalen
+Speicher der Oberfläche; ein Löschen der Anwendungs-/Browserdaten entfernt sie ebenfalls.
+
+Unter **Einstellungen → Druckprofile und Passungskalibrierung** lassen sich Material,
+Bauraum und Spielmaße speichern und auf das aktuelle Projekt anwenden. Das Kalibrierprojekt
+erzeugt fünf Lochplatten mit Stiften (Spiel je Seite: 0,10 bis 0,50 mm). Die Zuordnung
+steht im Teilnamen und damit in der Stückliste. Ein Loch/Stift-Test ist ein Ausgangspunkt;
+Deckel, Stopfen und Kabelverbinder müssen zusätzlich in ihrer konkreten Geometrie gedruckt
+und geprüft werden. Ein Profil gilt erst durch die eigene Kennzeichnung als druckgeprüft.
+
+Im Zeichenblatt halten **Skizzenbedingungen** Rechtecke und Kreise dauerhaft mittig,
+in einem festen X-/Y-Abstand oder gleich groß. Zwei Rechtecke lassen sich außerdem
+parallel halten. Zuerst die Bezugsform, dann die abhängige Form wählen. Bei Änderungen
+folgt die abhängige Form dem Bezug. Kreisbezüge und mehrere Bedingungen für dieselbe
+Eigenschaft werden abgewiesen. Das Löschen einer Form entfernt ihre Beziehungen;
+Rückgängig stellt beides wieder her. Bedingungen werden im Projekt und in Vorlagen
+mitgespeichert. Freie Polygonkanten und ein allgemeiner CAD-Bedingungslöser sind nicht enthalten.
+
+Die echte 3D-Vorschau zeigt alle Auftragsteile ohne die frühere Acht-Teile-Grenze.
+Jeder Körper lässt sich ausblenden. Die Anzeige nennt den berechneten Umfang; die
+Körper liegen zur Inspektion nebeneinander. Unveränderte Teile werden im Speicher
+zwischengespeichert, überholte wartende Anfragen werden übersprungen. Eine bereits
+laufende Einzelteilberechnung kann noch fertiglaufen.
+
+Ein laufender Export lässt sich mit **Export abbrechen** beenden. Dabei wird nur der
+FreeCAD-Prozess dieses Auftrags beendet. Bereits geschriebene Dateien können im
+Exportordner bleiben und gelten nicht als vollständiger, geprüfter Export. Fehler zeigen
+zuerst eine Kurzmeldung, weitere Angaben stehen unter **Technische Details**.

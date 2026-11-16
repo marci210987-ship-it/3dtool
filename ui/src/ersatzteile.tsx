@@ -1,3 +1,4 @@
+import { ExportFehler } from "./exportfehler";
 import { useEffect, useRef } from "react";
 import * as THREE from "three";
 import { STLLoader } from "three/examples/jsm/loaders/STLLoader.js";
@@ -146,12 +147,7 @@ export function ErsatzteilAnsicht({
           </button>
           {jobText && rechnet && <p>{jobText}</p>}
           {ergebnis && !ergebnis.ok && (
-            <div className="alarm" role="alert" data-testid="export-fehler">
-              <strong>Nicht exportiert.</strong>
-              {(ergebnis.fehler || ["Die Prüfung ist fehlgeschlagen."]).map((f) => (
-                <p key={f}>{f}</p>
-              ))}
-            </div>
+            <ExportFehler fehler={ergebnis.fehler} />
           )}
           {ergebnis?.ok && (
             <>
